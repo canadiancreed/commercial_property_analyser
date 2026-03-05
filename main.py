@@ -2230,8 +2230,8 @@ class PropertyMenu:
 
 
     def _open_city_report(self):
-        """Aggregate saved properties by city and open a ranked HTML report."""
-        import json, tempfile, webbrowser, os, pathlib
+        """Aggregate all saved properties by city and open a ranked HTML report."""
+        import tempfile, webbrowser, os
         from collections import defaultdict
 
         props = self._store.load_properties()
@@ -2241,65 +2241,18 @@ class PropertyMenu:
 
         cfg = self._load_score_config()
         print("  Building city report", end="", flush=True)
-
-        # ── Enrich every property ────────────────────────────────────────────
-        all_rows = []
         city_data = defaultdict(list)
         for p in props:
             scored   = self._score_property(p)
-            targets  = self._solve_targets(p)
             city     = (p.get("city") or "Unknown").strip()
             prov     = (p.get("province") or "").strip()
             city_key = f"{city}, {prov}" if prov else city
-            row = {
-                "address":    p.get("address", "—"),
-                "mls":        p.get("mls_number", "—"),
-                "status":     p.get("status", "—"),
-                "city":       city_key,
-                "type":       p.get("property_type") or "—",
-                "asking":     p.get("asking_price", 0),
-                "sqft":       p.get("total_sq_ft", 0),
-                "listed":     p.get("listing_date", "—"),
-                "analyzed":   p.get("analyzed_on") or "—",
-                "notes":      p.get("notes") or "",
-                "construction": p.get("construction_cost") or 0,
-                "dist_km":    scored.get("dist_km"),
-                "dist_centre": scored.get("dist_centre") or "",
-                "comm_rent":  p.get("commercial_rent") or 0,
-                "res_rent":   p.get("residential_rent") or 0,
-                "score":      scored.get("score"),
-                "breakdown":  scored.get("breakdown", {}),
-                "weights":    scored.get("weights", {}),
-                "cap_rate":   scored.get("cap_rate", 0),
-                "coc":        scored.get("coc", 0),
-                "dscr":       scored.get("dscr", 0),
-                "irr":        scored.get("irr", 0),
-                "em":         scored.get("em", 0),
-                "cf_annual":  scored.get("cf_annual", 0),
-                "price_drop": scored.get("price_drop", 0),
-                "dom":        scored.get("dom", 0),
-                "original":   p.get("original_price", 0),
-                "taxes":      p.get("property_taxes", 0),
-                "down_pct":   p.get("down_payment_pct", 0),
-                "rate":       p.get("interest_rate", 0),
-                "term":       p.get("term_years", 0),
-                "hold":       p.get("hold_years", 0),
-                "expense_ratio": p.get("expense_ratio", 0),
-                "lease_type": p.get("lease_type", ""),
-                "results":    p.get("results", []),
-                "targets":    targets,
-                "hotel_rooms": p.get("hotel_rooms", 0) or 0,
-                "hotel_adr":  p.get("hotel_adr") or 0,
-                "hotel_occ":  p.get("hotel_occupancy") or 0,
-                "rent_breakdown": p.get("rent_breakdown", []),
-                "province":   p.get("province") or "",
-            }
-            all_rows.append(row)
             city_data[city_key].append({
                 "score":      scored.get("score"),
                 "cap_rate":   scored.get("cap_rate",  0) or 0,
                 "coc":        scored.get("coc",        0) or 0,
                 "irr":        scored.get("irr",        0) or 0,
+                "cf_annual":  scored.get("cf_annual",  0) or 0,
                 "price_drop": scored.get("price_drop", 0) or 0,
                 "dom":        scored.get("dom",         0) or 0,
                 "asking":     p.get("asking_price", 0) or 0,
@@ -2309,16 +2262,15 @@ class PropertyMenu:
             print(".", end="", flush=True)
         print(" done.")
 
-        # ── Aggregate by city ────────────────────────────────────────────────
-        def _avg(lst, key):
+        def avg(lst, key):
             vals = [e[key] for e in lst if e.get(key) is not None and e[key] != 0]
             return round(sum(vals) / len(vals), 2) if vals else 0
 
-        def _best(lst, key):
+        def best(lst, key):
             vals = [e[key] for e in lst if e.get(key) is not None]
             return round(max(vals), 2) if vals else 0
 
-        def _norm(v, lo, hi):
+        def norm(v, lo, hi):
             if hi == lo: return 0
             return max(0, min(1, (v - lo) / (hi - lo)))
 
@@ -2329,27 +2281,29 @@ class PropertyMenu:
             scored_e = [e for e in entries if e["score"] is not None]
             n_active = len(active)
 
-            avg_score  = _avg(scored_e, "score")
-            best_score = _best(scored_e, "score")
-            avg_cap    = _avg(entries, "cap_rate")
-            avg_coc    = _avg(entries, "coc")
-            avg_irr    = _avg(entries, "irr")
-            avg_drop   = _avg(active,  "price_drop")
-            avg_dom    = _avg(active,  "dom")
-            avg_price  = _avg(active,  "asking")
+            avg_score  = avg(scored_e, "score")
+            best_score = best(scored_e, "score")
+            avg_cap    = avg(entries, "cap_rate")
+            avg_coc    = avg(entries, "coc")
+            avg_irr    = avg(entries, "irr")
+            avg_cf     = avg(entries, "cf_annual")
+            avg_drop   = avg(active,  "price_drop")
+            avg_dom    = avg(active,  "dom")
+            avg_price  = avg(active,  "asking")
             dist_km    = next((e["dist_km"] for e in entries if e["dist_km"] is not None), None)
 
             cw = cfg.get("city_weights", {})
             opportunity = round(
-                _norm(avg_score,  0,   100) * (cw.get("avg_score",  0.30) * 100) +
-                _norm(best_score, 0,   100) * (cw.get("best_score", 0.10) * 100) +
-                _norm(n_active,   1,   10)  * (cw.get("volume",     0.15) * 100) +
-                _norm(avg_cap,    3,   9)   * (cw.get("cap_rate",   0.15) * 100) +
-                _norm(avg_drop,   0,   15)  * (cw.get("price_drop", 0.10) * 100) +
-                _norm(avg_dom,    30,  180) * (cw.get("dom",        0.10) * 100) +
-                _norm(avg_coc,    0,   12)  * (cw.get("coc",        0.10) * 100),
+                norm(avg_score,  0,   100) * (cw.get("avg_score",  0.30) * 100) +
+                norm(best_score, 0,   100) * (cw.get("best_score", 0.10) * 100) +
+                norm(n_active,   1,   10)  * (cw.get("volume",     0.15) * 100) +
+                norm(avg_cap,    3,   9)   * (cw.get("cap_rate",   0.15) * 100) +
+                norm(avg_drop,   0,   15)  * (cw.get("price_drop", 0.10) * 100) +
+                norm(avg_dom,    30,  180) * (cw.get("dom",        0.10) * 100) +
+                norm(avg_coc,    0,   12)  * (cw.get("coc",        0.10) * 100),
                 1
             )
+
             cities.append({
                 "city": city_key, "total": total, "active": n_active,
                 "avg_score": avg_score, "best_score": best_score,
@@ -2361,270 +2315,177 @@ class PropertyMenu:
 
         cities.sort(key=lambda c: c["opportunity"], reverse=True)
 
-        import math
+        # ── helpers ──────────────────────────────────────────────────────────
+        def fmt_money(n):
+            if not n: return "—"
+            if n >= 1_000_000: return f"${n/1_000_000:.1f}M"
+            if n >= 1_000:     return f"${n/1_000:.0f}K"
+            return f"${n:,.0f}"
 
-        def sanitise(obj):
-            if isinstance(obj, float):
-                return None if (math.isnan(obj) or math.isinf(obj)) else obj
-            if isinstance(obj, dict):
-                return {k: sanitise(v) for k, v in obj.items()}
-            if isinstance(obj, list):
-                return [sanitise(v) for v in obj]
-            return obj
+        def fmt_pct(n, dec=1):
+            return f"{n:.{dec}f}%" if n else "—"
 
-        city_json  = json.dumps(sanitise(cities))
-        props_json = json.dumps(sanitise(all_rows))
+        def score_cls(v):
+            if not v: return ""
+            return "good" if v >= 70 else "fair" if v >= 45 else "poor"
+
+        def cap_cls(v):
+            if not v: return ""
+            return "good" if v >= 7 else "fair" if v >= 5 else "poor"
+
+        def opp_cls(v):
+            return "bar-high" if v >= 65 else "bar-low" if v < 35 else "bar-mid"
+
+        # ── build rows ───────────────────────────────────────────────────────
+        top = cities[0] if cities else None
+
+        def verdict(c):
+            parts = []
+            if c["active"] >= 5:    parts.append(f"Strong deal flow with {c['active']} active listings")
+            elif c["active"] >= 2:  parts.append(f"{c['active']} active listings available")
+            else:                   parts.append(f"Limited inventory — only {c['active']} active listing{'s' if c['active'] != 1 else ''}")
+            if c["avg_cap"] >= 7:   parts.append(f"excellent cap rates at {c['avg_cap']:.1f}%")
+            elif c["avg_cap"] >= 5: parts.append(f"reasonable cap rates at {c['avg_cap']:.1f}%")
+            if c["avg_drop"] >= 5:  parts.append(f"sellers showing motivation — {c['avg_drop']:.1f}% avg reduction")
+            if c["avg_dom"] >= 90:  parts.append(f"soft market — {c['avg_dom']}d avg on market")
+            if c["best_score"] >= 70: parts.append(f"best deal scores {c['best_score']:.0f}/100")
+            return (", ".join(parts) + ".") if parts else "Insufficient data for analysis."
+
+        top_card = ""
+        if top:
+            top_card = f"""
+        <div class="top-card">
+          <div class="top-left">
+            <div class="top-label">Top Opportunity</div>
+            <div class="top-city">{top["city"]}</div>
+            <div class="top-verdict">{verdict(top)}</div>
+          </div>
+          <div class="top-stats">
+            <div class="stat"><span class="sl">Opportunity</span><span class="sv">{top["opportunity"]:.0f}/100</span></div>
+            <div class="stat"><span class="sl">Active Deals</span><span class="sv">{top["active"]}</span></div>
+            <div class="stat"><span class="sl">Avg Score</span><span class="sv">{f'{top["avg_score"]:.0f}' if top["avg_score"] else "—"}</span></div>
+            <div class="stat"><span class="sl">Best Score</span><span class="sv">{f'{top["best_score"]:.0f}' if top["best_score"] else "—"}</span></div>
+            <div class="stat"><span class="sl">Avg Cap Rate</span><span class="sv">{fmt_pct(top["avg_cap"])}</span></div>
+            <div class="stat"><span class="sl">Avg DOM</span><span class="sv">{top["avg_dom"] or "—"}d</span></div>
+          </div>
+        </div>"""
+
+        rows_html = ""
+        for i, c in enumerate(cities, 1):
+            bar_w   = min(100, int(c["opportunity"]))
+            sub     = ""
+            if c["dist_km"] is not None: sub += f'<div class="city-sub">{c["dist_km"]}km to centre</div>'
+            inactive = c["total"] - c["active"]
+            if inactive > 0: sub += f'<div class="city-sub">{c["total"]} total ({inactive} inactive)</div>'
+            rows_html += f"""        <tr>
+          <td><span class="rank">#{i}</span> <span class="cn">{c["city"]}</span>{sub}</td>
+          <td><span class="opp">{c["opportunity"]:.0f}</span>
+              <span class="bar-wrap"><span class="bar {opp_cls(c["opportunity"])}" style="width:{bar_w}%"></span></span></td>
+          <td>{c["active"]}</td>
+          <td class="{score_cls(c["avg_score"])}">{f'{c["avg_score"]:.0f}' if c["avg_score"] else "—"}</td>
+          <td class="{score_cls(c["best_score"])}">{f'{c["best_score"]:.0f}' if c["best_score"] else "—"}</td>
+          <td class="{cap_cls(c["avg_cap"])}">{fmt_pct(c["avg_cap"])}</td>
+          <td class="{cap_cls(c["avg_coc"])}">{fmt_pct(c["avg_coc"])}</td>
+          <td class="{cap_cls(c["avg_irr"])}">{fmt_pct(c["avg_irr"])}</td>
+          <td class="{"good" if c["avg_drop"] > 0 else ""}">{fmt_pct(c["avg_drop"])}</td>
+          <td class="{"good" if c["avg_dom"] >= 90 else "fair" if c["avg_dom"] >= 60 else ""}">{c["avg_dom"] or "—"}d</td>
+          <td>{fmt_money(c["avg_price"])}</td>
+        </tr>
+"""
 
         from datetime import date
-        today_str   = date.today().strftime("%B %d, %Y")
-        n_cities    = len(cities)
-        n_active    = sum(c["active"] for c in cities)
-
-        # ── Build HTML by concatenation — no f-string (avoids CSS brace mangling) ──
-        HTML_HEAD = """<!DOCTYPE html>
+        today = date.today().strftime("%B %d, %Y")
+        html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>City Opportunity Report</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0f0f0f;--paper:#f5f0e8;--cream:#ede8dc;--rule:#c8bfaa;--gold:#b8960c;--green:#2d6a4f;--red:#8b1a1a;--amber:#c17f24;--muted:#6b6355}
-*{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--paper);color:var(--ink);font-family:'DM Sans',sans-serif;font-size:14px;line-height:1.5}
-header{border-bottom:3px double var(--rule);padding:2rem 2.5rem 1.5rem;background:var(--cream)}
-h1{font-family:'DM Serif Display',serif;font-size:2.4rem;letter-spacing:-0.02em}
-h1 em{font-style:italic;color:var(--gold)}
-.meta{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-top:0.4rem;letter-spacing:0.08em;text-transform:uppercase}
-.explainer{padding:0.8rem 2.5rem;background:var(--cream);border-bottom:1px solid var(--rule);font-size:12px;color:var(--muted);font-style:italic}
-main{padding:1.5rem 2.5rem 3rem}
-.top-card{background:white;border:1px solid var(--rule);border-left:4px solid var(--gold);padding:1.2rem 1.5rem;margin-bottom:1.5rem;display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start}
-.top-label{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--gold);margin-bottom:0.3rem}
-.top-city{font-family:'DM Serif Display',serif;font-size:1.6rem;cursor:pointer}
-.top-verdict{font-size:13px;color:var(--muted);font-style:italic;margin-top:0.3rem;max-width:420px}
-.top-stats{display:flex;gap:1.5rem;flex-wrap:wrap}
-.stat{display:flex;flex-direction:column;gap:0.1rem}
-.sl{font-family:'DM Mono',monospace;font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)}
-.sv{font-family:'DM Mono',monospace;font-size:14px;font-weight:500}
-h2.sh{font-family:'DM Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);border-bottom:1px solid var(--rule);padding-bottom:0.3rem;margin:0 0 0.8rem}
-table{width:100%;border-collapse:collapse}
-thead tr{background:var(--cream);border-bottom:2px solid var(--rule)}
-th{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);padding:0.6rem 0.8rem;text-align:right;white-space:nowrap}
-th.left{text-align:left}
-td{padding:0.55rem 0.8rem;border-bottom:1px solid var(--cream);font-size:13px;text-align:right;vertical-align:middle}
-td.left{text-align:left}
-tr.city-row{cursor:pointer}
-tr.city-row:hover td{background:#faf7f2}
-.rank{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);margin-right:0.4rem}
-.cn{font-family:'DM Serif Display',serif;font-size:1.05rem}
-.city-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);margin-top:0.1rem}
-.opp{font-family:'DM Serif Display',serif;font-size:1.4rem;vertical-align:middle}
-.bar-wrap{display:inline-block;width:60px;height:5px;background:var(--cream);border:1px solid var(--rule);vertical-align:middle;margin-left:0.3rem}
-.bar{display:block;height:100%}
-.bar-high{background:var(--green)}.bar-mid{background:var(--gold)}.bar-low{background:var(--red)}
-.good{color:var(--green);font-weight:500}.fair{color:var(--amber)}.poor{color:var(--red)}
-.overlay{display:none;position:fixed;inset:0;background:rgba(15,15,15,0.65);z-index:1000;overflow-y:auto;padding:2rem 1rem}
-.overlay.open{display:flex;justify-content:center;align-items:flex-start}
-.drawer{background:var(--paper);border:1px solid var(--rule);width:100%;max-width:820px;position:relative}
-.drawer-header{background:var(--cream);border-bottom:2px solid var(--rule);padding:1.2rem 1.5rem;display:flex;justify-content:space-between;align-items:center}
-.drawer-title{font-family:'DM Serif Display',serif;font-size:1.4rem}
-.drawer-close{background:none;border:none;font-size:1.4rem;cursor:pointer;color:var(--muted);padding:0.2rem 0.5rem}
-.prop-list{padding:1rem;display:flex;flex-direction:column;gap:0.6rem}
-.prop-card{background:white;border:1px solid var(--rule);padding:0.9rem 1.1rem;cursor:pointer}
-.prop-card:hover{border-color:var(--gold);background:#fffdf7}
-.prop-addr{font-family:'DM Serif Display',serif;font-size:1.05rem;margin-bottom:0.2rem}
-.prop-meta{font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;display:flex;gap:0.8rem;flex-wrap:wrap}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,15,15,0.65);z-index:2000;overflow-y:auto;padding:2rem 1rem}
-.modal-overlay.open{display:flex;justify-content:center;align-items:flex-start}
-.modal{background:var(--paper);border:1px solid var(--rule);width:100%;max-width:900px;position:relative}
-.modal-close{position:absolute;top:0.8rem;right:0.8rem;background:none;border:none;font-size:1.2rem;cursor:pointer;color:var(--muted);z-index:10;padding:0.2rem 0.4rem}
-.modal-map-frame{width:100%;height:420px;border:none;display:block;box-sizing:border-box;background:var(--cream)}
-.modal-map-bar{background:var(--cream);border-bottom:1px solid var(--rule);padding:0.35rem 1rem;display:flex;justify-content:space-between;align-items:center;font-family:'DM Mono',monospace;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em}
-.modal-map-bar a{color:var(--gold);text-decoration:none;font-weight:500}
-.modal-body{padding:1.5rem 2rem 2rem}
-.modal-address{font-family:'DM Serif Display',serif;font-size:1.6rem;line-height:1.1}
-.modal-sub{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-top:0.35rem;display:flex;gap:1rem;flex-wrap:wrap}
-.modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-top:1.2rem}
-.modal-section h3{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);border-bottom:1px solid var(--rule);padding-bottom:0.3rem;margin-bottom:0.6rem}
-.modal-metric-row{display:flex;justify-content:space-between;align-items:baseline;padding:0.2rem 0;border-bottom:1px solid var(--cream);gap:0.5rem}
-.modal-metric-name{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted)}
-.modal-metric-val{font-family:'DM Mono',monospace;font-size:12px;font-weight:500}
-.modal-metric-val.good{color:var(--green)}.modal-metric-val.fair{color:var(--amber)}.modal-metric-val.poor{color:var(--red)}
-.score-total{font-family:'DM Serif Display',serif;font-size:2.5rem;line-height:1}
-.score-label{font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);margin-top:0.2rem}
-.score-breakdown{margin-top:0.8rem;display:flex;flex-direction:column;gap:0.35rem}
-.score-row{display:flex;align-items:center;gap:0.6rem;font-family:'DM Mono',monospace;font-size:10px}
-.score-row-label{width:110px;color:var(--muted);text-transform:uppercase;flex-shrink:0}
-.score-bar-bg{flex:1;height:6px;background:var(--cream);border:1px solid var(--rule)}
-.score-bar-fill{height:100%;background:var(--gold)}
-.score-row-val{width:28px;text-align:right}
-#modal-content{display:block;width:100%;box-sizing:border-box}
+:root {{
+  --ink:#0f0f0f; --paper:#f5f0e8; --cream:#ede8dc;
+  --rule:#c8bfaa; --gold:#b8960c; --green:#2d6a4f;
+  --red:#8b1a1a; --amber:#c17f24; --muted:#6b6355;
+  --serif:'DM Serif Display',Georgia,serif;
+  --mono:'DM Mono','Courier New',monospace;
+  --sans:'DM Sans',system-ui,sans-serif;
+}}
+*{{box-sizing:border-box;margin:0;padding:0}}
+body{{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}}
+header{{border-bottom:3px double var(--rule);padding:2rem 2.5rem 1.5rem;background:var(--cream)}}
+header h1{{font-family:var(--serif);font-size:2.4rem;letter-spacing:-0.02em}}
+header h1 em{{font-style:italic;color:var(--gold)}}
+.meta{{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:0.4rem;letter-spacing:0.08em;text-transform:uppercase}}
+.explainer{{padding:0.8rem 2.5rem;background:var(--cream);border-bottom:1px solid var(--rule);font-size:12px;color:var(--muted);font-style:italic}}
+main{{padding:1.5rem 2.5rem 3rem}}
+.top-card{{background:white;border:1px solid var(--rule);border-left:4px solid var(--gold);padding:1.2rem 1.5rem;margin-bottom:1.5rem;display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start}}
+.top-label{{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--gold);margin-bottom:0.3rem}}
+.top-city{{font-family:var(--serif);font-size:1.6rem;margin-bottom:0.2rem}}
+.top-verdict{{font-size:13px;color:var(--muted);font-style:italic;margin-top:0.3rem;max-width:420px}}
+.top-stats{{display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start}}
+.stat{{display:flex;flex-direction:column;gap:0.1rem}}
+.sl{{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)}}
+.sv{{font-family:var(--mono);font-size:14px;font-weight:500}}
+h2.sh{{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);border-bottom:1px solid var(--rule);padding-bottom:0.3rem;margin:0 0 0.8rem}}
+table{{width:100%;border-collapse:collapse}}
+thead tr{{background:var(--cream);border-bottom:2px solid var(--rule)}}
+th{{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);padding:0.6rem 0.8rem;text-align:right;white-space:nowrap}}
+th:first-child{{text-align:left}}
+td{{padding:0.55rem 0.8rem;border-bottom:1px solid var(--cream);font-size:13px;text-align:right;vertical-align:middle}}
+td:first-child{{text-align:left}}
+tr:hover td{{background:#faf7f2}}
+.rank{{font-family:var(--mono);font-size:11px;color:var(--muted);margin-right:0.4rem}}
+.cn{{font-family:var(--serif);font-size:1.05rem}}
+.city-sub{{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:0.1rem}}
+.opp{{font-family:var(--serif);font-size:1.4rem;line-height:1;vertical-align:middle}}
+.bar-wrap{{display:inline-block;width:60px;height:5px;background:var(--cream);border:1px solid var(--rule);vertical-align:middle;margin-left:0.3rem}}
+.bar{{display:block;height:100%}}
+.bar-high{{background:var(--green)}}
+.bar-mid{{background:var(--gold)}}
+.bar-low{{background:var(--red)}}
+.good{{color:var(--green);font-weight:500}}
+.fair{{color:var(--amber)}}
+.poor{{color:var(--red)}}
 </style>
 </head>
 <body>
-<div class="overlay" id="city-overlay" onclick="if(event.target===this)closeDrawer()">
-  <div class="drawer">
-    <div class="drawer-header">
-      <div class="drawer-title" id="drawer-title"></div>
-      <button class="drawer-close" onclick="closeDrawer()">&#x2715;</button>
-    </div>
-    <div class="prop-list" id="prop-list"></div>
-  </div>
-</div>
-<div class="modal-overlay" id="modal-overlay" onclick="if(event.target===this)closeModal()">
-  <div class="modal" id="modal">
-    <button class="modal-close" onclick="closeModal()">&#x2715;</button>
-    <div id="modal-content"></div>
-  </div>
-</div>
 <header>
   <h1>City <em>Opportunity</em> Report</h1>
-  <div class="meta">__META__</div>
+  <div class="meta">Generated {today} &nbsp;·&nbsp; {len(cities)} cities &nbsp;·&nbsp; {sum(c["active"] for c in cities)} active listings</div>
 </header>
-<div class="explainer">Opportunity score: avg deal quality (30%) &middot; best available deal (10%) &middot; active listing volume (15%) &middot; cap rate environment (15%) &middot; price drops (10%) &middot; days on market (10%) &middot; cash-on-cash (10%) &mdash; click any city to see its properties</div>
+<div class="explainer">Opportunity score: avg deal quality (30%) · best available deal (10%) · active listing volume (15%) · cap rate environment (15%) · price drops (10%) · days on market (10%) · cash-on-cash (10%)</div>
 <main>
-  <div id="top-card"></div>
+{top_card}
   <h2 class="sh">All Cities Ranked</h2>
   <table>
-    <thead><tr>
-      <th class="left">City</th><th>Opportunity</th><th>Active</th>
-      <th>Avg Score</th><th>Best Score</th><th>Avg Cap</th><th>Avg CoCR</th>
-      <th>Avg IRR</th><th>Price Drop</th><th>Avg DOM</th><th>Avg Price</th>
-    </tr></thead>
-    <tbody id="city-tbody"></tbody>
+    <thead>
+      <tr>
+        <th style="text-align:left">City</th>
+        <th>Opportunity</th>
+        <th>Active</th>
+        <th>Avg Score</th>
+        <th>Best Score</th>
+        <th>Avg Cap</th>
+        <th>Avg CoCR</th>
+        <th>Avg IRR</th>
+        <th>Price Drop</th>
+        <th>Avg DOM</th>
+        <th>Avg Price</th>
+      </tr>
+    </thead>
+    <tbody>
+{rows_html}    </tbody>
   </table>
 </main>
-<script>
-var CITIES = __CITIES__;
-var PROPS  = __PROPS__;
-function fmtMoney(n){if(!n)return'—';if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return'$'+Math.round(n/1e3)+'K';return'$'+n}
-function fmtPct(n){return(n&&n!==0)?n.toFixed(1)+'%':'—'}
-function sClass(v){return !v?'':v>=70?'good':v>=45?'fair':'poor'}
-function cClass(v){return !v?'':v>=7?'good':v>=5?'fair':'poor'}
-function bClass(v){return v>=65?'bar-high':v<35?'bar-low':'bar-mid'}
-function gradeClass(g){var l=(g||'').toLowerCase();if(l.indexOf('good')>=0||l.indexOf('excel')>=0||l.indexOf('pass')>=0)return'good';if(l.indexOf('fair')>=0)return'fair';if(l.indexOf('poor')>=0||l.indexOf('fail')>=0||l.indexOf('risk')>=0)return'poor';return''}
-var top=CITIES[0];
-if(top){
-  var vp=[];
-  if(top.active>=5)vp.push('Strong deal flow with '+top.active+' active listings');
-  else vp.push(top.active+' active listing'+(top.active!==1?'s':'')+' available');
-  if(top.avg_cap>=7)vp.push('excellent cap rates at '+top.avg_cap.toFixed(1)+'%');
-  else if(top.avg_cap>=5)vp.push('reasonable cap rates at '+top.avg_cap.toFixed(1)+'%');
-  if(top.avg_drop>=5)vp.push('sellers motivated — '+top.avg_drop.toFixed(1)+'% avg reduction');
-  if(top.avg_dom>=90)vp.push('soft market — '+top.avg_dom+'d avg on market');
-  if(top.best_score>=70)vp.push('best deal scores '+top.best_score.toFixed(0)+'/100');
-  document.getElementById('top-card').innerHTML='<div class="top-card"><div><div class="top-label">Top Opportunity</div><div class="top-city" onclick="openDrawer(\''+(top.city).replace(/\'/g,"\\\'")+'\')">'+top.city+'</div><div class="top-verdict">'+vp.join(', ')+'.</div></div><div class="top-stats"><div class="stat"><span class="sl">Opportunity</span><span class="sv">'+top.opportunity.toFixed(0)+'/100</span></div><div class="stat"><span class="sl">Active Deals</span><span class="sv">'+top.active+'</span></div><div class="stat"><span class="sl">Avg Score</span><span class="sv">'+( top.avg_score?top.avg_score.toFixed(0):'—')+'</span></div><div class="stat"><span class="sl">Best Score</span><span class="sv">'+( top.best_score?top.best_score.toFixed(0):'—')+'</span></div><div class="stat"><span class="sl">Avg Cap</span><span class="sv">'+fmtPct(top.avg_cap)+'</span></div><div class="stat"><span class="sl">Avg DOM</span><span class="sv">'+( top.avg_dom||'—')+'d</span></div></div></div>';
-}
-var tbody=document.getElementById('city-tbody');
-for(var i=0;i<CITIES.length;i++){
-  var c=CITIES[i];
-  var bw=Math.min(100,c.opportunity);
-  var sub='';
-  if(c.dist_km!=null)sub+='<div class="city-sub">'+c.dist_km+'km to centre</div>';
-  if(c.total!==c.active)sub+='<div class="city-sub">'+c.total+' total ('+( c.total-c.active)+' inactive)</div>';
-  var tr=document.createElement('tr');
-  tr.className='city-row';
-  tr.setAttribute('data-city',c.city);
-  tr.innerHTML='<td class="left"><span class="rank">#'+(i+1)+'</span><span class="cn">'+c.city+'</span>'+sub+'</td>'+
-    '<td><span class="opp">'+c.opportunity.toFixed(0)+'</span><span class="bar-wrap"><span class="bar '+bClass(c.opportunity)+'" style="width:'+bw+'%"></span></span></td>'+
-    '<td>'+c.active+'</td>'+
-    '<td class="'+sClass(c.avg_score)+'">'+( c.avg_score?c.avg_score.toFixed(0):'—')+'</td>'+
-    '<td class="'+sClass(c.best_score)+'">'+( c.best_score?c.best_score.toFixed(0):'—')+'</td>'+
-    '<td class="'+cClass(c.avg_cap)+'">'+fmtPct(c.avg_cap)+'</td>'+
-    '<td class="'+cClass(c.avg_coc)+'">'+fmtPct(c.avg_coc)+'</td>'+
-    '<td class="'+cClass(c.avg_irr)+'">'+fmtPct(c.avg_irr)+'</td>'+
-    '<td class="'+( c.avg_drop>0?'good':'')+'">'+fmtPct(c.avg_drop)+'</td>'+
-    '<td class="'+( c.avg_dom>=90?'good':c.avg_dom>=60?'fair':'')+'">'+( c.avg_dom||'—')+'d</td>'+
-    '<td>'+fmtMoney(c.avg_price)+'</td>';
-  tbody.appendChild(tr);
-}
-tbody.addEventListener('click',function(e){var r=e.target.closest('tr[data-city]');if(r)openDrawer(r.getAttribute('data-city'));});
-function openDrawer(city){
-  var cp=PROPS.filter(function(p){return p.city===city;});
-  cp.sort(function(a,b){return(b.score||0)-(a.score||0);});
-  document.getElementById('drawer-title').textContent=city;
-  var list=document.getElementById('prop-list');
-  list.innerHTML='';
-  for(var i=0;i<cp.length;i++){
-    var p=cp[i];
-    var sc=p.score!=null?p.score.toFixed(0)+'/100':'No score';
-    var scol=p.score==null?'':p.score>=70?'color:var(--green)':p.score>=45?'color:var(--amber)':'color:var(--red)';
-    var div=document.createElement('div');
-    div.className='prop-card';
-    div.setAttribute('data-pidx',PROPS.indexOf(p));
-    div.innerHTML='<div class="prop-addr">'+p.address+'</div><div class="prop-meta"><span>'+(p.type||'—')+'</span><span>'+fmtMoney(p.asking)+'</span><span>'+(p.status||'—')+'</span><span style="'+scol+';font-weight:500">'+sc+'</span></div>';
-    list.appendChild(div);
-  }
-  list.onclick=function(e){
-    var card=e.target.closest('.prop-card[data-pidx]');
-    if(!card)return;
-    var idx=parseInt(card.getAttribute('data-pidx'),10);
-    if(!isNaN(idx)&&PROPS[idx]){closeDrawer();openModal(PROPS[idx]);}
-  };
-  document.getElementById('city-overlay').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeDrawer(){document.getElementById('city-overlay').classList.remove('open');document.body.style.overflow='';}
-var SECTIONS=[
-  {label:'Mortgage',keys:['Loan Amount','Down Payment','Monthly Payment','Annual Payment','Loan Balance (Hold End)','LTV Ratio']},
-  {label:'Pricing',keys:['Price/Sq Ft','GRM','Price Drop','Tax Load']},
-  {label:'Income',keys:['Annual Rent','Est. Expenses','Est. NOI','Expense Ratio']},
-  {label:'Exit',keys:['Entry Cap Rate','Exit Cap Rate','Exit Cap Ratio','Exit Price','IRR','Equity Multiple']},
-  {label:'Cash Flow',keys:['Annual Cash Flow','Monthly Cash Flow','Cash-on-Cash Return','Cash Invested']},
-  {label:'Debt',keys:['DSCR','Break-Even NOI']},
-  {label:'Returns',keys:['Cap Rate','Cash-on-Cash Return','IRR','Equity Multiple','Annual Cash Flow']},
-  {label:'Market',keys:['CELOC Speed Score','Market Staleness','Seller Bleed']},
-  {label:'Hotel Operations',keys:['Hotel Rooms','ADR','Occupancy Rate','RevPAR','NRevPAR','Rev/Room/Yr','GOP Margin','GOP Amount','CPOR','FF&E Reserve']},
-  {label:'Industrial Breakdown',keys:['Clear Height','Dock Doors','Drive-In Doors','Warehouse Sqft','Warehouse Income','Office Component','Office Income','Yard/Storage','Yard Income','Total Industrial Rev','Blended Rate']}
-];
-function openModal(p){
-  var ae=encodeURIComponent(p.address);
-  var results=p.results||[];
-  var byL={};
-  for(var i=0;i<results.length;i++)byL[results[i].metric]=results[i];
-  var secs=[];
-  for(var si=0;si<SECTIONS.length;si++){
-    var sec=SECTIONS[si];var rows='';
-    for(var ki=0;ki<sec.keys.length;ki++){var r=byL[sec.keys[ki]];if(!r)continue;var gc=gradeClass(r.grade);rows+='<div class="modal-metric-row"><span class="modal-metric-name">'+r.metric+'</span><span class="modal-metric-val '+gc+'">'+r.value+(r.grade&&r.grade!==''?' <small style="opacity:.6">'+r.grade+'</small>':'')+'</span></div>';}
-    if(rows)secs.push('<div class="modal-section"><h3>'+sec.label+'</h3>'+rows+'</div>');
-  }
-  var half=Math.ceil(secs.length/2);
-  var col1=secs.slice(0,half).join('');var col2=secs.slice(half).join('');
-  var bd=p.breakdown||{};var wt=p.weights||{};
-  var scoreHtml='';
-  if(p.score!=null){
-    var bars='';var bkeys=Object.keys(bd);
-    for(var bi=0;bi<bkeys.length;bi++){var bk=bkeys[bi];var bv=bd[bk];var pct=Math.min(100,Math.max(0,bv));bars+='<div class="score-row"><span class="score-row-label">'+bk+'</span><span class="score-bar-bg"><span class="score-bar-fill" style="width:'+pct+'%"></span></span><span class="score-row-val">'+bv.toFixed(0)+'</span></div>';}
-    scoreHtml='<div style="margin-bottom:1rem"><div class="score-total">'+p.score.toFixed(0)+'<span style="font-size:1rem;color:var(--muted)">/100</span></div><div class="score-label">Investment Score</div><div class="score-breakdown">'+bars+'</div></div>';
-  }
-  var rentLines=(p.rent_breakdown||[]).map(function(l){return'<div style="font-family:monospace;font-size:10px;color:var(--muted);padding:0.15rem 0">'+l+'</div>';}).join('');
-  var mapUrl='https://www.google.com/maps?q='+ae+'&layer=c&output=svembed';
-  var mapsUrl='https://www.google.com/maps/search/?api=1&query='+ae;
-  document.getElementById('modal-content').innerHTML=
-    '<iframe class="modal-map-frame" src="'+mapUrl+'" loading="lazy" allowfullscreen></iframe>'+
-    '<div class="modal-map-bar"><span>'+p.address+'</span><a href="'+mapsUrl+'" target="_blank">Open in Google Maps &#x2197;</a></div>'+
-    '<div class="modal-body"><div class="modal-address">'+p.address+'</div>'+
-    '<div class="modal-sub"><span>'+fmtMoney(p.asking)+'</span><span>'+(p.type||'—')+'</span><span>'+(p.status||'—')+'</span>'+(p.dist_centre?'<span>'+p.dist_centre+'</span>':'')+'</div>'+
-    (rentLines?'<div style="margin:0.8rem 0">'+rentLines+'</div>':'')+
-    scoreHtml+
-    '<div class="modal-grid">'+col1+'</div>'+
-    '<div class="modal-grid" style="margin-top:1.5rem">'+col2+'</div></div>';
-  document.getElementById('modal-overlay').classList.add('open');
-  document.body.style.overflow='hidden';
-}
-function closeModal(){document.getElementById('modal-overlay').classList.remove('open');document.body.style.overflow='';}
-document.addEventListener('keydown',function(e){if(e.key==='Escape'){closeModal();closeDrawer();}});
-</script>
 </body>
 </html>"""
 
-        html = (HTML_HEAD
-                .replace("__META__",   today_str + "  ·  " + str(n_cities) + " cities  ·  " + str(n_active) + " active listings")
-                .replace("__CITIES__", city_json)
-                .replace("__PROPS__",  props_json))
+        import pathlib
+        out_path = pathlib.Path("city_report_latest.html")
+        out_path.write_text(html, encoding="utf-8")
+        print(f"  {len(cities)} cities · report saved to {out_path.resolve()}")
 
-        print(f"  {len(cities)} cities · opening report...")
         tmp = tempfile.NamedTemporaryFile(
             mode="w", suffix=".html", delete=False,
             prefix="city_report_", encoding="utf-8"
@@ -4958,83 +4819,6 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
             ind_office_rate     = ind_office_rate,
             ind_yard_rate       = ind_yard_rate,
         )
-
-
-# ---------------------------------------------------------------------------
-# Hardcoded properties (used by menu option 6 — run all & save)
-# ---------------------------------------------------------------------------
-
-# def _get_properties() -> list:
-#     return [
-#         # Mode 1: Rent provided directly
-#         PropertyInput(
-#             address          = "123 Main St, Ottawa ON",
-#             original_price   = 600000,
-#             asking_price     = 600000,
-#             total_sq_ft      = 5000,
-#             property_taxes   = 9780,
-#             down_payment_pct = 0.25,
-#             interest_rate    = 0.0725,
-#             term_years       = 25,
-#             annual_rent      = 84000,
-#             expense_ratio    = 0.40,
-#             lease_type       = "Normal",
-#             listing_date     = "2025-02-26",
-#         ),
-#         # Mode 2: Pure commercial, city-based rate
-#         PropertyInput(
-#             address          = "456 Sparks St, Ottawa ON",
-#             original_price   = 1450000,
-#             asking_price     = 1350000,
-#             total_sq_ft      = 6000,
-#             property_taxes   = 9583,
-#             down_payment_pct = 0.25,
-#             interest_rate    = 0.0725,
-#             term_years       = 25,
-#             city             = "Ottawa",
-#             province         = "ON",
-#             property_type    = "Retail",
-#             expense_ratio    = 0.40,
-#             lease_type       = "Normal",
-#             listing_date     = "2023-07-08",
-#         ),
-#         # Mode 3: Pure multi-family, city-based rates
-#         PropertyInput(
-#             address          = "789 Rideau St, Ottawa ON",
-#             original_price   = 2200000,
-#             asking_price     = 2100000,
-#             total_sq_ft      = 12000,
-#             property_taxes   = 18000,
-#             down_payment_pct = 0.25,
-#             interest_rate    = 0.0725,
-#             term_years       = 25,
-#             city             = "Ottawa",
-#             province         = "ON",
-#             unit_mix         = UnitMix(bachelor=2, one_br=6, two_br=4, three_br=2),
-#             expense_ratio    = 0.40,
-#             lease_type       = "Normal",
-#             listing_date     = "2024-09-01",
-#         ),
-#         # Mode 4: Mixed-use, 4 floors
-#         PropertyInput(
-#             address          = "321 Bank St, Ottawa ON",
-#             original_price   = 3500000,
-#             asking_price     = 3200000,
-#             total_sq_ft      = 20000,
-#             property_taxes   = 32000,
-#             down_payment_pct = 0.25,
-#             interest_rate    = 0.0725,
-#             term_years       = 25,
-#             city             = "Ottawa",
-#             province         = "ON",
-#             property_type    = "Retail",
-#             unit_mix         = UnitMix(one_br=4, two_br=6, three_br=2, floors=4, two_br_rent=2400),
-#             expense_ratio    = 0.40,
-#             lease_type       = "Normal",
-#             listing_date     = "2024-06-15",
-#         ),
-#     ]
-
 
 # ---------------------------------------------------------------------------
 # Entry Point
