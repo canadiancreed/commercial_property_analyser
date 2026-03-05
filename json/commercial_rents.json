@@ -1,0 +1,657 @@
+{
+  "_meta": {
+    "description": "Commercial rent rates in $/sq ft/year by city and property type",
+    "currency": "CAD",
+    "last_updated": "2026-02-27"
+  },
+  "cities": {
+    "Ottawa": {
+      "province": "ON",
+      "types": {
+        "Office": 28.5,
+        "Retail": 32.0,
+        "Industrial": 14.75,
+        "Mixed-Use": 26.0
+      }
+    },
+    "Toronto": {
+      "province": "ON",
+      "types": {
+        "Office": 42.0,
+        "Retail": 65.0,
+        "Industrial": 18.5,
+        "Mixed-Use": 38.0
+      }
+    },
+    "Vancouver": {
+      "province": "BC",
+      "types": {
+        "Office": 48.0,
+        "Retail": 72.0,
+        "Industrial": 22.0,
+        "Mixed-Use": 44.0
+      }
+    },
+    "Calgary": {
+      "province": "AB",
+      "types": {
+        "Office": 30.0,
+        "Retail": 35.0,
+        "Industrial": 16.0,
+        "Mixed-Use": 28.0
+      }
+    },
+    "Edmonton": {
+      "province": "AB",
+      "types": {
+        "Office": 24.0,
+        "Retail": 28.0,
+        "Industrial": 13.0,
+        "Mixed-Use": 22.0
+      }
+    },
+    "Montreal": {
+      "province": "QC",
+      "types": {
+        "Office": 26.0,
+        "Retail": 38.0,
+        "Industrial": 12.5,
+        "Mixed-Use": 24.0
+      }
+    },
+    "Mississauga": {
+      "province": "ON",
+      "types": {
+        "Office": 32.0,
+        "Retail": 40.0,
+        "Industrial": 17.0,
+        "Mixed-Use": 30.0
+      }
+    },
+    "Hamilton": {
+      "province": "ON",
+      "types": {
+        "Office": 20.0,
+        "Retail": 24.0,
+        "Industrial": 11.5,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Kitchener": {
+      "province": "ON",
+      "types": {
+        "Office": 22.0,
+        "Retail": 26.0,
+        "Industrial": 12.0,
+        "Mixed-Use": 20.0
+      }
+    },
+    "London": {
+      "province": "ON",
+      "types": {
+        "Office": 19.0,
+        "Retail": 22.0,
+        "Industrial": 10.5,
+        "Mixed-Use": 17.5
+      }
+    },
+    "Winnipeg": {
+      "province": "MB",
+      "types": {
+        "Office": 18.0,
+        "Retail": 22.0,
+        "Industrial": 9.5,
+        "Mixed-Use": 16.0
+      }
+    },
+    "Halifax": {
+      "province": "NS",
+      "types": {
+        "Office": 20.0,
+        "Retail": 24.0,
+        "Industrial": 10.0,
+        "Mixed-Use": 18.0
+      }
+    },
+    "Quebec City": {
+      "province": "QC",
+      "types": {
+        "Office": 20.0,
+        "Retail": 25.0,
+        "Industrial": 10.5,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Tweed": {
+      "province": "ON",
+      "types": {
+        "Office": 12.0,
+        "Retail": 15.0,
+        "Industrial": 9.5,
+        "Mixed-Use": 15.0
+      }
+    },
+    "Peterborough": {
+      "province": "ON",
+      "types": {
+        "Office": 15.0,
+        "Retail": 22.5,
+        "Industrial": 12.0,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Belleville": {
+      "province": "ON",
+      "types": {
+        "Office": 20.0,
+        "Retail": 23.0,
+        "Industrial": 12.5,
+        "Mixed-Use": 23.0
+      }
+    },
+    "Almonte": {
+      "province": "ON",
+      "types": {
+        "Office": 19.25,
+        "Retail": 19.25,
+        "Industrial": 19.25,
+        "Mixed-Use": 19.25
+      }
+    },
+    "Alexandria": {
+      "province": "ON",
+      "types": {
+        "Office": 0,
+        "Retail": 19.0,
+        "Industrial": 14.0,
+        "Mixed-Use": 19.0
+      }
+    },
+    "Arnprior": {
+      "province": "ON",
+      "types": {
+        "Office": 14.5,
+        "Retail": 18.5,
+        "Industrial": 11.5,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Athens": {
+      "province": "ON",
+      "types": {
+        "Office": 12.0,
+        "Retail": 13.5,
+        "Industrial": 8.5,
+        "Mixed-Use": 13.5
+      }
+    },
+    "Bancroft": {
+      "province": "ON",
+      "types": {
+        "Office": 15.5,
+        "Retail": 21.0,
+        "Industrial": 10.5,
+        "Mixed-Use": 21.0
+      }
+    },
+    "Beachburg": {
+      "province": "ON",
+      "types": {
+        "Office": 11.0,
+        "Retail": 10.5,
+        "Industrial": 7.5,
+        "Mixed-Use": 10.5
+      }
+    },
+    "Bloomfield": {
+      "province": "ON",
+      "types": {
+        "Office": 15.5,
+        "Retail": 20.0,
+        "Industrial": 0.0,
+        "Mixed-Use": 20.0
+      }
+    },
+    "Bobcaygeon": {
+      "province": "ON",
+      "types": {
+        "Office": 16.5,
+        "Retail": 20.75,
+        "Industrial": 0,
+        "Mixed-Use": 20.75
+      }
+    },
+    "Brighton": {
+      "province": "ON",
+      "types": {
+        "Office": 17.5,
+        "Retail": 16.0,
+        "Industrial": 13.5,
+        "Mixed-Use": 16.0
+      }
+    },
+    "Brockville": {
+      "province": "ON",
+      "types": {
+        "Office": 13.0,
+        "Retail": 16.0,
+        "Industrial": 10.0,
+        "Mixed-Use": 16.0
+      }
+    },
+    "Campbellford": {
+      "province": "ON",
+      "types": {
+        "Office": 15.0,
+        "Retail": 15.0,
+        "Industrial": 0,
+        "Mixed-Use": 15.0
+      }
+    },
+    "Casselman": {
+      "province": "ON",
+      "types": {
+        "Office": 16.75,
+        "Retail": 20.0,
+        "Industrial": 13.5,
+        "Mixed-Use": 20.0
+      }
+    },
+    "Chalk River": {
+      "province": "ON",
+      "types": {
+        "Office": 11.5,
+        "Retail": 11.5,
+        "Industrial": 0,
+        "Mixed-Use": 11.5
+      }
+    },
+    "Champlain": {
+      "province": "ON",
+      "types": {
+        "Office": 18.5,
+        "Retail": 18.5,
+        "Industrial": 0,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Chesterville": {
+      "province": "ON",
+      "types": {
+        "Office": 11.5,
+        "Retail": 13.5,
+        "Industrial": 9.5,
+        "Mixed-Use": 13.5
+      }
+    },
+    "Cobourg": {
+      "province": "ON",
+      "types": {
+        "Office": 19.0,
+        "Retail": 20.0,
+        "Industrial": 13.5,
+        "Mixed-Use": 20.0
+      }
+    },
+    "Colborne": {
+      "province": "ON",
+      "types": {
+        "Office": 13.5,
+        "Retail": 17.5,
+        "Industrial": 11.0,
+        "Mixed-Use": 17.5
+      }
+    },
+    "Cornwall": {
+      "province": "ON",
+      "types": {
+        "Office": 15.0,
+        "Retail": 23.5,
+        "Industrial": 8.5,
+        "Mixed-Use": 23.5
+      }
+    },
+    "Eganville": {
+      "province": "ON",
+      "types": {
+        "Office": 9.5,
+        "Retail": 11.0,
+        "Industrial": 7.75,
+        "Mixed-Use": 11.0
+      }
+    },
+    "Gananoque": {
+      "province": "ON",
+      "types": {
+        "Office": 14.0,
+        "Retail": 18.5,
+        "Industrial": 9.5,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Havelock": {
+      "province": "ON",
+      "types": {
+        "Office": 9.5,
+        "Retail": 12.0,
+        "Industrial": 8.5,
+        "Mixed-Use": 12.0
+      }
+    },
+    "Hawkesbury": {
+      "province": "ON",
+      "types": {
+        "Office": 11.0,
+        "Retail": 16.5,
+        "Industrial": 12.5,
+        "Mixed-Use": 16.5
+      }
+    },
+    "Kemptville": {
+      "province": "ON",
+      "types": {
+        "Office": 19.0,
+        "Retail": 27.0,
+        "Industrial": 12.0,
+        "Mixed-Use": 27.0
+      }
+    },
+    "Kingston": {
+      "province": "ON",
+      "types": {
+        "Office": 16.5,
+        "Retail": 30.0,
+        "Industrial": 10.0,
+        "Mixed-Use": 30.0
+      }
+    },
+    "Lakefield": {
+      "province": "ON",
+      "types": {
+        "Office": 12.0,
+        "Retail": 18.5,
+        "Industrial": 9.5,
+        "Mixed-Use": 18.5
+      }
+    },
+    "Lindsay": {
+      "province": "ON",
+      "types": {
+        "Office": 14.0,
+        "Retail": 21.0,
+        "Industrial": 11.0,
+        "Mixed-Use": 21.0
+      }
+    },
+    "Madoc": {
+      "province": "ON",
+      "types": {
+        "Office": 9.5,
+        "Retail": 12.0,
+        "Industrial": 8.5,
+        "Mixed-Use": 12.0
+      }
+    },
+    "Marmora": {
+      "province": "ON",
+      "types": {
+        "Office": 10.0,
+        "Retail": 12.5,
+        "Industrial": 8.5,
+        "Mixed-Use": 12.5
+      }
+    },
+    "Millbrook": {
+      "province": "ON",
+      "types": {
+        "Office": 13.5,
+        "Retail": 21.0,
+        "Industrial": 11.75,
+        "Mixed-Use": 21.0
+      }
+    },
+    "Napanee": {
+      "province": "ON",
+      "types": {
+        "Office": 13.0,
+        "Retail": 20.0,
+        "Industrial": 10.0,
+        "Mixed-Use": 20.0
+      }
+    },
+    "Norwood": {
+      "province": "ON",
+      "types": {
+        "Office": 11.0,
+        "Retail": 13.5,
+        "Industrial": 8.75,
+        "Mixed-Use": 13.5
+      }
+    },
+    "Omemee": {
+      "province": "ON",
+      "types": {
+        "Office": 12.0,
+        "Retail": 15.0,
+        "Industrial": 9.5,
+        "Mixed-Use": 15.0
+      }
+    },
+    "Pembroke": {
+      "province": "ON",
+      "types": {
+        "Office": 12.5,
+        "Retail": 16.5,
+        "Industrial": 9.5,
+        "Mixed-Use": 16.5
+      }
+    },
+    "Perth": {
+      "province": "ON",
+      "types": {
+        "Office": 14.5,
+        "Retail": 19.0,
+        "Industrial": 10.25,
+        "Mixed-Use": 19.0
+      }
+    },
+    "Port Perry": {
+      "province": "ON",
+      "types": {
+        "Office": 21.0,
+        "Retail": 31.0,
+        "Industrial": 14.0,
+        "Mixed-Use": 31.0
+      }
+    },
+    "Prescott": {
+      "province": "ON",
+      "types": {
+        "Office": 10.5,
+        "Retail": 13.0,
+        "Industrial": 8.5,
+        "Mixed-Use": 13.0
+      }
+    },
+    "Picton": {
+      "province": "ON",
+      "types": {
+        "Office": 18.5,
+        "Retail": 25.0,
+        "Industrial": 11.0,
+        "Mixed-Use": 25.0
+      }
+    },
+    "Port Hope": {
+      "province": "ON",
+      "types": {
+        "Office": 17.0,
+        "Retail": 24.0,
+        "Industrial": 12.0,
+        "Mixed-Use": 24.0
+      }
+    },
+    "Renfrew": {
+      "province": "ON",
+      "types": {
+        "Office": 11.5,
+        "Retail": 14.5,
+        "Industrial": 8.75,
+        "Mixed-Use": 14.5
+      }
+    },
+    "Smiths Falls": {
+      "province": "ON",
+      "types": {
+        "Office": 13.0,
+        "Retail": 16.5,
+        "Industrial": 11.0,
+        "Mixed-Use": 16.5
+      }
+    },
+    "Stirling": {
+      "province": "ON",
+      "types": {
+        "Office": 12.0,
+        "Retail": 14.5,
+        "Industrial": 9.5,
+        "Mixed-Use": 14.5
+      }
+    },
+    "Trenton": {
+      "province": "ON",
+      "types": {
+        "Office": 18.0,
+        "Retail": 25.0,
+        "Industrial": 12.0,
+        "Mixed-Use": 25.0
+      }
+    },
+    "Manilla": {
+      "province": "ON",
+      "types": {
+        "Office": 9.5,
+        "Retail": 11.5,
+        "Industrial": 8.25,
+        "Mixed-Use": 11.5
+      }
+    },
+    "Merrickville": {
+      "province": "ON",
+      "types": {
+        "Office": 16.0,
+        "Retail": 21.5,
+        "Industrial": 11.0,
+        "Mixed-Use": 21.5
+      }
+    },
+    "Finch": {
+      "province": "ON",
+      "types": {
+        "Office": 8.75,
+        "Retail": 10.0,
+        "Industrial": 7.5,
+        "Mixed-Use": 10.0
+      }
+    },
+    "Southampton": {
+      "province": "ON",
+      "types": {
+        "Office": 16.0,
+        "Retail": 22.0,
+        "Industrial": 11.0,
+        "Mixed-Use": 22.0
+      }
+    },
+    "Owen Sound": {
+      "province": "ON",
+      "types": {
+        "Office": 15.5,
+        "Retail": 20.5,
+        "Industrial": 9.0,
+        "Mixed-Use": 20.5
+      }
+    },
+    "Chesley": {
+      "province": "ON",
+      "types": {
+        "Office": 10.0,
+        "Retail": 12.0,
+        "Industrial": 8.75,
+        "Mixed-Use": 12.0
+      }
+    },
+    "Port Elgin": {
+      "province": "ON",
+      "types": {
+        "Office": 19.0,
+        "Retail": 26.0,
+        "Industrial": 14.0,
+        "Mixed-Use": 26.0
+      }
+    },
+    "Osgoode": {
+      "province": "ON",
+      "types": {
+        "Office": 17.5,
+        "Retail": 21.5,
+        "Industrial": 12.75,
+        "Mixed-Use": 21.5
+      }
+    },
+    "Tamworth": {
+      "province": "ON",
+      "types": {
+        "Office": 10.0,
+        "Retail": 11.5,
+        "Industrial": 8.0,
+        "Mixed-Use": 11.5
+      }
+    },
+    "Wiarton": {
+      "province": "ON",
+      "types": {
+        "Office": 12.5,
+        "Retail": 16.0,
+        "Industrial": 10.0,
+        "Mixed-Use": 16.0
+      }
+    },
+    "Paisley": {
+      "province": "ON",
+      "types": {
+        "Office": 10.5,
+        "Retail": 12.5,
+        "Industrial": 8.75,
+        "Mixed-Use": 12.5
+      }
+    },
+    "Meaford": {
+      "province": "ON",
+      "types": {
+        "Office": 15.0,
+        "Retail": 19.0,
+        "Industrial": 10.25,
+        "Mixed-Use": 19.0
+      }
+    },
+    "North Sydney": {
+      "province": "NS",
+      "types": {
+        "Office": 13.5,
+        "Retail": 16.5,
+        "Industrial": 10.0,
+        "Mixed-Use": 16.5
+      }
+    },
+    "Stockdale": {
+      "province": "ON",
+      "types": {
+        "Office": 11.0,
+        "Retail": 12.5,
+        "Industrial": 9.25,
+        "Mixed-Use": 12.5
+      }
+    }
+  }
+}

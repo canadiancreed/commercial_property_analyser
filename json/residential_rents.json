@@ -1,0 +1,801 @@
+{
+  "_meta": {
+    "description": "Average monthly residential rents by city and unit type",
+    "currency": "CAD",
+    "last_updated": "2026-02-27"
+  },
+  "cities": {
+    "Ottawa": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250,
+        "one_br": 1650,
+        "two_br": 2100,
+        "three_br": 2600,
+        "four_br": 3200,
+        "unknown": 1700
+      }
+    },
+    "Toronto": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1800,
+        "one_br": 2400,
+        "two_br": 3100,
+        "three_br": 3900,
+        "four_br": 5000,
+        "unknown": 2500
+      }
+    },
+    "Vancouver": {
+      "province": "BC",
+      "units": {
+        "bachelor": 1900,
+        "one_br": 2600,
+        "two_br": 3400,
+        "three_br": 4200,
+        "four_br": 5500,
+        "unknown": 2700
+      }
+    },
+    "Calgary": {
+      "province": "AB",
+      "units": {
+        "bachelor": 1300,
+        "one_br": 1750,
+        "two_br": 2250,
+        "three_br": 2900,
+        "four_br": 3700,
+        "unknown": 1900
+      }
+    },
+    "Edmonton": {
+      "province": "AB",
+      "units": {
+        "bachelor": 1100,
+        "one_br": 1500,
+        "two_br": 1950,
+        "three_br": 2500,
+        "four_br": 3200,
+        "unknown": 1600
+      }
+    },
+    "Montreal": {
+      "province": "QC",
+      "units": {
+        "bachelor": 1000,
+        "one_br": 1400,
+        "two_br": 1800,
+        "three_br": 2300,
+        "four_br": 3000,
+        "unknown": 1500
+      }
+    },
+    "Mississauga": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1500,
+        "one_br": 2000,
+        "two_br": 2600,
+        "three_br": 3300,
+        "four_br": 4200,
+        "unknown": 2100
+      }
+    },
+    "Hamilton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100,
+        "one_br": 1500,
+        "two_br": 1950,
+        "three_br": 2500,
+        "four_br": 3100,
+        "unknown": 1600
+      }
+    },
+    "Kitchener": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150,
+        "one_br": 1550,
+        "two_br": 2000,
+        "three_br": 2550,
+        "four_br": 3200,
+        "unknown": 1650
+      }
+    },
+    "London": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050,
+        "one_br": 1400,
+        "two_br": 1850,
+        "three_br": 2350,
+        "four_br": 2950,
+        "unknown": 1500
+      }
+    },
+    "Winnipeg": {
+      "province": "MB",
+      "units": {
+        "bachelor": 950,
+        "one_br": 1300,
+        "two_br": 1700,
+        "three_br": 2150,
+        "four_br": 2750,
+        "unknown": 1400
+      }
+    },
+    "Halifax": {
+      "province": "NS",
+      "units": {
+        "bachelor": 1100,
+        "one_br": 1500,
+        "two_br": 1950,
+        "three_br": 2500,
+        "four_br": 3100,
+        "unknown": 1600
+      }
+    },
+    "Quebec City": {
+      "province": "QC",
+      "units": {
+        "bachelor": 950,
+        "one_br": 1300,
+        "two_br": 1700,
+        "three_br": 2150,
+        "four_br": 2700,
+        "unknown": 1400
+      }
+    },
+    "Alexandria": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1125.0,
+        "one_br": 1350.0,
+        "two_br": 1725.0,
+        "three_br": 2050.0,
+        "four_br": 2450.0,
+        "unknown": 1740.0
+      }
+    },
+    "Tweed": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1280.0,
+        "two_br": 1490.0,
+        "three_br": 1815.0,
+        "four_br": 2550.0,
+        "unknown": 1637.0
+      }
+    },
+    "Peterborough": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1540.0,
+        "one_br": 1640.0,
+        "two_br": 1940.0,
+        "three_br": 2230.0,
+        "four_br": 3000.0,
+        "unknown": 2178.0
+      }
+    },
+    "Belleville": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1530.0,
+        "one_br": 1699.0,
+        "two_br": 2005.0,
+        "three_br": 2580.0,
+        "four_br": 2720.0,
+        "unknown": 2209.0
+      }
+    },
+    "Almonte": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1450.0,
+        "one_br": 1850.0,
+        "two_br": 2200.0,
+        "three_br": 2650.0,
+        "four_br": 3100.0,
+        "unknown": 2250.0
+      }
+    },
+    "Arnprior": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1550.0,
+        "two_br": 1900.0,
+        "three_br": 2250.0,
+        "four_br": 2600.0,
+        "unknown": 1890.0
+      }
+    },
+    "Athens": {
+      "province": "ON",
+      "units": {
+        "bachelor": 900.0,
+        "one_br": 1150.0,
+        "two_br": 1500.0,
+        "three_br": 1800.0,
+        "four_br": 2150.0,
+        "unknown": 1500.0
+      }
+    },
+    "Bancroft": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100.0,
+        "one_br": 1400.0,
+        "two_br": 1700.0,
+        "three_br": 2000.0,
+        "four_br": 2350.0,
+        "unknown": 1710.0
+      }
+    },
+    "Beachburg": {
+      "province": "ON",
+      "units": {
+        "bachelor": 950.0,
+        "one_br": 1200.0,
+        "two_br": 1550.0,
+        "three_br": 1800.0,
+        "four_br": 2100.0,
+        "unknown": 1520.0
+      }
+    },
+    "Bloomfield": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1600.0,
+        "one_br": 1875.0,
+        "two_br": 2300.0,
+        "three_br": 3000.0,
+        "four_br": 3000.0,
+        "unknown": 2355.0
+      }
+    },
+    "Bobcaygeon": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1450.0,
+        "one_br": 1650.0,
+        "two_br": 2050.0,
+        "three_br": 2650.0,
+        "four_br": 3100.0,
+        "unknown": 2180.0
+      }
+    },
+    "Brighton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1650.0,
+        "two_br": 1850.0,
+        "three_br": 2500.0,
+        "four_br": 3000.0,
+        "unknown": 2050.0
+      }
+    },
+    "Brockville": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1245.0,
+        "one_br": 1600.0,
+        "two_br": 1875.0,
+        "three_br": 2450.0,
+        "four_br": 3300.0,
+        "unknown": 2094.0
+      }
+    },
+    "Campbellford": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1475.0,
+        "two_br": 1750.0,
+        "three_br": 2450.0,
+        "four_br": 2950.0,
+        "unknown": 1975.0
+      }
+    },
+    "Casselman": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1450.0,
+        "two_br": 1750.0,
+        "three_br": 2100.0,
+        "four_br": 2500.0,
+        "unknown": 1810.0
+      }
+    },
+    "Chalk River": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100.0,
+        "one_br": 1350.0,
+        "two_br": 1650.0,
+        "three_br": 2100.0,
+        "four_br": 2550.0,
+        "unknown": 1750.0
+      }
+    },
+    "Champlain": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1400.0,
+        "two_br": 1725.0,
+        "three_br": 2250.0,
+        "four_br": 2800.0,
+        "unknown": 1865.0
+      }
+    },
+    "Chesterville": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1350.0,
+        "two_br": 1650.0,
+        "three_br": 1950.0,
+        "four_br": 2350.0,
+        "unknown": 1690.0
+      }
+    },
+    "Cobourg": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1725.0,
+        "one_br": 1890.0,
+        "two_br": 2150.0,
+        "three_br": 2425.0,
+        "four_br": 2800.0,
+        "unknown": 2198.0
+      }
+    },
+    "Colborne": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1200.0,
+        "one_br": 1400.0,
+        "two_br": 1800.0,
+        "three_br": 2200.0,
+        "four_br": 2600.0,
+        "unknown": 1840.0
+      }
+    },
+    "Cornwall": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1380.0,
+        "one_br": 1560.0,
+        "two_br": 1850.0,
+        "three_br": 2000.0,
+        "four_br": 2450.0,
+        "unknown": 1848.0
+      }
+    },
+    "Eganville": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1000.0,
+        "one_br": 1150.0,
+        "two_br": 1400.0,
+        "three_br": 1750.0,
+        "four_br": 2100.0,
+        "unknown": 1480.0
+      }
+    },
+    "Gananoque": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1300.0,
+        "one_br": 1550.0,
+        "two_br": 1800.0,
+        "three_br": 2100.0,
+        "four_br": 2500.0,
+        "unknown": 1850.0
+      }
+    },
+    "Havelock": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100.0,
+        "one_br": 1300.0,
+        "two_br": 1550.0,
+        "three_br": 1900.0,
+        "four_br": 2300.0,
+        "unknown": 1630.0
+      }
+    },
+    "Hawkesbury": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1250.0,
+        "two_br": 1500.0,
+        "three_br": 1850.0,
+        "four_br": 2200.0,
+        "unknown": 1570.0
+      }
+    },
+    "Kemptville": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1450.0,
+        "one_br": 1950.0,
+        "two_br": 2350.0,
+        "three_br": 2800.0,
+        "four_br": 3400.0,
+        "unknown": 2390.0
+      }
+    },
+    "Kingston": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 2000.0,
+        "two_br": 2500.0,
+        "three_br": 2500.0,
+        "four_br": 3300.0,
+        "unknown": 2330.0
+      }
+    },
+    "Lakefield": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1550.0,
+        "two_br": 1850.0,
+        "three_br": 2100.0,
+        "four_br": 2600.0,
+        "unknown": 1870.0
+      }
+    },
+    "Lindsay": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1500.0,
+        "one_br": 1750.0,
+        "two_br": 1900.0,
+        "three_br": 1900.0,
+        "four_br": 3400.0,
+        "unknown": 2090.0
+      }
+    },
+    "Madoc": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1000.0,
+        "one_br": 1200.0,
+        "two_br": 1450.0,
+        "three_br": 1750.0,
+        "four_br": 2100.0,
+        "unknown": 1500.0
+      }
+    },
+    "Marmora": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1300.0,
+        "two_br": 1600.0,
+        "three_br": 1950.0,
+        "four_br": 2300.0,
+        "unknown": 1640.0
+      }
+    },
+    "Millbrook": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 1650.0,
+        "two_br": 2100.0,
+        "three_br": 2550.0,
+        "four_br": 3100.0,
+        "unknown": 2150.0
+      }
+    },
+    "Napanee": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1550.0,
+        "two_br": 1800.0,
+        "three_br": 2250.0,
+        "four_br": 2700.0,
+        "unknown": 1910.0
+      }
+    },
+    "Norwood": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100.0,
+        "one_br": 1350.0,
+        "two_br": 1650.0,
+        "three_br": 2000.0,
+        "four_br": 2400.0,
+        "unknown": 1700.0
+      }
+    },
+    "Omemee": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1400.0,
+        "two_br": 1750.0,
+        "three_br": 2100.0,
+        "four_br": 2550.0,
+        "unknown": 1790.0
+      }
+    },
+    "Pembroke": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1350.0,
+        "two_br": 1650.0,
+        "three_br": 2000.0,
+        "four_br": 2450.0,
+        "unknown": 1700.0
+      }
+    },
+    "Perth": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1300.0,
+        "one_br": 1650.0,
+        "two_br": 1950.0,
+        "three_br": 2400.0,
+        "four_br": 2850.0,
+        "unknown": 2030.0
+      }
+    },
+    "Port Perry": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1600.0,
+        "one_br": 1900.0,
+        "two_br": 2400.0,
+        "three_br": 2950.0,
+        "four_br": 3500.0,
+        "unknown": 2470.0
+      }
+    },
+    "Prescott": {
+      "province": "ON",
+      "units": {
+        "bachelor": 950.0,
+        "one_br": 1250.0,
+        "two_br": 1550.0,
+        "three_br": 1850.0,
+        "four_br": 2250.0,
+        "unknown": 1570.0
+      }
+    },
+    "Picton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1400.0,
+        "one_br": 1700.0,
+        "two_br": 2300.0,
+        "three_br": 3000.0,
+        "four_br": 3200.0,
+        "unknown": 2320.0
+      }
+    },
+    "Port Hope": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1400.0,
+        "one_br": 1800.0,
+        "two_br": 2100.0,
+        "three_br": 2600.0,
+        "four_br": 3200.0,
+        "unknown": 2220.0
+      }
+    },
+    "Renfrew": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1000.0,
+        "one_br": 1300.0,
+        "two_br": 1600.0,
+        "three_br": 1950.0,
+        "four_br": 2350.0,
+        "unknown": 1640.0
+      }
+    },
+    "Smiths Falls": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1550.0,
+        "two_br": 1850.0,
+        "three_br": 2350.0,
+        "four_br": 2700.0,
+        "unknown": 1940.0
+      }
+    },
+    "Stirling": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1300.0,
+        "two_br": 1600.0,
+        "three_br": 1900.0,
+        "four_br": 2300.0,
+        "unknown": 1630.0
+      }
+    },
+    "Trenton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 1645.0,
+        "two_br": 1895.0,
+        "three_br": 2450.0,
+        "four_br": 2850.0,
+        "unknown": 2038.0
+      }
+    },
+    "Manilla": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100.0,
+        "one_br": 1400.0,
+        "two_br": 1700.0,
+        "three_br": 2100.0,
+        "four_br": 2500.0,
+        "unknown": 1760.0
+      }
+    },
+    "Merrickville": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 1650.0,
+        "two_br": 1950.0,
+        "three_br": 2400.0,
+        "four_br": 2850.0,
+        "unknown": 2040.0
+      }
+    },
+    "Finch": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1200.0,
+        "two_br": 1450.0,
+        "three_br": 1800.0,
+        "four_br": 2200.0,
+        "unknown": 1540.0
+      }
+    },
+    "Southampton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 1500.0,
+        "two_br": 1750.0,
+        "three_br": 2200.0,
+        "four_br": 2800.0,
+        "unknown": 1920.0
+      }
+    },
+    "Owen Sound": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1600.0,
+        "two_br": 1775.0,
+        "three_br": 2000.0,
+        "four_br": 2450.0,
+        "unknown": 1815.0
+      }
+    },
+    "Chesley": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1250.0,
+        "two_br": 1500.0,
+        "three_br": 1800.0,
+        "four_br": 2250.0,
+        "unknown": 1570.0
+      }
+    },
+    "Port Elgin": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1400.0,
+        "one_br": 1550.0,
+        "two_br": 1725.0,
+        "three_br": 2100.0,
+        "four_br": 2600.0,
+        "unknown": 1875.0
+      }
+    },
+    "Osgoode": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1400.0,
+        "one_br": 1750.0,
+        "two_br": 2100.0,
+        "three_br": 2650.0,
+        "four_br": 3200.0,
+        "unknown": 2220.0
+      }
+    },
+    "Tamworth": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1000.0,
+        "one_br": 1250.0,
+        "two_br": 1550.0,
+        "three_br": 1900.0,
+        "four_br": 2300.0,
+        "unknown": 1600.0
+      }
+    },
+    "Wiarton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1450.0,
+        "two_br": 1750.0,
+        "three_br": 2150.0,
+        "four_br": 2600.0,
+        "unknown": 1820.0
+      }
+    },
+    "Paisley": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1100.0,
+        "one_br": 1350.0,
+        "two_br": 1650.0,
+        "three_br": 2000.0,
+        "four_br": 2450.0,
+        "unknown": 1710.0
+      }
+    },
+    "Meaford": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1275.0,
+        "one_br": 1850.0,
+        "two_br": 2250.0,
+        "three_br": 2950.0,
+        "four_br": 3500.0,
+        "unknown": 2365.0
+      }
+    },
+    "North Sydney": {
+      "province": "NS",
+      "units": {
+        "bachelor": 850.0,
+        "one_br": 1100.0,
+        "two_br": 1450.0,
+        "three_br": 1850.0,
+        "four_br": 2400.0,
+        "unknown": 1530.0
+      }
+    },
+    "Stockdale": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1300.0,
+        "two_br": 1600.0,
+        "three_br": 1950.0,
+        "four_br": 2350.0,
+        "unknown": 1650.0
+      }
+    }
+  }
+}
