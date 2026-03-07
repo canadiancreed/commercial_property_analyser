@@ -1044,12 +1044,12 @@
     {
       "address": "26 Elgin St W, Arnprior",
       "mls_number": "X12241232",
-      "status": "inactive",
+      "status": "active",
       "listing_date": "2025-06-25",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
-      "asking_price": 1400000,
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
+      "asking_price": 1300000,
       "original_price": 1400000,
       "total_sq_ft": 6000,
       "city": "Arnprior",
@@ -1076,42 +1076,42 @@
       "results": [
         {
           "metric": "Loan Amount",
-          "value": "$1,120,000.00",
+          "value": "$1,040,000.00",
           "grade": "INFO"
         },
         {
           "metric": "Down Payment",
-          "value": "$280,000.00",
+          "value": "$260,000.00",
           "grade": "INFO"
         },
         {
           "metric": "Monthly Payment",
-          "value": "$6,225.32",
+          "value": "$5,780.66",
           "grade": "INFO"
         },
         {
           "metric": "Annual Debt Svc",
-          "value": "$74,703.89",
+          "value": "$69,367.89",
           "grade": "INFO"
         },
         {
           "metric": "Price/Sq Ft (Mixed-Use)",
-          "value": "$233.33",
+          "value": "$216.67",
           "grade": "FAIR"
         },
         {
           "metric": "GRM",
-          "value": "18.89",
+          "value": "17.54",
           "grade": "POOR"
         },
         {
           "metric": "Tax Load",
-          "value": "0.59%",
+          "value": "0.64%",
           "grade": "GOOD"
         },
         {
           "metric": "Price Drop %",
-          "value": "0.00%",
+          "value": "7.14%",
           "grade": "FAIR"
         },
         {
@@ -1136,7 +1136,7 @@
         },
         {
           "metric": "Cap Rate",
-          "value": "3.18%",
+          "value": "3.42%",
           "grade": "POOR"
         },
         {
@@ -1146,87 +1146,87 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.18%",
+          "value": "3.42%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "4.43%",
+          "value": "4.67%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.72",
+          "value": "0.73",
           "grade": "POOR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,003,611.74",
+          "value": "$952,034.26",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-30,243.89",
+          "value": "$-24,907.89",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-2,520.32",
+          "value": "$-2,075.66",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-10.80%",
+          "value": "-9.58%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.60",
+          "value": "0.64",
           "grade": "POOR/UNBANKABLE"
         },
         {
           "metric": "Break-Even NOI",
-          "value": "$74,703.89",
+          "value": "$69,367.89",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "168.02%",
+          "value": "156.02%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "140.81%",
+          "value": "133.61%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.53 DSCR",
+          "value": "0.57 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "3.87%",
+          "value": "4.23%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "1.82x",
-          "grade": "GOOD"
+          "value": "2.18x",
+          "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "15.88",
+          "value": "17.10",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "253 Days",
+          "value": "254 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$7,333.06",
+          "value": "$6,985.56",
           "grade": "FAIR"
         }
       ],
@@ -18230,12 +18230,12 @@
     {
       "address": "116 Pitt St, Cornwall",
       "mls_number": "X12583844",
-      "status": "inactive",
+      "status": "active",
       "listing_date": "2025-11-28",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
-      "asking_price": 550000,
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
+      "asking_price": 595000,
       "original_price": 550000,
       "total_sq_ft": 2561,
       "city": "Cornwall",
@@ -18262,43 +18262,43 @@
       "results": [
         {
           "metric": "Loan Amount",
-          "value": "$440,000.00",
+          "value": "$476,000.00",
           "grade": "INFO"
         },
         {
           "metric": "Down Payment",
-          "value": "$110,000.00",
+          "value": "$119,000.00",
           "grade": "INFO"
         },
         {
           "metric": "Monthly Payment",
-          "value": "$2,445.66",
+          "value": "$2,645.76",
           "grade": "INFO"
         },
         {
           "metric": "Annual Debt Svc",
-          "value": "$29,347.95",
+          "value": "$31,749.15",
           "grade": "INFO"
         },
         {
           "metric": "Price/Sq Ft (Mixed-Use)",
-          "value": "$214.76",
+          "value": "$232.33",
           "grade": "FAIR"
         },
         {
           "metric": "GRM",
-          "value": "10.52",
+          "value": "11.38",
           "grade": "FAIR"
         },
         {
           "metric": "Tax Load",
-          "value": "2.43%",
+          "value": "2.25%",
           "grade": "FAIR"
         },
         {
           "metric": "Price Drop %",
-          "value": "0.00%",
-          "grade": "FAIR"
+          "value": "-8.18%",
+          "grade": "POOR"
         },
         {
           "metric": "Loan to Value",
@@ -18322,8 +18322,8 @@
         },
         {
           "metric": "Cap Rate",
-          "value": "5.70%",
-          "grade": "FAIR"
+          "value": "5.27%",
+          "grade": "POOR"
         },
         {
           "metric": "Op Expense Ratio",
@@ -18332,87 +18332,87 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.70%",
-          "grade": "FAIR"
+          "value": "5.27%",
+          "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.95%",
+          "value": "6.52%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.82",
+          "value": "0.81",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$451,439.57",
+          "value": "$481,212.42",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$2,027.10",
-          "grade": "FAIR (Thin Margin)"
+          "value": "$-374.10",
+          "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$168.92",
-          "grade": "FAIR"
+          "value": "$-31.18",
+          "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "1.84%",
+          "value": "-0.31%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "1.07",
+          "value": "0.99",
           "grade": "POOR/UNBANKABLE"
         },
         {
           "metric": "Break-Even NOI",
-          "value": "$29,347.95",
+          "value": "$31,749.15",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "93.54%",
+          "value": "101.19%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "96.12%",
+          "value": "100.72%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.82 DSCR",
+          "value": "0.77 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "8.42%",
+          "value": "7.49%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "5.61x",
+          "value": "4.96x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "28.52",
+          "value": "26.37",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "97 Days",
+          "value": "98 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$1,354.35",
+          "value": "$1,433.68",
           "grade": "POOR"
         }
       ],
@@ -18433,7 +18433,8 @@
       "ind_drive_in_doors": 0,
       "ind_clear_height_ft": 0,
       "ind_office_rate": null,
-      "ind_yard_rate": null
+      "ind_yard_rate": null,
+      "notes": "Relists 50k more. Brilliant."
     },
     {
       "address": "272 Pitt St, Cornwall",
@@ -27605,8 +27606,8 @@
       "status": "active",
       "listing_date": "2025-09-16",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 5850000,
       "original_price": 5850000,
       "total_sq_ft": 18000,
@@ -27779,12 +27780,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "170 Days",
+          "value": "171 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$25,620.68",
+          "value": "$25,771.39",
           "grade": "GOOD"
         }
       ],
@@ -27812,8 +27813,8 @@
       "status": "active",
       "listing_date": "2025-09-15",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 4250000,
       "original_price": 4250000,
       "total_sq_ft": 7930,
@@ -27827,7 +27828,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 191126.6666666667,
+      "annual_rent": 232166.6666666667,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -27866,7 +27867,7 @@
         },
         {
           "metric": "GRM",
-          "value": "22.24",
+          "value": "18.31",
           "grade": "POOR"
         },
         {
@@ -27886,7 +27887,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$191,126.67",
+          "value": "$232,166.67",
           "grade": "INFO"
         },
         {
@@ -27896,12 +27897,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$114,676.00",
+          "value": "$139,300.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "2.70%",
+          "value": "3.28%",
           "grade": "POOR"
         },
         {
@@ -27911,42 +27912,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "2.70%",
+          "value": "3.28%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "3.95%",
+          "value": "4.53%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.68",
+          "value": "0.72",
           "grade": "POOR"
         },
         {
           "metric": "Exit Price",
-          "value": "$2,903,189.87",
+          "value": "$3,075,055.19",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-112,103.65",
+          "value": "$-87,479.65",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-9,341.97",
+          "value": "$-7,289.97",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-13.19%",
+          "value": "-10.29%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.51",
+          "value": "0.61",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -27956,51 +27957,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "197.76%",
+          "value": "162.80%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "158.65%",
+          "value": "137.68%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.49 DSCR",
+          "value": "0.59 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "3.20%",
+          "value": "4.02%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "1.10x",
-          "grade": "POOR (Underperforming)"
+          "value": "1.97x",
+          "grade": "GOOD"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "13.49",
+          "value": "16.39",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "171 Days",
+          "value": "172 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$14,403.44",
+          "value": "$15,271.99",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 68726.66666666667,
-      "residential_rent": 122400.0,
+      "residential_rent": 163440.0,
       "rent_breakdown": [
         "Commercial (ground floor 2,643 sq ft @ $26.0/sq ft): $68,726.67/yr",
-        "Unknown × 6 @ $1,700/mo (Ottawa market): $122,400.00/yr"
+        "Unknown × 6 @ $2,270/mo (Ottawa market): $163,440.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -28020,8 +28021,8 @@
       "status": "active",
       "listing_date": "2025-07-12",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1800000,
       "original_price": 1800000,
       "total_sq_ft": 3900,
@@ -28035,7 +28036,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 156200.0,
+      "annual_rent": 197240.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -28074,7 +28075,7 @@
         },
         {
           "metric": "GRM",
-          "value": "11.52",
+          "value": "9.13",
           "grade": "FAIR"
         },
         {
@@ -28094,7 +28095,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$156,200.00",
+          "value": "$197,240.00",
           "grade": "INFO"
         },
         {
@@ -28104,13 +28105,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$93,720.00",
+          "value": "$118,344.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.21%",
-          "grade": "POOR"
+          "value": "6.57%",
+          "grade": "FAIR"
         },
         {
           "metric": "Op Expense Ratio",
@@ -28119,42 +28120,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.21%",
-          "grade": "POOR"
+          "value": "6.57%",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.46%",
+          "value": "7.82%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.81",
+          "value": "0.84",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,450,773.99",
+          "value": "$1,513,350.38",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-2,327.85",
-          "grade": "POOR/BLEEDING"
+          "value": "$22,296.15",
+          "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-193.99",
-          "grade": "POOR/BLEEDING"
+          "value": "$1,858.01",
+          "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "-0.65%",
-          "grade": "POOR"
+          "value": "6.19%",
+          "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "0.98",
+          "value": "1.23",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -28164,51 +28165,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "102.48%",
+          "value": "81.16%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "101.49%",
-          "grade": "POOR"
+          "value": "88.70%",
+          "grade": "FAIR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.89 DSCR",
+          "value": "1.13 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "7.35%",
-          "grade": "POOR"
+          "value": "10.58%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "4.86x",
+          "value": "6.91x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "26.03",
+          "value": "32.87",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "236 Days",
+          "value": "237 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$10,392.38",
+          "value": "$11,517.14",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 33800.0,
-      "residential_rent": 122400.0,
+      "residential_rent": 163440.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,300 sq ft @ $26.0/sq ft): $33,800.00/yr",
-        "Unknown × 6 @ $1,700/mo (Ottawa market): $122,400.00/yr"
+        "Unknown × 6 @ $2,270/mo (Ottawa market): $163,440.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -28228,8 +28229,8 @@
       "status": "inactive",
       "listing_date": "2025-09-25",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 15250000,
       "original_price": 15250000,
       "total_sq_ft": 25896,
@@ -28402,12 +28403,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "161 Days",
+          "value": "162 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$51,216.23",
+          "value": "$51,534.34",
           "grade": "GOOD"
         }
       ],
@@ -28436,8 +28437,8 @@
       "status": "active",
       "listing_date": "2025-12-12",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2200000,
       "original_price": 2200000,
       "total_sq_ft": 4000,
@@ -28451,7 +28452,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 127600.0,
+      "annual_rent": 138400.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -28490,7 +28491,7 @@
         },
         {
           "metric": "GRM",
-          "value": "17.24",
+          "value": "15.90",
           "grade": "POOR"
         },
         {
@@ -28510,7 +28511,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$127,600.00",
+          "value": "$138,400.00",
           "grade": "INFO"
         },
         {
@@ -28520,12 +28521,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$76,560.00",
+          "value": "$83,040.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "3.48%",
+          "value": "3.77%",
           "grade": "POOR"
         },
         {
@@ -28535,42 +28536,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.48%",
+          "value": "3.77%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "4.73%",
+          "value": "5.02%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.74",
-          "grade": "POOR"
+          "value": "0.75",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,618,604.65",
+          "value": "$1,654,183.27",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-40,831.82",
+          "value": "$-34,351.82",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-3,402.65",
+          "value": "$-2,862.65",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-9.28%",
+          "value": "-7.81%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.65",
+          "value": "0.71",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -28580,51 +28581,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "153.33%",
+          "value": "141.37%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "132.00%",
+          "value": "124.82%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.61 DSCR",
+          "value": "0.66 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "4.32%",
+          "value": "4.78%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "2.27x",
+          "value": "2.71x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "17.40",
+          "value": "18.87",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "83 Days",
+          "value": "84 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$3,883.29",
+          "value": "$4,030.88",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 52000.0,
-      "residential_rent": 75600.0,
+      "residential_rent": 86400.0,
       "rent_breakdown": [
         "Commercial (ground floor 2,000 sq ft @ $26.0/sq ft): $52,000.00/yr",
-        "2BR × 3 @ $2,100/mo (Ottawa market): $75,600.00/yr"
+        "2BR × 3 @ $2,400/mo (Ottawa market): $86,400.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -28644,8 +28645,8 @@
       "status": "inactive",
       "listing_date": "2025-09-18",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1340000,
       "original_price": 1340000,
       "total_sq_ft": 3000,
@@ -28659,7 +28660,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 78600.0,
+      "annual_rent": 84600.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 2,
@@ -28698,7 +28699,7 @@
         },
         {
           "metric": "GRM",
-          "value": "17.05",
+          "value": "15.84",
           "grade": "POOR"
         },
         {
@@ -28718,7 +28719,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$78,600.00",
+          "value": "$84,600.00",
           "grade": "INFO"
         },
         {
@@ -28728,12 +28729,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$47,160.00",
+          "value": "$50,760.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "3.52%",
+          "value": "3.79%",
           "grade": "POOR"
         },
         {
@@ -28743,42 +28744,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.52%",
+          "value": "3.79%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "4.77%",
+          "value": "5.04%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.74",
-          "grade": "POOR"
+          "value": "0.75",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$988,679.25",
+          "value": "$1,007,142.86",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-24,342.29",
+          "value": "$-20,742.29",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-2,028.52",
+          "value": "$-1,728.52",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-9.08%",
+          "value": "-7.74%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.66",
+          "value": "0.71",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -28788,51 +28789,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "151.62%",
+          "value": "140.86%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "130.97%",
+          "value": "124.52%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.59 DSCR",
+          "value": "0.63 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "4.38%",
+          "value": "4.80%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "2.33x",
+          "value": "2.73x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "17.60",
+          "value": "18.94",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "168 Days",
+          "value": "169 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$4,803.97",
+          "value": "$4,945.24",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 39000.0,
-      "residential_rent": 39600.0,
+      "residential_rent": 45600.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,500 sq ft @ $26.0/sq ft): $39,000.00/yr",
-        "1BR × 2 @ $1,650/mo (Ottawa market): $39,600.00/yr"
+        "1BR × 2 @ $1,900/mo (Ottawa market): $45,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -28852,8 +28853,8 @@
       "status": "active",
       "listing_date": "2025-07-19",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 700000,
       "original_price": 750000,
       "total_sq_ft": 1750,
@@ -28867,7 +28868,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 42550.0,
+      "annual_rent": 45550.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 1,
@@ -28906,7 +28907,7 @@
         },
         {
           "metric": "GRM",
-          "value": "16.45",
+          "value": "15.37",
           "grade": "POOR"
         },
         {
@@ -28926,7 +28927,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$42,550.00",
+          "value": "$45,550.00",
           "grade": "INFO"
         },
         {
@@ -28936,12 +28937,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$25,530.00",
+          "value": "$27,330.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "3.65%",
+          "value": "3.90%",
           "grade": "POOR"
         },
         {
@@ -28951,42 +28952,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.65%",
+          "value": "3.90%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "4.90%",
+          "value": "5.15%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.74",
-          "grade": "POOR"
+          "value": "0.76",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$521,020.41",
+          "value": "$530,679.61",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-11,821.94",
+          "value": "$-10,021.94",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-985.16",
+          "value": "$-835.16",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-8.44%",
+          "value": "-7.16%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.68",
+          "value": "0.73",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -28996,51 +28997,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "146.31%",
+          "value": "136.67%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "127.78%",
+          "value": "122.00%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.55 DSCR",
+          "value": "0.59 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "4.58%",
+          "value": "4.99%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "2.52x",
+          "value": "2.91x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "18.24",
+          "value": "19.52",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "229 Days",
+          "value": "230 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$3,458.66",
+          "value": "$3,550.43",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 22750.0,
-      "residential_rent": 19800.0,
+      "residential_rent": 22800.0,
       "rent_breakdown": [
         "Commercial (ground floor 875 sq ft @ $26.0/sq ft): $22,750.00/yr",
-        "1BR × 1 @ $1,650/mo (Ottawa market): $19,800.00/yr"
+        "1BR × 1 @ $1,900/mo (Ottawa market): $22,800.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -29060,8 +29061,8 @@
       "status": "active",
       "listing_date": "2025-09-26",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1800000,
       "original_price": 2000000,
       "total_sq_ft": 4360,
@@ -29234,12 +29235,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "160 Days",
+          "value": "161 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$6,749.15",
+          "value": "$6,791.33",
           "grade": "FAIR"
         }
       ],
@@ -29268,8 +29269,8 @@
       "status": "active",
       "listing_date": "2025-10-31",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 7500000,
       "original_price": 7500000,
       "total_sq_ft": 23354,
@@ -29442,12 +29443,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "125 Days",
+          "value": "126 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$23,140.10",
+          "value": "$23,325.22",
           "grade": "FAIR"
         }
       ],
@@ -29475,8 +29476,8 @@
       "status": "inactive",
       "listing_date": "2025-10-18",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 850000,
       "original_price": 850000,
       "total_sq_ft": 1750,
@@ -29490,7 +29491,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 104350.0,
+      "annual_rent": 112150.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -29529,7 +29530,7 @@
         },
         {
           "metric": "GRM",
-          "value": "8.15",
+          "value": "7.58",
           "grade": "GOOD"
         },
         {
@@ -29549,7 +29550,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$104,350.00",
+          "value": "$112,150.00",
           "grade": "INFO"
         },
         {
@@ -29559,13 +29560,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$62,610.00",
+          "value": "$67,290.00",
           "grade": "GOOD"
         },
         {
           "metric": "Cap Rate",
-          "value": "7.37%",
-          "grade": "FAIR"
+          "value": "7.92%",
+          "grade": "GOOD"
         },
         {
           "metric": "Op Expense Ratio",
@@ -29574,42 +29575,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "7.37%",
-          "grade": "FAIR"
+          "value": "7.92%",
+          "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "8.62%",
+          "value": "9.17%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.85",
+          "value": "0.86",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$726,334.11",
+          "value": "$733,805.89",
           "grade": "FAIR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$17,254.07",
+          "value": "$21,934.07",
           "grade": "GOOD"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$1,437.84",
+          "value": "$1,827.84",
           "grade": "GOOD"
         },
         {
           "metric": "CoCR",
-          "value": "10.15%",
+          "value": "12.90%",
           "grade": "GOOD"
         },
         {
           "metric": "DSCR",
-          "value": "1.38",
+          "value": "1.48",
           "grade": "FAIR"
         },
         {
@@ -29619,52 +29620,52 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "72.44%",
+          "value": "67.40%",
           "grade": "FAIR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "83.47%",
+          "value": "80.44%",
           "grade": "GOOD"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "1.15 DSCR",
-          "grade": "FAIL: High Rate Risk"
+          "value": "1.24 DSCR",
+          "grade": "PASS"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "12.93%",
+          "value": "14.82%",
           "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "8.10x",
+          "value": "8.93x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "36.83",
+          "value": "39.58",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "138 Days",
+          "value": "139 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$3,338.68",
+          "value": "$3,483.34",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 22750.0,
-      "residential_rent": 81600.0,
+      "residential_rent": 89400.0,
       "rent_breakdown": [
         "Commercial (ground floor 875 sq ft @ $26.0/sq ft): $22,750.00/yr",
-        "2BR × 2 @ $2,100/mo (Ottawa market): $50,400.00/yr",
-        "3BR × 1 @ $2,600/mo (Ottawa market): $31,200.00/yr"
+        "2BR × 2 @ $2,400/mo (Ottawa market): $57,600.00/yr",
+        "3BR × 1 @ $2,650/mo (Ottawa market): $31,800.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -29684,8 +29685,8 @@
       "status": "active",
       "listing_date": "2026-01-02",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2800000,
       "original_price": 2800000,
       "total_sq_ft": 11755,
@@ -29858,12 +29859,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "62 Days",
+          "value": "63 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$4,881.03",
+          "value": "$4,959.76",
           "grade": "POOR"
         }
       ],
@@ -29888,11 +29889,11 @@
     {
       "address": "342 Frank St, Ottawa",
       "mls_number": "X12629290",
-      "status": "inactive",
+      "status": "active",
       "listing_date": "2025-12-12",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2500000,
       "original_price": 2600000,
       "total_sq_ft": 7500,
@@ -29906,7 +29907,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 277400.0,
+      "annual_rent": 284600.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -29945,8 +29946,8 @@
         },
         {
           "metric": "GRM",
-          "value": "9.01",
-          "grade": "FAIR"
+          "value": "8.78",
+          "grade": "GOOD"
         },
         {
           "metric": "Tax Load",
@@ -29965,7 +29966,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$277,400.00",
+          "value": "$284,600.00",
           "grade": "INFO"
         },
         {
@@ -29975,12 +29976,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$166,440.00",
+          "value": "$170,760.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "6.66%",
+          "value": "6.83%",
           "grade": "FAIR"
         },
         {
@@ -29990,97 +29991,97 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "6.66%",
+          "value": "6.83%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "7.91%",
+          "value": "8.08%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.84",
+          "value": "0.85",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$2,104,171.93",
+          "value": "$2,113,366.34",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$33,040.21",
+          "value": "$37,360.21",
           "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$2,753.35",
+          "value": "$3,113.35",
           "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "6.61%",
+          "value": "7.47%",
           "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "1.25",
-          "grade": "POOR/UNBANKABLE"
+          "value": "1.28",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI",
           "value": "$133,399.79",
-          "grade": "POOR"
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "80.15%",
+          "value": "78.12%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "88.09%",
+          "value": "86.87%",
           "grade": "FAIR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "1.17 DSCR",
+          "value": "1.20 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "10.81%",
+          "value": "11.30%",
           "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "7.04x",
+          "value": "7.30x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "33.29",
+          "value": "34.15",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "83 Days",
+          "value": "84 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$5,633.85",
+          "value": "$5,768.93",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 65000.0,
-      "residential_rent": 212400.0,
+      "residential_rent": 219600.0,
       "rent_breakdown": [
         "Commercial (ground floor 2,500 sq ft @ $26.0/sq ft): $65,000.00/yr",
-        "2BR × 1 @ $2,100/mo (Ottawa market): $25,200.00/yr",
-        "3BR × 6 @ $2,600/mo (Ottawa market): $187,200.00/yr"
+        "2BR × 1 @ $2,400/mo (Ottawa market): $28,800.00/yr",
+        "3BR × 6 @ $2,650/mo (Ottawa market): $190,800.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -30100,8 +30101,8 @@
       "status": "active",
       "listing_date": "2025-09-08",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 950000,
       "original_price": 1000000,
       "total_sq_ft": 3600,
@@ -30115,7 +30116,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 108000.0,
+      "annual_rent": 128520.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -30154,7 +30155,7 @@
         },
         {
           "metric": "GRM",
-          "value": "8.80",
+          "value": "7.39",
           "grade": "GOOD"
         },
         {
@@ -30174,7 +30175,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$108,000.00",
+          "value": "$128,520.00",
           "grade": "INFO"
         },
         {
@@ -30184,13 +30185,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$64,800.00",
-          "grade": "FAIR"
+          "value": "$77,112.00",
+          "grade": "GOOD"
         },
         {
           "metric": "Cap Rate",
-          "value": "6.82%",
-          "grade": "FAIR"
+          "value": "8.12%",
+          "grade": "GOOD"
         },
         {
           "metric": "Op Expense Ratio",
@@ -30199,43 +30200,43 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "6.82%",
-          "grade": "FAIR"
+          "value": "8.12%",
+          "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "8.07%",
+          "value": "9.37%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.85",
+          "value": "0.87",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$802,973.98",
-          "grade": "POOR"
+          "value": "$822,966.92",
+          "grade": "FAIR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$14,108.08",
-          "grade": "FAIR (Thin Margin)"
+          "value": "$26,420.08",
+          "grade": "GOOD"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$1,175.67",
-          "grade": "FAIR"
+          "value": "$2,201.67",
+          "grade": "GOOD"
         },
         {
           "metric": "CoCR",
-          "value": "7.43%",
-          "grade": "FAIR"
+          "value": "13.91%",
+          "grade": "GOOD"
         },
         {
           "metric": "DSCR",
-          "value": "1.28",
-          "grade": "FAIR"
+          "value": "1.52",
+          "grade": "GOOD"
         },
         {
           "metric": "Break-Even NOI",
@@ -30244,51 +30245,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "78.23%",
-          "grade": "POOR"
+          "value": "65.74%",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "86.94%",
-          "grade": "FAIR"
+          "value": "79.44%",
+          "grade": "GOOD"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "1.09 DSCR",
-          "grade": "FAIL: High Rate Risk"
+          "value": "1.29 DSCR",
+          "grade": "PASS"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "11.27%",
-          "grade": "FAIR"
+          "value": "15.56%",
+          "grade": "GOOD"
         },
         {
           "metric": "Equity Multiple",
-          "value": "7.28x",
+          "value": "9.23x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "34.11",
-          "grade": "NO CELOC"
+          "value": "40.59",
+          "grade": "LENDER FRICTION"
         },
         {
           "metric": "Market Staleness",
-          "value": "178 Days",
+          "value": "179 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$4,642.43",
-          "grade": "POOR"
+          "value": "$5,076.64",
+          "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 46800.0,
-      "residential_rent": 61200.0,
+      "residential_rent": 81720.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,800 sq ft @ $26.0/sq ft): $46,800.00/yr",
-        "Unknown × 3 @ $1,700/mo (Ottawa market): $61,200.00/yr"
+        "Unknown × 3 @ $2,270/mo (Ottawa market): $81,720.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -30308,8 +30309,8 @@
       "status": "inactive",
       "listing_date": "2025-08-27",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 700000,
       "original_price": 700000,
       "total_sq_ft": 1500,
@@ -30323,7 +30324,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 45000.0,
+      "annual_rent": 51600.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 1,
@@ -30362,7 +30363,7 @@
         },
         {
           "metric": "GRM",
-          "value": "15.56",
+          "value": "13.57",
           "grade": "POOR"
         },
         {
@@ -30382,7 +30383,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$45,000.00",
+          "value": "$51,600.00",
           "grade": "INFO"
         },
         {
@@ -30392,12 +30393,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$27,000.00",
+          "value": "$30,960.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "3.86%",
+          "value": "4.42%",
           "grade": "POOR"
         },
         {
@@ -30407,42 +30408,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.86%",
+          "value": "4.42%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "5.11%",
+          "value": "5.67%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.75",
+          "value": "0.78",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$528,375.73",
+          "value": "$546,031.75",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-10,351.94",
+          "value": "$-6,391.94",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-862.66",
+          "value": "$-532.66",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-7.39%",
+          "value": "-4.57%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.72",
+          "value": "0.83",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -30452,51 +30453,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "138.34%",
+          "value": "120.65%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "123.00%",
+          "value": "112.39%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.58 DSCR",
+          "value": "0.67 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "4.91%",
+          "value": "5.87%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "2.84x",
+          "value": "3.69x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "19.29",
+          "value": "22.11",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "190 Days",
+          "value": "191 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$2,921.35",
+          "value": "$3,076.79",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 0.0,
-      "residential_rent": 45000.0,
+      "residential_rent": 51600.0,
       "rent_breakdown": [
-        "1BR × 1 @ $1,650/mo (Ottawa market): $19,800.00/yr",
-        "2BR × 1 @ $2,100/mo (Ottawa market): $25,200.00/yr"
+        "1BR × 1 @ $1,900/mo (Ottawa market): $22,800.00/yr",
+        "2BR × 1 @ $2,400/mo (Ottawa market): $28,800.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -30516,8 +30517,8 @@
       "status": "inactive",
       "listing_date": "2025-10-14",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 18950000,
       "original_price": 18950000,
       "total_sq_ft": 9698,
@@ -30531,7 +30532,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 858024.6666666666,
+      "annual_rent": 1131624.6666666667,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -30570,7 +30571,7 @@
         },
         {
           "metric": "GRM",
-          "value": "22.09",
+          "value": "16.75",
           "grade": "POOR"
         },
         {
@@ -30590,7 +30591,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$858,024.67",
+          "value": "$1,131,624.67",
           "grade": "INFO"
         },
         {
@@ -30600,12 +30601,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$514,814.80",
+          "value": "$678,974.80",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "2.72%",
+          "value": "3.58%",
           "grade": "POOR"
         },
         {
@@ -30615,42 +30616,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "2.72%",
+          "value": "3.58%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "3.97%",
+          "value": "4.83%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.68",
+          "value": "0.74",
           "grade": "POOR"
         },
         {
           "metric": "Exit Price",
-          "value": "$12,967,627.20",
+          "value": "$14,057,449.28",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-496,355.64",
+          "value": "$-332,195.64",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-41,362.97",
+          "value": "$-27,682.97",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-13.10%",
+          "value": "-8.77%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.51",
+          "value": "0.67",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -30660,51 +30661,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "196.41%",
+          "value": "148.93%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "157.85%",
+          "value": "129.36%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.50 DSCR",
+          "value": "0.67 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "3.23%",
+          "value": "4.48%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "1.13x",
-          "grade": "POOR (Underperforming)"
+          "value": "2.43x",
+          "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "13.58",
+          "value": "17.91",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "142 Days",
+          "value": "143 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$53,422.78",
+          "value": "$58,146.20",
           "grade": "GOOD"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 42024.666666666664,
-      "residential_rent": 816000.0,
+      "residential_rent": 1089600.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,616 sq ft @ $26.0/sq ft): $42,024.67/yr",
-        "Unknown × 40 @ $1,700/mo (Ottawa market): $816,000.00/yr"
+        "Unknown × 40 @ $2,270/mo (Ottawa market): $1,089,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -30724,8 +30725,8 @@
       "status": "inactive",
       "listing_date": "2025-09-26",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1500000,
       "original_price": 1500000,
       "total_sq_ft": 4250,
@@ -30739,7 +30740,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 138833.33333333334,
+      "annual_rent": 146033.33333333334,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 2,
@@ -30778,7 +30779,7 @@
         },
         {
           "metric": "GRM",
-          "value": "10.80",
+          "value": "10.27",
           "grade": "FAIR"
         },
         {
@@ -30798,7 +30799,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$138,833.33",
+          "value": "$146,033.33",
           "grade": "INFO"
         },
         {
@@ -30808,12 +30809,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$83,300.00",
+          "value": "$87,620.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.55%",
+          "value": "5.84%",
           "grade": "FAIR"
         },
         {
@@ -30823,12 +30824,12 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.55%",
+          "value": "5.84%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.80%",
+          "value": "7.09%",
           "grade": "GOOD"
         },
         {
@@ -30838,27 +30839,27 @@
         },
         {
           "metric": "Exit Price",
-          "value": "$1,225,000.00",
+          "value": "$1,235,825.11",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$3,260.12",
+          "value": "$7,580.12",
           "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$271.68",
+          "value": "$631.68",
           "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "1.09%",
+          "value": "2.53%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "1.04",
+          "value": "1.09",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -30868,52 +30869,52 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "96.09%",
+          "value": "91.35%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "97.65%",
+          "value": "94.81%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.94 DSCR",
+          "value": "0.98 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "8.09%",
+          "value": "8.74%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "5.38x",
+          "value": "5.81x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "27.77",
+          "value": "29.21",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "160 Days",
+          "value": "161 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$6,025.48",
+          "value": "$6,191.94",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 36833.333333333336,
-      "residential_rent": 102000.0,
+      "residential_rent": 109200.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,417 sq ft @ $26.0/sq ft): $36,833.33/yr",
-        "1BR × 2 @ $1,650/mo (Ottawa market): $39,600.00/yr",
-        "3BR × 2 @ $2,600/mo (Ottawa market): $62,400.00/yr"
+        "1BR × 2 @ $1,900/mo (Ottawa market): $45,600.00/yr",
+        "3BR × 2 @ $2,650/mo (Ottawa market): $63,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -30933,8 +30934,8 @@
       "status": "inactive",
       "listing_date": "2025-10-03",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 850000,
       "original_price": 850000,
       "total_sq_ft": 2250,
@@ -30948,7 +30949,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 79650.0,
+      "annual_rent": 86850.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -30987,7 +30988,7 @@
         },
         {
           "metric": "GRM",
-          "value": "10.67",
+          "value": "9.79",
           "grade": "FAIR"
         },
         {
@@ -31007,7 +31008,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$79,650.00",
+          "value": "$86,850.00",
           "grade": "INFO"
         },
         {
@@ -31017,12 +31018,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$47,790.00",
+          "value": "$52,110.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.62%",
+          "value": "6.13%",
           "grade": "FAIR"
         },
         {
@@ -31032,42 +31033,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.62%",
+          "value": "6.13%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.87%",
+          "value": "7.38%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.82",
+          "value": "0.83",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$695,633.19",
+          "value": "$706,097.56",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$2,434.07",
+          "value": "$6,754.07",
           "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$202.84",
+          "value": "$562.84",
           "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "1.43%",
+          "value": "3.97%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "1.05",
+          "value": "1.15",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -31077,51 +31078,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "94.91%",
+          "value": "87.04%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "96.94%",
+          "value": "92.22%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.88 DSCR",
+          "value": "0.96 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "8.24%",
+          "value": "9.43%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "5.49x",
+          "value": "6.25x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "28.11",
+          "value": "30.65",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "153 Days",
+          "value": "154 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$3,281.68",
+          "value": "$3,426.33",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 29250.0,
-      "residential_rent": 50400.0,
+      "residential_rent": 57600.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,125 sq ft @ $26.0/sq ft): $29,250.00/yr",
-        "2BR × 2 @ $2,100/mo (Ottawa market): $50,400.00/yr"
+        "2BR × 2 @ $2,400/mo (Ottawa market): $57,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -31141,8 +31142,8 @@
       "status": "active",
       "listing_date": "2025-11-15",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 4750000,
       "original_price": 4750000,
       "total_sq_ft": 15000,
@@ -31315,12 +31316,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "110 Days",
+          "value": "111 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$13,611.27",
+          "value": "$13,735.00",
           "grade": "FAIR"
         }
       ],
@@ -31349,8 +31350,8 @@
       "status": "active",
       "listing_date": "2025-06-10",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1495000,
       "original_price": 1700000,
       "total_sq_ft": 4100,
@@ -31364,7 +31365,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 85933.33333333334,
+      "annual_rent": 93133.33333333334,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -31403,7 +31404,7 @@
         },
         {
           "metric": "GRM",
-          "value": "17.40",
+          "value": "16.05",
           "grade": "POOR"
         },
         {
@@ -31423,7 +31424,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$85,933.33",
+          "value": "$93,133.33",
           "grade": "INFO"
         },
         {
@@ -31433,12 +31434,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$51,560.00",
+          "value": "$55,880.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "3.45%",
+          "value": "3.74%",
           "grade": "POOR"
         },
         {
@@ -31448,42 +31449,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.45%",
+          "value": "3.74%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "4.70%",
+          "value": "4.99%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.73",
+          "value": "0.75",
           "grade": "POOR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,097,021.28",
+          "value": "$1,119,839.68",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-28,213.08",
+          "value": "$-23,893.08",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-2,351.09",
+          "value": "$-1,991.09",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-9.44%",
+          "value": "-7.99%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.65",
+          "value": "0.70",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -31493,51 +31494,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "154.72%",
+          "value": "142.76%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "132.83%",
+          "value": "125.65%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.58 DSCR",
+          "value": "0.63 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "4.28%",
+          "value": "4.72%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "2.23x",
+          "value": "2.66x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "17.24",
+          "value": "18.69",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "268 Days",
+          "value": "269 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$8,497.57",
+          "value": "$8,744.47",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 35533.333333333336,
-      "residential_rent": 50400.0,
+      "residential_rent": 57600.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,367 sq ft @ $26.0/sq ft): $35,533.33/yr",
-        "2BR × 2 @ $2,100/mo (Ottawa market): $50,400.00/yr"
+        "2BR × 2 @ $2,400/mo (Ottawa market): $57,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -31557,8 +31558,8 @@
       "status": "active",
       "listing_date": "2026-01-08",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1000000,
       "original_price": 1000000,
       "total_sq_ft": 2750,
@@ -31572,7 +31573,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 102000.0,
+      "annual_rent": 109200.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 2,
@@ -31611,7 +31612,7 @@
         },
         {
           "metric": "GRM",
-          "value": "9.80",
+          "value": "9.16",
           "grade": "FAIR"
         },
         {
@@ -31631,7 +31632,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$102,000.00",
+          "value": "$109,200.00",
           "grade": "INFO"
         },
         {
@@ -31641,12 +31642,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$61,200.00",
+          "value": "$65,520.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "6.12%",
+          "value": "6.55%",
           "grade": "FAIR"
         },
         {
@@ -31656,42 +31657,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "6.12%",
+          "value": "6.55%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "7.37%",
+          "value": "7.80%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.83",
+          "value": "0.84",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$830,393.49",
+          "value": "$840,000.00",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$7,840.08",
+          "value": "$12,160.08",
           "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$653.34",
+          "value": "$1,013.34",
           "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "3.92%",
-          "grade": "POOR"
+          "value": "6.08%",
+          "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "1.15",
+          "value": "1.23",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -31701,51 +31702,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "87.19%",
+          "value": "81.44%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "92.31%",
-          "grade": "POOR"
+          "value": "88.86%",
+          "grade": "FAIR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.98 DSCR",
+          "value": "1.05 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "9.40%",
-          "grade": "POOR"
+          "value": "10.52%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "6.23x",
+          "value": "6.88x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "30.60",
+          "value": "32.76",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "56 Days",
+          "value": "57 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$1,464.71",
+          "value": "$1,536.47",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 0.0,
-      "residential_rent": 102000.0,
+      "residential_rent": 109200.0,
       "rent_breakdown": [
-        "1BR × 2 @ $1,650/mo (Ottawa market): $39,600.00/yr",
-        "3BR × 2 @ $2,600/mo (Ottawa market): $62,400.00/yr"
+        "1BR × 2 @ $1,900/mo (Ottawa market): $45,600.00/yr",
+        "3BR × 2 @ $2,650/mo (Ottawa market): $63,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -31765,8 +31766,8 @@
       "status": "active",
       "listing_date": "2025-10-14",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2300000,
       "original_price": 2400000,
       "total_sq_ft": 3261,
@@ -31780,7 +31781,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 191462.0,
+      "annual_rent": 246182.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -31819,8 +31820,8 @@
         },
         {
           "metric": "GRM",
-          "value": "12.01",
-          "grade": "POOR"
+          "value": "9.34",
+          "grade": "FAIR"
         },
         {
           "metric": "Tax Load",
@@ -31839,7 +31840,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$191,462.00",
+          "value": "$246,182.00",
           "grade": "INFO"
         },
         {
@@ -31849,13 +31850,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$114,877.20",
-          "grade": "POOR"
+          "value": "$147,709.20",
+          "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "4.99%",
-          "grade": "POOR"
+          "value": "6.42%",
+          "grade": "FAIR"
         },
         {
           "metric": "Op Expense Ratio",
@@ -31864,42 +31865,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "4.99%",
-          "grade": "POOR"
+          "value": "6.42%",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.24%",
+          "value": "7.67%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.80",
+          "value": "0.84",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,840,980.77",
+          "value": "$1,925,804.43",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-7,850.61",
-          "grade": "POOR/BLEEDING"
+          "value": "$24,981.39",
+          "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-654.22",
-          "grade": "POOR/BLEEDING"
+          "value": "$2,081.78",
+          "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "-1.71%",
-          "grade": "POOR"
+          "value": "5.43%",
+          "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "0.94",
+          "value": "1.20",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -31909,51 +31910,51 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "106.83%",
+          "value": "83.09%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "104.10%",
-          "grade": "POOR"
+          "value": "89.85%",
+          "grade": "FAIR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.87 DSCR",
+          "value": "1.12 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "6.93%",
-          "grade": "POOR"
+          "value": "10.17%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "4.54x",
+          "value": "6.69x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "24.97",
+          "value": "32.11",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "142 Days",
+          "value": "143 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$7,861.78",
+          "value": "$8,786.58",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 28262.0,
-      "residential_rent": 163200.0,
+      "residential_rent": 217920.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,087 sq ft @ $26.0/sq ft): $28,262.00/yr",
-        "Unknown × 8 @ $1,700/mo (Ottawa market): $163,200.00/yr"
+        "Unknown × 8 @ $2,270/mo (Ottawa market): $217,920.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -31973,8 +31974,8 @@
       "status": "active",
       "listing_date": "2026-02-17",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 730000,
       "original_price": 750000,
       "total_sq_ft": 2250,
@@ -31988,7 +31989,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 79650.0,
+      "annual_rent": 86850.0,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 0,
@@ -32027,8 +32028,8 @@
         },
         {
           "metric": "GRM",
-          "value": "9.17",
-          "grade": "FAIR"
+          "value": "8.41",
+          "grade": "GOOD"
         },
         {
           "metric": "Tax Load",
@@ -32047,7 +32048,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$79,650.00",
+          "value": "$86,850.00",
           "grade": "INFO"
         },
         {
@@ -32057,12 +32058,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$47,790.00",
-          "grade": "FAIR"
+          "value": "$52,110.00",
+          "grade": "GOOD"
         },
         {
           "metric": "Cap Rate",
-          "value": "6.55%",
+          "value": "7.14%",
           "grade": "FAIR"
         },
         {
@@ -32072,96 +32073,96 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "6.55%",
+          "value": "7.14%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "7.80%",
+          "value": "8.39%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.84",
+          "value": "0.85",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$612,692.31",
-          "grade": "POOR"
-        },
-        {
-          "metric": "Annual Cash Flow",
-          "value": "$8,837.26",
-          "grade": "FAIR (Thin Margin)"
-        },
-        {
-          "metric": "Monthly Cash Flow",
-          "value": "$736.44",
+          "value": "$621,096.54",
           "grade": "FAIR"
         },
         {
+          "metric": "Annual Cash Flow",
+          "value": "$13,157.26",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "Monthly Cash Flow",
+          "value": "$1,096.44",
+          "grade": "GOOD"
+        },
+        {
           "metric": "CoCR",
-          "value": "6.05%",
+          "value": "9.01%",
           "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "1.23",
-          "grade": "POOR/UNBANKABLE"
+          "value": "1.34",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI",
           "value": "$38,952.74",
-          "grade": "POOR"
-        },
-        {
-          "metric": "Break-Even NOI %",
-          "value": "81.51%",
-          "grade": "POOR"
-        },
-        {
-          "metric": "Break-Even Occupancy %",
-          "value": "88.90%",
           "grade": "FAIR"
         },
         {
+          "metric": "Break-Even NOI %",
+          "value": "74.75%",
+          "grade": "FAIR"
+        },
+        {
+          "metric": "Break-Even Occupancy %",
+          "value": "84.85%",
+          "grade": "GOOD"
+        },
+        {
           "metric": "Stress Test (+2%)",
-          "value": "1.00 DSCR",
+          "value": "1.09 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "10.50%",
+          "value": "12.21%",
           "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "6.87x",
+          "value": "7.76x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "32.73",
+          "value": "35.69",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "16 Days",
+          "value": "17 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$314.72",
+          "value": "$347.99",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 29250.0,
-      "residential_rent": 50400.0,
+      "residential_rent": 57600.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,125 sq ft @ $26.0/sq ft): $29,250.00/yr",
-        "2BR × 2 @ $2,100/mo (Ottawa market): $50,400.00/yr"
+        "2BR × 2 @ $2,400/mo (Ottawa market): $57,600.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -32181,8 +32182,8 @@
       "status": "inactive",
       "listing_date": "2025-08-26",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2500000,
       "original_price": 2600000,
       "total_sq_ft": 5800,
@@ -32196,7 +32197,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 240466.66666666666,
+      "annual_rent": 269866.6666666667,
       "unit_mix": {
         "bachelor": 2,
         "one_br": 3,
@@ -32235,7 +32236,7 @@
         },
         {
           "metric": "GRM",
-          "value": "10.40",
+          "value": "9.26",
           "grade": "FAIR"
         },
         {
@@ -32255,7 +32256,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$240,466.67",
+          "value": "$269,866.67",
           "grade": "INFO"
         },
         {
@@ -32265,12 +32266,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$144,280.00",
+          "value": "$161,920.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.77%",
+          "value": "6.48%",
           "grade": "FAIR"
         },
         {
@@ -32280,42 +32281,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.77%",
+          "value": "6.48%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "7.02%",
+          "value": "7.73%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.82",
+          "value": "0.84",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$2,055,270.66",
+          "value": "$2,094,695.99",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$10,880.21",
+          "value": "$28,520.21",
           "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$906.68",
+          "value": "$2,376.68",
           "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "2.18%",
-          "grade": "POOR"
+          "value": "5.70%",
+          "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "1.08",
+          "value": "1.21",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -32325,53 +32326,53 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "92.46%",
+          "value": "82.39%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "95.48%",
-          "grade": "POOR"
+          "value": "89.43%",
+          "grade": "FAIR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "1.01 DSCR",
+          "value": "1.14 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "8.57%",
-          "grade": "POOR"
+          "value": "10.32%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "5.71x",
+          "value": "6.77x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "28.86",
+          "value": "32.38",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "191 Days",
+          "value": "192 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$12,180.84",
+          "value": "$12,871.81",
           "grade": "FAIR"
         }
       ],
       "construction_cost": 0,
       "commercial_rent": 50266.666666666664,
-      "residential_rent": 190200.0,
+      "residential_rent": 219600.0,
       "rent_breakdown": [
         "Commercial (ground floor 1,933 sq ft @ $26.0/sq ft): $50,266.67/yr",
-        "Bachelor × 2 @ $1,250/mo (Ottawa market): $30,000.00/yr",
-        "1BR × 3 @ $1,650/mo (Ottawa market): $59,400.00/yr",
-        "2BR × 4 @ $2,100/mo (Ottawa market): $100,800.00/yr"
+        "Bachelor × 2 @ $1,500/mo (Ottawa market): $36,000.00/yr",
+        "1BR × 3 @ $1,900/mo (Ottawa market): $68,400.00/yr",
+        "2BR × 4 @ $2,400/mo (Ottawa market): $115,200.00/yr"
       ],
       "hotel_rooms": 0,
       "hotel_adr": null,
@@ -34676,11 +34677,11 @@
     {
       "address": "51-53 Foster St, Perth",
       "mls_number": "X9463847",
-      "status": "active",
+      "status": "inactive",
       "listing_date": "2023-06-07",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 850000,
       "original_price": 850000,
       "total_sq_ft": 3229,
@@ -34853,12 +34854,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "1002 Days",
+          "value": "1003 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$24,119.27",
+          "value": "$24,143.34",
           "grade": "FAIR"
         }
       ],
@@ -48614,14 +48615,14 @@
       "status": "inactive",
       "listing_date": "2026-02-28",
       "created_at": "2026-02-28",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-07",
+      "analyzed_on": "2026-03-07",
       "asking_price": 420000,
       "original_price": 420000,
       "total_sq_ft": 2355,
       "city": "Tweed",
       "province": "ON",
-      "property_type": null,
+      "property_type": "Mixed-Use",
       "property_taxes": 2723.0,
       "down_payment_pct": 0.2,
       "interest_rate": 0.045,
@@ -48629,7 +48630,7 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 37140.0,
+      "annual_rent": 54802.5,
       "unit_mix": {
         "bachelor": 0,
         "one_br": 1,
@@ -48662,14 +48663,14 @@
           "grade": "INFO"
         },
         {
-          "metric": "Price/Sq Ft (Property)",
+          "metric": "Price/Sq Ft (Mixed-Use)",
           "value": "$178.34",
           "grade": "FAIR"
         },
         {
           "metric": "GRM",
-          "value": "11.31",
-          "grade": "FAIR"
+          "value": "7.66",
+          "grade": "GOOD"
         },
         {
           "metric": "Tax Load",
@@ -48688,7 +48689,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$37,140.00",
+          "value": "$54,802.50",
           "grade": "INFO"
         },
         {
@@ -48698,13 +48699,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$22,284.00",
-          "grade": "FAIR"
+          "value": "$32,881.50",
+          "grade": "GOOD"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.31%",
-          "grade": "POOR"
+          "value": "7.83%",
+          "grade": "GOOD"
         },
         {
           "metric": "Op Expense Ratio",
@@ -48713,94 +48714,95 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.31%",
-          "grade": "POOR"
+          "value": "7.83%",
+          "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.56%",
+          "value": "9.08%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.81",
+          "value": "0.86",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$339,695.12",
-          "grade": "POOR"
+          "value": "$362,131.06",
+          "grade": "FAIR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-127.17",
-          "grade": "POOR/BLEEDING"
+          "value": "$10,470.33",
+          "grade": "GOOD"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-10.60",
-          "grade": "POOR/BLEEDING"
+          "value": "$872.53",
+          "grade": "GOOD"
         },
         {
           "metric": "CoCR",
-          "value": "-0.15%",
-          "grade": "POOR"
+          "value": "12.46%",
+          "grade": "GOOD"
         },
         {
           "metric": "DSCR",
-          "value": "0.99",
-          "grade": "POOR/UNBANKABLE"
+          "value": "1.47",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI",
           "value": "$22,411.17",
-          "grade": "POOR"
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "100.57%",
-          "grade": "POOR"
+          "value": "68.16%",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "100.34%",
-          "grade": "POOR"
+          "value": "80.89%",
+          "grade": "GOOD"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.71 DSCR",
+          "value": "1.05 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "7.56%",
-          "grade": "POOR"
+          "value": "14.51%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "5.01x",
+          "value": "8.80x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "26.53",
+          "value": "39.14",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "5 Days",
+          "value": "7 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$51.76",
+          "value": "$86.20",
           "grade": "POOR"
         }
       ],
       "construction_cost": 0,
-      "commercial_rent": 0.0,
+      "commercial_rent": 17662.5,
       "residential_rent": 37140.0,
       "rent_breakdown": [
+        "Commercial (ground floor 1,178 sq ft @ $15.0/sq ft): $17,662.50/yr",
         "1BR × 1 @ $1,280/mo (Tweed market): $15,360.00/yr",
         "3BR × 1 @ $1,815/mo (Tweed market): $21,780.00/yr"
       ],
@@ -49863,8 +49865,8 @@
       "status": "active",
       "listing_date": "2026-03-02",
       "created_at": "2026-03-02",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 6800000,
       "original_price": 6800000,
       "total_sq_ft": 19450,
@@ -49878,15 +49880,15 @@
       "hold_years": 30,
       "expense_ratio": 0.4,
       "lease_type": "Normal",
-      "annual_rent": 574200.0,
+      "annual_rent": 678840.0,
       "commercial_rent": 0.0,
-      "residential_rent": 574200.0,
+      "residential_rent": 678840.0,
       "rent_breakdown": [
-        "Bachelor × 2 @ $1,250/mo (Ottawa market): $30,000.00/yr",
-        "1BR × 7 @ $1,650/mo (Ottawa market): $138,600.00/yr",
-        "2BR × 10 @ $2,100/mo (Ottawa market): $252,000.00/yr",
-        "3BR × 1 @ $2,600/mo (Ottawa market): $31,200.00/yr",
-        "Unknown × 6 @ $1,700/mo (Ottawa market): $122,400.00/yr"
+        "Bachelor × 2 @ $1,500/mo (Ottawa market): $36,000.00/yr",
+        "1BR × 7 @ $1,900/mo (Ottawa market): $159,600.00/yr",
+        "2BR × 10 @ $2,400/mo (Ottawa market): $288,000.00/yr",
+        "3BR × 1 @ $2,650/mo (Ottawa market): $31,800.00/yr",
+        "Unknown × 6 @ $2,270/mo (Ottawa market): $163,440.00/yr"
       ],
       "unit_mix": {
         "bachelor": 2,
@@ -49926,7 +49928,7 @@
         },
         {
           "metric": "GRM",
-          "value": "11.84",
+          "value": "10.02",
           "grade": "FAIR"
         },
         {
@@ -49946,7 +49948,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$574,200.00",
+          "value": "$678,840.00",
           "grade": "INFO"
         },
         {
@@ -49956,13 +49958,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$344,520.00",
+          "value": "$407,304.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.07%",
-          "grade": "POOR"
+          "value": "5.99%",
+          "grade": "FAIR"
         },
         {
           "metric": "Op Expense Ratio",
@@ -49971,42 +49973,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.07%",
-          "grade": "POOR"
+          "value": "5.99%",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.32%",
+          "value": "7.24%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.80",
+          "value": "0.83",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$5,451,265.82",
+          "value": "$5,625,745.86",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-18,327.44",
-          "grade": "POOR/BLEEDING"
+          "value": "$44,456.56",
+          "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-1,527.29",
-          "grade": "POOR/BLEEDING"
+          "value": "$3,704.71",
+          "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "-1.35%",
+          "value": "3.27%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.95",
+          "value": "1.12",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -50016,42 +50018,42 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "105.32%",
+          "value": "89.09%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "103.19%",
+          "value": "93.45%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.93 DSCR",
+          "value": "1.10 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "7.07%",
+          "value": "9.09%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "4.65x",
+          "value": "6.04x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "25.33",
+          "value": "29.95",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "3 Days",
+          "value": "4 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$493.77",
+          "value": "$704.87",
           "grade": "POOR"
         }
       ],
@@ -51943,11 +51945,11 @@
     {
       "address": "174 High St, Southampton, ON",
       "mls_number": "X12438828",
-      "status": "active",
+      "status": "inactive",
       "listing_date": "2025-10-08",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2650000,
       "original_price": 2650000,
       "total_sq_ft": 8944,
@@ -52129,12 +52131,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "148 Days",
+          "value": "149 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$8,628.38",
+          "value": "$8,686.68",
           "grade": "FAIR"
         }
       ],
@@ -52153,11 +52155,11 @@
     {
       "address": "189-193 High St, Southampton, ON",
       "mls_number": "X12438829",
-      "status": "active",
+      "status": "inactive",
       "listing_date": "2025-10-02",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2700000,
       "original_price": 2700000,
       "total_sq_ft": 6353,
@@ -52337,12 +52339,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "154 Days",
+          "value": "155 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$8,931.45",
+          "value": "$8,989.45",
           "grade": "FAIR"
         }
       ],
@@ -54032,8 +54034,8 @@
       "status": "inactive",
       "listing_date": "2026-03-04",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 2200000,
       "original_price": 2200000,
       "total_sq_ft": 5000,
@@ -54048,13 +54050,13 @@
       "expense_ratio": 0.4,
       "lease_type": "Normal",
       "construction_cost": 0,
-      "annual_rent": 152400.0,
+      "annual_rent": 166800.0,
       "commercial_rent": 0.0,
-      "residential_rent": 152400.0,
+      "residential_rent": 166800.0,
       "rent_breakdown": [
-        "1BR × 2 @ $1,650/mo (Ottawa market): $39,600.00/yr",
-        "2BR × 2 @ $2,100/mo (Ottawa market): $50,400.00/yr",
-        "3BR × 2 @ $2,600/mo (Ottawa market): $62,400.00/yr"
+        "1BR × 2 @ $1,900/mo (Ottawa market): $45,600.00/yr",
+        "2BR × 2 @ $2,400/mo (Ottawa market): $57,600.00/yr",
+        "3BR × 2 @ $2,650/mo (Ottawa market): $63,600.00/yr"
       ],
       "unit_mix": {
         "bachelor": 0,
@@ -54094,7 +54096,7 @@
         },
         {
           "metric": "GRM",
-          "value": "14.44",
+          "value": "13.19",
           "grade": "POOR"
         },
         {
@@ -54114,7 +54116,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$152,400.00",
+          "value": "$166,800.00",
           "grade": "INFO"
         },
         {
@@ -54124,12 +54126,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$91,440.00",
+          "value": "$100,080.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "4.16%",
+          "value": "4.55%",
           "grade": "POOR"
         },
         {
@@ -54139,42 +54141,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "4.16%",
+          "value": "4.55%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "5.41%",
+          "value": "5.80%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.77",
+          "value": "0.78",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,690,203.33",
+          "value": "$1,725,517.24",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-25,951.82",
+          "value": "$-17,311.82",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-2,162.65",
+          "value": "$-1,442.65",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-5.90%",
+          "value": "-3.93%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.78",
+          "value": "0.85",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -54184,42 +54186,42 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "128.38%",
+          "value": "117.30%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "117.03%",
+          "value": "110.38%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.72 DSCR",
+          "value": "0.79 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "5.41%",
+          "value": "6.09%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "3.29x",
+          "value": "3.88x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "20.78",
+          "value": "22.75",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "1 Days",
+          "value": "2 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$49.54",
+          "value": "$102.28",
           "grade": "POOR"
         }
       ],
@@ -54242,8 +54244,8 @@
       "status": "active",
       "listing_date": "2025-10-31",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1600000,
       "original_price": 1600000,
       "total_sq_ft": 4250,
@@ -54258,12 +54260,12 @@
       "expense_ratio": 0.4,
       "lease_type": "Normal",
       "construction_cost": 0,
-      "annual_rent": 100800.0,
+      "annual_rent": 98400.0,
       "commercial_rent": 0.0,
-      "residential_rent": 100800.0,
+      "residential_rent": 98400.0,
       "rent_breakdown": [
-        "3BR × 2 @ $2,600/mo (Ottawa market): $62,400.00/yr",
-        "4BR × 1 @ $3,200/mo (Ottawa market): $38,400.00/yr"
+        "3BR × 2 @ $2,650/mo (Ottawa market): $63,600.00/yr",
+        "4BR × 1 @ $2,900/mo (Ottawa market): $34,800.00/yr"
       ],
       "unit_mix": {
         "bachelor": 0,
@@ -54303,7 +54305,7 @@
         },
         {
           "metric": "GRM",
-          "value": "15.87",
+          "value": "16.26",
           "grade": "POOR"
         },
         {
@@ -54323,7 +54325,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$100,800.00",
+          "value": "$98,400.00",
           "grade": "INFO"
         },
         {
@@ -54333,12 +54335,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$60,480.00",
+          "value": "$59,040.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "3.78%",
+          "value": "3.69%",
           "grade": "POOR"
         },
         {
@@ -54348,42 +54350,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "3.78%",
+          "value": "3.69%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "5.03%",
+          "value": "4.94%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
           "value": "0.75",
-          "grade": "FAIR"
+          "grade": "POOR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,202,385.69",
+          "value": "$1,195,141.70",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-24,895.87",
+          "value": "$-26,335.87",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-2,074.66",
+          "value": "$-2,194.66",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-7.78%",
+          "value": "-8.23%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.71",
+          "value": "0.69",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -54393,42 +54395,42 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "141.16%",
+          "value": "144.61%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "124.70%",
+          "value": "126.76%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.64 DSCR",
+          "value": "0.63 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "4.79%",
+          "value": "4.65%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "2.72x",
+          "value": "2.59x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "18.90",
+          "value": "18.45",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "125 Days",
+          "value": "126 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$4,364.44",
+          "value": "$4,365.76",
           "grade": "POOR"
         }
       ],
@@ -54451,8 +54453,8 @@
       "status": "inactive",
       "listing_date": "2025-09-17",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1600000,
       "original_price": 1600000,
       "total_sq_ft": 5000,
@@ -54467,12 +54469,12 @@
       "expense_ratio": 0.4,
       "lease_type": "Normal",
       "construction_cost": 0,
-      "annual_rent": 140400.0,
+      "annual_rent": 160800.0,
       "commercial_rent": 0.0,
-      "residential_rent": 140400.0,
+      "residential_rent": 160800.0,
       "rent_breakdown": [
-        "1BR × 2 @ $1,650/mo (Ottawa market): $39,600.00/yr",
-        "2BR × 4 @ $2,100/mo (Ottawa market): $100,800.00/yr"
+        "1BR × 2 @ $1,900/mo (Ottawa market): $45,600.00/yr",
+        "2BR × 4 @ $2,400/mo (Ottawa market): $115,200.00/yr"
       ],
       "unit_mix": {
         "bachelor": 0,
@@ -54512,7 +54514,7 @@
         },
         {
           "metric": "GRM",
-          "value": "11.40",
+          "value": "9.95",
           "grade": "FAIR"
         },
         {
@@ -54532,7 +54534,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$140,400.00",
+          "value": "$160,800.00",
           "grade": "INFO"
         },
         {
@@ -54542,13 +54544,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$84,240.00",
+          "value": "$96,480.00",
           "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.27%",
-          "grade": "POOR"
+          "value": "6.03%",
+          "grade": "FAIR"
         },
         {
           "metric": "Op Expense Ratio",
@@ -54557,42 +54559,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.27%",
-          "grade": "POOR"
+          "value": "6.03%",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.51%",
+          "value": "7.28%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.81",
+          "value": "0.83",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,294,009.22",
+          "value": "$1,325,274.73",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-1,135.87",
-          "grade": "POOR/BLEEDING"
+          "value": "$11,104.13",
+          "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-94.66",
-          "grade": "POOR/BLEEDING"
+          "value": "$925.34",
+          "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "-0.35%",
+          "value": "3.47%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.99",
+          "value": "1.13",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -54602,42 +54604,42 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "101.35%",
+          "value": "88.49%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "100.81%",
+          "value": "93.09%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.89 DSCR",
+          "value": "1.02 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "7.47%",
+          "value": "9.18%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "4.95x",
+          "value": "6.10x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "26.32",
+          "value": "30.15",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "169 Days",
+          "value": "170 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$6,644.32",
+          "value": "$7,068.97",
           "grade": "FAIR"
         }
       ],
@@ -54660,8 +54662,8 @@
       "status": "inactive",
       "listing_date": "2025-10-31",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 6795000,
       "original_price": 6795000,
       "total_sq_ft": 5000,
@@ -54676,14 +54678,14 @@
       "expense_ratio": 0.4,
       "lease_type": "Normal",
       "construction_cost": 0,
-      "annual_rent": 463200.0,
+      "annual_rent": 491400.0,
       "commercial_rent": 0.0,
-      "residential_rent": 463200.0,
+      "residential_rent": 491400.0,
       "rent_breakdown": [
-        "Bachelor × 5 @ $1,250/mo (Ottawa market): $75,000.00/yr",
-        "1BR × 1 @ $1,650/mo (Ottawa market): $19,800.00/yr",
-        "2BR × 1 @ $2,100/mo (Ottawa market): $25,200.00/yr",
-        "3BR × 11 @ $2,600/mo (Ottawa market): $343,200.00/yr"
+        "Bachelor × 5 @ $1,500/mo (Ottawa market): $90,000.00/yr",
+        "1BR × 1 @ $1,900/mo (Ottawa market): $22,800.00/yr",
+        "2BR × 1 @ $2,400/mo (Ottawa market): $28,800.00/yr",
+        "3BR × 11 @ $2,650/mo (Ottawa market): $349,800.00/yr"
       ],
       "unit_mix": {
         "bachelor": 5,
@@ -54726,7 +54728,7 @@
         },
         {
           "metric": "GRM",
-          "value": "14.67",
+          "value": "13.83",
           "grade": "POOR"
         },
         {
@@ -54746,7 +54748,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$463,200.00",
+          "value": "$491,400.00",
           "grade": "INFO"
         },
         {
@@ -54756,12 +54758,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$277,920.00",
+          "value": "$294,840.00",
           "grade": "POOR"
         },
         {
           "metric": "Cap Rate",
-          "value": "4.09%",
+          "value": "4.34%",
           "grade": "POOR"
         },
         {
@@ -54771,42 +54773,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "4.09%",
+          "value": "4.34%",
           "grade": "POOR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "5.34%",
+          "value": "5.59%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.77",
+          "value": "0.78",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$5,204,494.38",
+          "value": "$5,274,418.60",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-84,660.64",
+          "value": "$-67,740.64",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-7,055.05",
+          "value": "$-5,645.05",
           "grade": "POOR/BLEEDING"
         },
         {
           "metric": "CoCR",
-          "value": "-6.23%",
+          "value": "-4.98%",
           "grade": "POOR"
         },
         {
           "metric": "DSCR",
-          "value": "0.77",
+          "value": "0.81",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -54816,42 +54818,42 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "130.46%",
+          "value": "122.98%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "118.28%",
+          "value": "113.79%",
           "grade": "POOR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.75 DSCR",
+          "value": "0.79 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "5.30%",
+          "value": "5.72%",
           "grade": "POOR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "3.19x",
+          "value": "3.56x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "20.45",
+          "value": "21.70",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "125 Days",
+          "value": "126 Days",
           "grade": "FAIR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$19,022.94",
+          "value": "$19,569.92",
           "grade": "FAIR"
         }
       ],
@@ -54871,8 +54873,8 @@
       "status": "inactive",
       "listing_date": "2025-09-13",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 14900000,
       "original_price": 14900000,
       "total_sq_ft": 5000,
@@ -54887,11 +54889,11 @@
       "expense_ratio": 0.4,
       "lease_type": "Normal",
       "construction_cost": 0,
-      "annual_rent": 1387200.0,
+      "annual_rent": 1852320.0,
       "commercial_rent": 0.0,
-      "residential_rent": 1387200.0,
+      "residential_rent": 1852320.0,
       "rent_breakdown": [
-        "Unknown × 68 @ $1,700/mo (Ottawa market): $1,387,200.00/yr"
+        "Unknown × 68 @ $2,270/mo (Ottawa market): $1,852,320.00/yr"
       ],
       "unit_mix": {
         "bachelor": 0,
@@ -54934,8 +54936,8 @@
         },
         {
           "metric": "GRM",
-          "value": "10.74",
-          "grade": "FAIR"
+          "value": "8.04",
+          "grade": "GOOD"
         },
         {
           "metric": "Tax Load",
@@ -54954,7 +54956,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$1,387,200.00",
+          "value": "$1,852,320.00",
           "grade": "INFO"
         },
         {
@@ -54964,12 +54966,12 @@
         },
         {
           "metric": "NOI",
-          "value": "$832,320.00",
-          "grade": "FAIR"
+          "value": "$1,111,392.00",
+          "grade": "GOOD"
         },
         {
           "metric": "Cap Rate",
-          "value": "5.59%",
+          "value": "7.46%",
           "grade": "FAIR"
         },
         {
@@ -54979,87 +54981,87 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "5.59%",
+          "value": "7.46%",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.84%",
+          "value": "8.71%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.82",
+          "value": "0.86",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$12,168,421.05",
-          "grade": "POOR"
-        },
-        {
-          "metric": "Annual Cash Flow",
-          "value": "$37,257.22",
-          "grade": "FAIR (Thin Margin)"
-        },
-        {
-          "metric": "Monthly Cash Flow",
-          "value": "$3,104.77",
+          "value": "$12,759,954.08",
           "grade": "FAIR"
         },
         {
+          "metric": "Annual Cash Flow",
+          "value": "$316,329.22",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "Monthly Cash Flow",
+          "value": "$26,360.77",
+          "grade": "GOOD"
+        },
+        {
           "metric": "CoCR",
-          "value": "1.25%",
-          "grade": "POOR"
+          "value": "10.62%",
+          "grade": "GOOD"
         },
         {
           "metric": "DSCR",
-          "value": "1.05",
-          "grade": "POOR/UNBANKABLE"
+          "value": "1.40",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI",
           "value": "$795,062.78",
-          "grade": "POOR"
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "95.52%",
-          "grade": "POOR"
+          "value": "71.54%",
+          "grade": "FAIR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "97.31%",
-          "grade": "POOR"
+          "value": "82.92%",
+          "grade": "GOOD"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "1.04 DSCR",
-          "grade": "FAIL: High Rate Risk"
+          "value": "1.38 DSCR",
+          "grade": "PASS"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "8.16%",
-          "grade": "POOR"
+          "value": "13.24%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "5.43x",
+          "value": "8.24x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "27.93",
+          "value": "37.30",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "173 Days",
+          "value": "174 Days",
           "grade": "GOOD"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$64,872.25",
+          "value": "$74,239.55",
           "grade": "GOOD"
         }
       ],
@@ -55076,11 +55078,11 @@
     {
       "address": "310 Murray St, Pembroke, ON",
       "mls_number": "X12614212",
-      "status": "active",
+      "status": "inactive",
       "listing_date": "2025-12-10",
       "created_at": "2026-03-04",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 450000,
       "original_price": 450000,
       "total_sq_ft": 2750,
@@ -55263,12 +55265,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "85 Days",
+          "value": "86 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$980.62",
+          "value": "$992.15",
           "grade": "POOR"
         }
       ],
@@ -55500,8 +55502,8 @@
       "status": "active",
       "listing_date": "2026-03-05",
       "created_at": "2026-03-05",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 7800000,
       "original_price": 7800000,
       "total_sq_ft": 28996,
@@ -55691,12 +55693,12 @@
         },
         {
           "metric": "Market Staleness",
-          "value": "0 Days",
+          "value": "1 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$0.00",
+          "value": "$218.71",
           "grade": "POOR"
         }
       ]
@@ -56124,8 +56126,8 @@
       "status": "active",
       "listing_date": "2026-03-04",
       "created_at": "2026-03-05",
-      "last_modified": "2026-03-05",
-      "analyzed_on": "2026-03-05",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
       "asking_price": 1525000,
       "original_price": 1525000,
       "total_sq_ft": 4250,
@@ -56140,11 +56142,11 @@
       "expense_ratio": 0.4,
       "lease_type": "Normal",
       "construction_cost": 0,
-      "annual_rent": 122400.0,
+      "annual_rent": 163440.0,
       "commercial_rent": 0.0,
-      "residential_rent": 122400.0,
+      "residential_rent": 163440.0,
       "rent_breakdown": [
-        "Unknown × 6 @ $1,700/mo (Ottawa market): $122,400.00/yr"
+        "Unknown × 6 @ $2,270/mo (Ottawa market): $163,440.00/yr"
       ],
       "unit_mix": {
         "bachelor": 0,
@@ -56195,8 +56197,8 @@
         },
         {
           "metric": "GRM",
-          "value": "12.46",
-          "grade": "POOR"
+          "value": "9.33",
+          "grade": "FAIR"
         },
         {
           "metric": "Tax Load",
@@ -56215,7 +56217,7 @@
         },
         {
           "metric": "Annual Rent",
-          "value": "$122,400.00",
+          "value": "$163,440.00",
           "grade": "INFO"
         },
         {
@@ -56225,13 +56227,13 @@
         },
         {
           "metric": "NOI",
-          "value": "$73,440.00",
-          "grade": "POOR"
+          "value": "$98,064.00",
+          "grade": "FAIR"
         },
         {
           "metric": "Cap Rate",
-          "value": "4.82%",
-          "grade": "POOR"
+          "value": "6.43%",
+          "grade": "FAIR"
         },
         {
           "metric": "Op Expense Ratio",
@@ -56240,42 +56242,42 @@
         },
         {
           "metric": "Entry Cap Rate",
-          "value": "4.82%",
-          "grade": "POOR"
+          "value": "6.43%",
+          "grade": "FAIR"
         },
         {
           "metric": "Exit Cap Rate",
-          "value": "6.07%",
+          "value": "7.68%",
           "grade": "GOOD"
         },
         {
           "metric": "Exit Cap Ratio",
-          "value": "0.79",
+          "value": "0.84",
           "grade": "FAIR"
         },
         {
           "metric": "Exit Price",
-          "value": "$1,209,884.68",
+          "value": "$1,276,875.00",
           "grade": "POOR"
         },
         {
           "metric": "Annual Cash Flow",
-          "value": "$-7,933.87",
-          "grade": "POOR/BLEEDING"
+          "value": "$16,690.13",
+          "grade": "FAIR (Thin Margin)"
         },
         {
           "metric": "Monthly Cash Flow",
-          "value": "$-661.16",
-          "grade": "POOR/BLEEDING"
+          "value": "$1,390.84",
+          "grade": "FAIR"
         },
         {
           "metric": "CoCR",
-          "value": "-2.60%",
-          "grade": "POOR"
+          "value": "5.47%",
+          "grade": "FAIR"
         },
         {
           "metric": "DSCR",
-          "value": "0.90",
+          "value": "1.21",
           "grade": "POOR/UNBANKABLE"
         },
         {
@@ -56285,42 +56287,42 @@
         },
         {
           "metric": "Break-Even NOI %",
-          "value": "110.80%",
+          "value": "82.98%",
           "grade": "POOR"
         },
         {
           "metric": "Break-Even Occupancy %",
-          "value": "106.48%",
-          "grade": "POOR"
+          "value": "89.79%",
+          "grade": "FAIR"
         },
         {
           "metric": "Stress Test (+2%)",
-          "value": "0.81 DSCR",
+          "value": "1.09 DSCR",
           "grade": "FAIL: High Rate Risk"
         },
         {
           "metric": "IRR (5-Yr)",
-          "value": "6.59%",
-          "grade": "POOR"
+          "value": "10.19%",
+          "grade": "FAIR"
         },
         {
           "metric": "Equity Multiple",
-          "value": "4.28x",
+          "value": "6.70x",
           "grade": "EXCELLENT"
         },
         {
           "metric": "CELOC Speed Score",
-          "value": "24.08",
+          "value": "32.15",
           "grade": "NO CELOC"
         },
         {
           "metric": "Market Staleness",
-          "value": "1 Days",
+          "value": "2 Days",
           "grade": "POOR"
         },
         {
           "metric": "Seller Bleed",
-          "value": "$36.20",
+          "value": "$81.53",
           "grade": "POOR"
         }
       ],
@@ -58837,6 +58839,214 @@
           "grade": "POOR"
         }
       ]
+    },
+    {
+      "address": "122-124 Cobourg St, Ottawa, ON",
+      "mls_number": "X12851986",
+      "status": "active",
+      "listing_date": "2026-03-06",
+      "created_at": "2026-03-06",
+      "last_modified": "2026-03-06",
+      "analyzed_on": "2026-03-06",
+      "asking_price": 4500000,
+      "original_price": 4500000,
+      "total_sq_ft": 5000,
+      "city": "Ottawa",
+      "province": "ON",
+      "property_type": "Multi-Family",
+      "property_taxes": 34765.0,
+      "down_payment_pct": 0.2,
+      "interest_rate": 0.045,
+      "term_years": 25,
+      "hold_years": 30,
+      "expense_ratio": 0.4,
+      "lease_type": "Normal",
+      "construction_cost": 0,
+      "annual_rent": 381360.0,
+      "commercial_rent": 0.0,
+      "residential_rent": 381360.0,
+      "rent_breakdown": [
+        "Unknown × 14 @ $2,270/mo (Ottawa market): $381,360.00/yr"
+      ],
+      "unit_mix": {
+        "bachelor": 0,
+        "one_br": 0,
+        "two_br": 0,
+        "three_br": 0,
+        "four_br": 0,
+        "unknown": 14,
+        "floors": 3
+      },
+      "floors": 3,
+      "hotel_rooms": 0,
+      "hotel_adr": null,
+      "hotel_occupancy": null,
+      "ind_warehouse_sqft": 0,
+      "ind_office_sqft": 0,
+      "ind_yard_sqft": 0,
+      "ind_dock_doors": 0,
+      "ind_drive_in_doors": 0,
+      "ind_clear_height_ft": 0,
+      "ind_office_rate": null,
+      "ind_yard_rate": null,
+      "results": [
+        {
+          "metric": "Loan Amount",
+          "value": "$3,600,000.00",
+          "grade": "INFO"
+        },
+        {
+          "metric": "Down Payment",
+          "value": "$900,000.00",
+          "grade": "INFO"
+        },
+        {
+          "metric": "Monthly Payment",
+          "value": "$20,009.97",
+          "grade": "INFO"
+        },
+        {
+          "metric": "Annual Debt Svc",
+          "value": "$240,119.63",
+          "grade": "INFO"
+        },
+        {
+          "metric": "Price/Sq Ft (Multi-Family)",
+          "value": "$900.00",
+          "grade": "POOR/PREMIUM"
+        },
+        {
+          "metric": "GRM",
+          "value": "11.80",
+          "grade": "FAIR"
+        },
+        {
+          "metric": "Tax Load",
+          "value": "0.77%",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "Price Drop %",
+          "value": "0.00%",
+          "grade": "FAIR"
+        },
+        {
+          "metric": "Loan to Value",
+          "value": "0.00%",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "Annual Rent",
+          "value": "$381,360.00",
+          "grade": "INFO"
+        },
+        {
+          "metric": "Expense Ratio",
+          "value": "40.0%",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "NOI",
+          "value": "$228,816.00",
+          "grade": "FAIR"
+        },
+        {
+          "metric": "Cap Rate",
+          "value": "5.08%",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Op Expense Ratio",
+          "value": "40.00%",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "Entry Cap Rate",
+          "value": "5.08%",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Exit Cap Rate",
+          "value": "6.33%",
+          "grade": "GOOD"
+        },
+        {
+          "metric": "Exit Cap Ratio",
+          "value": "0.80",
+          "grade": "FAIR"
+        },
+        {
+          "metric": "Exit Price",
+          "value": "$3,614,786.73",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Annual Cash Flow",
+          "value": "$-11,303.63",
+          "grade": "POOR/BLEEDING"
+        },
+        {
+          "metric": "Monthly Cash Flow",
+          "value": "$-941.97",
+          "grade": "POOR/BLEEDING"
+        },
+        {
+          "metric": "CoCR",
+          "value": "-1.26%",
+          "grade": "POOR"
+        },
+        {
+          "metric": "DSCR",
+          "value": "0.95",
+          "grade": "POOR/UNBANKABLE"
+        },
+        {
+          "metric": "Break-Even NOI",
+          "value": "$240,119.63",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Break-Even NOI %",
+          "value": "104.94%",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Break-Even Occupancy %",
+          "value": "102.96%",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Stress Test (+2%)",
+          "value": "0.92 DSCR",
+          "grade": "FAIL: High Rate Risk"
+        },
+        {
+          "metric": "IRR (5-Yr)",
+          "value": "7.11%",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Equity Multiple",
+          "value": "4.68x",
+          "grade": "EXCELLENT"
+        },
+        {
+          "metric": "CELOC Speed Score",
+          "value": "25.42",
+          "grade": "NO CELOC"
+        },
+        {
+          "metric": "Market Staleness",
+          "value": "0 Days",
+          "grade": "POOR"
+        },
+        {
+          "metric": "Seller Bleed",
+          "value": "$0.00",
+          "grade": "POOR"
+        }
+      ],
+      "notes": "No sqft offered so just entered 5000"
     }
   ]
 }

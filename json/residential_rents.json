@@ -8,12 +8,12 @@
     "Ottawa": {
       "province": "ON",
       "units": {
-        "bachelor": 1250,
-        "one_br": 1650,
-        "two_br": 2100,
-        "three_br": 2600,
-        "four_br": 3200,
-        "unknown": 1700
+        "bachelor": 1500.0,
+        "one_br": 1900.0,
+        "two_br": 2400.0,
+        "three_br": 2650.0,
+        "four_br": 2900.0,
+        "unknown": 2270.0
       }
     },
     "Toronto": {

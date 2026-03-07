@@ -1,22 +1,23 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
 from datetime import date
+
+import copy
+import csv as _csv
 import json
 import os
+import re as _re
 import webbrowser
 import tempfile
 
-
-import re as _re_addr
-
 def _display_address(address: str) -> str:
     """Strip trailing province code from address for display (e.g. ', ON' or ' ON')."""
-    return _re_addr.sub(r",?\s+[A-Z]{2}\s*$", "", (address or "").strip())
+    return _re.sub(r",?\s+[A-Z]{2}\s*$", "", (address or "").strip())
 
 
 def _parse_address_sort(address: str):
     """Returns (street_name, street_number) for sorting. Handles '123 Main St' and '123-45 Main St'."""
-    import re as _re
     addr = (address or "").strip()
     m = _re.match(r"^([\d\-]+)\s+(.*)", addr)
     if m:
@@ -2020,7 +2021,6 @@ class PropertyMenu:
     SCORE_CONFIG_PATH = "json/score_weights.json"
 
     def _load_score_config(self) -> dict:
-        import copy
         if os.path.exists(self.SCORE_CONFIG_PATH):
             try:
                 cfg = self._store._read(self.SCORE_CONFIG_PATH)
@@ -2149,7 +2149,6 @@ class PropertyMenu:
 
         def score_with(overrides: dict) -> float:
             """Re-run analyzer on a modified record and return the investment score."""
-            import copy
             rec = copy.deepcopy(p)
             rec.update(overrides)
             # Rebuild rent fields so the resolver uses the overridden annual_rent
@@ -2230,270 +2229,572 @@ class PropertyMenu:
 
 
     def _open_city_report(self):
-        """Aggregate all saved properties by city and open a ranked HTML report."""
-        import tempfile, webbrowser, os
-        from collections import defaultdict
-
+        """Build and open a standalone city investment ranking page."""
         props = self._store.load_properties()
         if not props:
             print("\n  No properties on file.")
             return
 
         cfg = self._load_score_config()
-        print("  Building city report", end="", flush=True)
+        print("  Building city investment report", end="", flush=True)
+
         city_data = defaultdict(list)
         for p in props:
-            scored   = self._score_property(p)
-            city     = (p.get("city") or "Unknown").strip()
-            prov     = (p.get("province") or "").strip()
-            city_key = f"{city}, {prov}" if prov else city
-            city_data[city_key].append({
+            scored = self._score_property(p)
+            city   = (p.get("city") or "Unknown").strip()
+            prov   = (p.get("province") or "").strip()
+            key    = f"{city}, {prov}" if prov else city
+            city_data[key].append({
                 "score":      scored.get("score"),
                 "cap_rate":   scored.get("cap_rate",  0) or 0,
                 "coc":        scored.get("coc",        0) or 0,
                 "irr":        scored.get("irr",        0) or 0,
+                "dscr":       scored.get("dscr",       0) or 0,
                 "cf_annual":  scored.get("cf_annual",  0) or 0,
                 "price_drop": scored.get("price_drop", 0) or 0,
                 "dom":        scored.get("dom",         0) or 0,
                 "asking":     p.get("asking_price", 0) or 0,
-                "status":     (p.get("status") or "").lower(),
-                "dist_km":    scored.get("dist_km"),
+                "status":     (p.get("status") or "active").lower(),
+                "address":    p.get("address", ""),
+                "type":       p.get("property_type", ""),
             })
             print(".", end="", flush=True)
         print(" done.")
 
-        def avg(lst, key):
-            vals = [e[key] for e in lst if e.get(key) is not None and e[key] != 0]
-            return round(sum(vals) / len(vals), 2) if vals else 0
-
-        def best(lst, key):
-            vals = [e[key] for e in lst if e.get(key) is not None]
-            return round(max(vals), 2) if vals else 0
+        def avg(lst, k):
+            v = [e[k] for e in lst if e.get(k) is not None and e[k] != 0]
+            return round(sum(v) / len(v), 2) if v else 0
 
         def norm(v, lo, hi):
             if hi == lo: return 0
-            return max(0, min(1, (v - lo) / (hi - lo)))
+            return max(0.0, min(1.0, (v - lo) / (hi - lo)))
 
+        cw = cfg.get("city_weights", {})
         cities = []
-        for city_key, entries in city_data.items():
-            total    = len(entries)
-            active   = [e for e in entries if e["status"] == "active"]
-            scored_e = [e for e in entries if e["score"] is not None]
-            n_active = len(active)
+        for key, entries in city_data.items():
+            active    = [e for e in entries if e["status"] == "active"]
+            inactive  = [e for e in entries if e["status"] != "active"]
+            scored_e  = [e for e in entries if e["score"] is not None]
+            n_active  = len(active)
+            n_inactive= len(inactive)
+            as_       = avg(scored_e, "score")
+            bs        = max((e["score"] for e in scored_e), default=0)
+            ac        = avg(entries,  "cap_rate")
+            acoc      = avg(entries,  "coc")
+            airr      = avg(entries,  "irr")
+            adscr     = avg(entries,  "dscr")
+            acf       = avg(entries,  "cf_annual")
+            ad        = avg(entries,  "price_drop")   # active + inactive
+            adom      = avg(active,   "dom")
+            ap_active = avg(active,   "asking")
+            ap_inact  = avg(inactive, "asking")
+            opp = round(
+                norm(as_,   0,   100) * cw.get("avg_score",  0.30) * 100 +
+                norm(bs,    0,   100) * cw.get("best_score", 0.10) * 100 +
+                norm(n_active, 1, 10) * cw.get("volume",     0.15) * 100 +
+                norm(ac,    3,   9)   * cw.get("cap_rate",   0.15) * 100 +
+                norm(ad,    0,   15)  * cw.get("price_drop", 0.10) * 100 +
+                norm(adom, 30,  180)  * cw.get("dom",        0.10) * 100 +
+                norm(acoc,  0,   12)  * cw.get("coc",        0.10) * 100, 1)
 
-            avg_score  = avg(scored_e, "score")
-            best_score = best(scored_e, "score")
-            avg_cap    = avg(entries, "cap_rate")
-            avg_coc    = avg(entries, "coc")
-            avg_irr    = avg(entries, "irr")
-            avg_cf     = avg(entries, "cf_annual")
-            avg_drop   = avg(active,  "price_drop")
-            avg_dom    = avg(active,  "dom")
-            avg_price  = avg(active,  "asking")
-            dist_km    = next((e["dist_km"] for e in entries if e["dist_km"] is not None), None)
+            # Collect property type breakdown
+            type_counts = defaultdict(int)
+            for e in entries:
+                t = (e.get("type") or "Unknown").strip()
+                if t:
+                    type_counts[t] += 1
 
-            cw = cfg.get("city_weights", {})
-            opportunity = round(
-                norm(avg_score,  0,   100) * (cw.get("avg_score",  0.30) * 100) +
-                norm(best_score, 0,   100) * (cw.get("best_score", 0.10) * 100) +
-                norm(n_active,   1,   10)  * (cw.get("volume",     0.15) * 100) +
-                norm(avg_cap,    3,   9)   * (cw.get("cap_rate",   0.15) * 100) +
-                norm(avg_drop,   0,   15)  * (cw.get("price_drop", 0.10) * 100) +
-                norm(avg_dom,    30,  180) * (cw.get("dom",        0.10) * 100) +
-                norm(avg_coc,    0,   12)  * (cw.get("coc",        0.10) * 100),
-                1
-            )
-
-            cities.append({
-                "city": city_key, "total": total, "active": n_active,
-                "avg_score": avg_score, "best_score": best_score,
-                "avg_cap": avg_cap, "avg_coc": avg_coc, "avg_irr": avg_irr,
-                "avg_drop": avg_drop, "avg_dom": int(avg_dom),
-                "avg_price": int(avg_price), "dist_km": dist_km,
-                "opportunity": opportunity,
-            })
+            cities.append(dict(
+                city=key, total=len(entries),
+                active=n_active, inactive=n_inactive,
+                avg_score=as_, best_score=round(bs, 1),
+                avg_cap=ac, avg_coc=acoc, avg_irr=airr,
+                avg_dscr=adscr, avg_cf=int(acf),
+                avg_drop=ad, avg_dom=int(adom),
+                avg_price_active=int(ap_active),
+                avg_price_inactive=int(ap_inact),
+                opportunity=opp,
+                type_counts=dict(type_counts),
+                props_active=[e for e in active],
+                props_inactive=[e for e in inactive],
+            ))
 
         cities.sort(key=lambda c: c["opportunity"], reverse=True)
 
-        # ── helpers ──────────────────────────────────────────────────────────
-        def fmt_money(n):
+        # ── Build standalone HTML ──────────────────────────────────────────
+        import json as _json
+
+        def _fm(n):
             if not n: return "—"
             if n >= 1_000_000: return f"${n/1_000_000:.1f}M"
             if n >= 1_000:     return f"${n/1_000:.0f}K"
             return f"${n:,.0f}"
 
-        def fmt_pct(n, dec=1):
-            return f"{n:.{dec}f}%" if n else "—"
+        cities_json = _json.dumps([{
+            k: v for k, v in c.items()
+            if k not in ("props_active", "props_inactive")
+        } for c in cities], indent=2)
 
-        def score_cls(v):
-            if not v: return ""
-            return "good" if v >= 70 else "fair" if v >= 45 else "poor"
-
-        def cap_cls(v):
-            if not v: return ""
-            return "good" if v >= 7 else "fair" if v >= 5 else "poor"
-
-        def opp_cls(v):
-            return "bar-high" if v >= 65 else "bar-low" if v < 35 else "bar-mid"
-
-        # ── build rows ───────────────────────────────────────────────────────
-        top = cities[0] if cities else None
-
-        def verdict(c):
-            parts = []
-            if c["active"] >= 5:    parts.append(f"Strong deal flow with {c['active']} active listings")
-            elif c["active"] >= 2:  parts.append(f"{c['active']} active listings available")
-            else:                   parts.append(f"Limited inventory — only {c['active']} active listing{'s' if c['active'] != 1 else ''}")
-            if c["avg_cap"] >= 7:   parts.append(f"excellent cap rates at {c['avg_cap']:.1f}%")
-            elif c["avg_cap"] >= 5: parts.append(f"reasonable cap rates at {c['avg_cap']:.1f}%")
-            if c["avg_drop"] >= 5:  parts.append(f"sellers showing motivation — {c['avg_drop']:.1f}% avg reduction")
-            if c["avg_dom"] >= 90:  parts.append(f"soft market — {c['avg_dom']}d avg on market")
-            if c["best_score"] >= 70: parts.append(f"best deal scores {c['best_score']:.0f}/100")
-            return (", ".join(parts) + ".") if parts else "Insufficient data for analysis."
-
-        top_card = ""
-        if top:
-            top_card = f"""
-        <div class="top-card">
-          <div class="top-left">
-            <div class="top-label">Top Opportunity</div>
-            <div class="top-city">{top["city"]}</div>
-            <div class="top-verdict">{verdict(top)}</div>
-          </div>
-          <div class="top-stats">
-            <div class="stat"><span class="sl">Opportunity</span><span class="sv">{top["opportunity"]:.0f}/100</span></div>
-            <div class="stat"><span class="sl">Active Deals</span><span class="sv">{top["active"]}</span></div>
-            <div class="stat"><span class="sl">Avg Score</span><span class="sv">{f'{top["avg_score"]:.0f}' if top["avg_score"] else "—"}</span></div>
-            <div class="stat"><span class="sl">Best Score</span><span class="sv">{f'{top["best_score"]:.0f}' if top["best_score"] else "—"}</span></div>
-            <div class="stat"><span class="sl">Avg Cap Rate</span><span class="sv">{fmt_pct(top["avg_cap"])}</span></div>
-            <div class="stat"><span class="sl">Avg DOM</span><span class="sv">{top["avg_dom"] or "—"}d</span></div>
-          </div>
-        </div>"""
-
-        rows_html = ""
-        for i, c in enumerate(cities, 1):
-            bar_w   = min(100, int(c["opportunity"]))
-            sub     = ""
-            if c["dist_km"] is not None: sub += f'<div class="city-sub">{c["dist_km"]}km to centre</div>'
-            inactive = c["total"] - c["active"]
-            if inactive > 0: sub += f'<div class="city-sub">{c["total"]} total ({inactive} inactive)</div>'
-            rows_html += f"""        <tr>
-          <td><span class="rank">#{i}</span> <span class="cn">{c["city"]}</span>{sub}</td>
-          <td><span class="opp">{c["opportunity"]:.0f}</span>
-              <span class="bar-wrap"><span class="bar {opp_cls(c["opportunity"])}" style="width:{bar_w}%"></span></span></td>
-          <td>{c["active"]}</td>
-          <td class="{score_cls(c["avg_score"])}">{f'{c["avg_score"]:.0f}' if c["avg_score"] else "—"}</td>
-          <td class="{score_cls(c["best_score"])}">{f'{c["best_score"]:.0f}' if c["best_score"] else "—"}</td>
-          <td class="{cap_cls(c["avg_cap"])}">{fmt_pct(c["avg_cap"])}</td>
-          <td class="{cap_cls(c["avg_coc"])}">{fmt_pct(c["avg_coc"])}</td>
-          <td class="{cap_cls(c["avg_irr"])}">{fmt_pct(c["avg_irr"])}</td>
-          <td class="{"good" if c["avg_drop"] > 0 else ""}">{fmt_pct(c["avg_drop"])}</td>
-          <td class="{"good" if c["avg_dom"] >= 90 else "fair" if c["avg_dom"] >= 60 else ""}">{c["avg_dom"] or "—"}d</td>
-          <td>{fmt_money(c["avg_price"])}</td>
-        </tr>
-"""
-
-        from datetime import date
-        today = date.today().strftime("%B %d, %Y")
         html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>City Opportunity Report</title>
+<title>City Investment Rankings</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-:root {{
-  --ink:#0f0f0f; --paper:#f5f0e8; --cream:#ede8dc;
-  --rule:#c8bfaa; --gold:#b8960c; --green:#2d6a4f;
-  --red:#8b1a1a; --amber:#c17f24; --muted:#6b6355;
-  --serif:'DM Serif Display',Georgia,serif;
-  --mono:'DM Mono','Courier New',monospace;
-  --sans:'DM Sans',system-ui,sans-serif;
-}}
-*{{box-sizing:border-box;margin:0;padding:0}}
-body{{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}}
-header{{border-bottom:3px double var(--rule);padding:2rem 2.5rem 1.5rem;background:var(--cream)}}
-header h1{{font-family:var(--serif);font-size:2.4rem;letter-spacing:-0.02em}}
-header h1 em{{font-style:italic;color:var(--gold)}}
-.meta{{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:0.4rem;letter-spacing:0.08em;text-transform:uppercase}}
-.explainer{{padding:0.8rem 2.5rem;background:var(--cream);border-bottom:1px solid var(--rule);font-size:12px;color:var(--muted);font-style:italic}}
-main{{padding:1.5rem 2.5rem 3rem}}
-.top-card{{background:white;border:1px solid var(--rule);border-left:4px solid var(--gold);padding:1.2rem 1.5rem;margin-bottom:1.5rem;display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start}}
-.top-label{{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--gold);margin-bottom:0.3rem}}
-.top-city{{font-family:var(--serif);font-size:1.6rem;margin-bottom:0.2rem}}
-.top-verdict{{font-size:13px;color:var(--muted);font-style:italic;margin-top:0.3rem;max-width:420px}}
-.top-stats{{display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start}}
-.stat{{display:flex;flex-direction:column;gap:0.1rem}}
-.sl{{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)}}
-.sv{{font-family:var(--mono);font-size:14px;font-weight:500}}
-h2.sh{{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:0.12em;color:var(--muted);border-bottom:1px solid var(--rule);padding-bottom:0.3rem;margin:0 0 0.8rem}}
-table{{width:100%;border-collapse:collapse}}
-thead tr{{background:var(--cream);border-bottom:2px solid var(--rule)}}
-th{{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted);padding:0.6rem 0.8rem;text-align:right;white-space:nowrap}}
-th:first-child{{text-align:left}}
-td{{padding:0.55rem 0.8rem;border-bottom:1px solid var(--cream);font-size:13px;text-align:right;vertical-align:middle}}
-td:first-child{{text-align:left}}
-tr:hover td{{background:#faf7f2}}
-.rank{{font-family:var(--mono);font-size:11px;color:var(--muted);margin-right:0.4rem}}
-.cn{{font-family:var(--serif);font-size:1.05rem}}
-.city-sub{{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:0.1rem}}
-.opp{{font-family:var(--serif);font-size:1.4rem;line-height:1;vertical-align:middle}}
-.bar-wrap{{display:inline-block;width:60px;height:5px;background:var(--cream);border:1px solid var(--rule);vertical-align:middle;margin-left:0.3rem}}
-.bar{{display:block;height:100%}}
-.bar-high{{background:var(--green)}}
-.bar-mid{{background:var(--gold)}}
-.bar-low{{background:var(--red)}}
-.good{{color:var(--green);font-weight:500}}
-.fair{{color:var(--amber)}}
-.poor{{color:var(--red)}}
+  :root {{
+    --ink:   #0f0f0f;
+    --paper: #f5f0e8;
+    --cream: #ede8dc;
+    --rule:  #c8bfaa;
+    --gold:  #b8960c;
+    --green: #2d6a4f;
+    --red:   #8b1a1a;
+    --amber: #c17f24;
+    --muted: #6b6355;
+    --mono:  'DM Mono', monospace;
+  }}
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }}
+  header {{
+    background: var(--cream);
+    border-bottom: 3px double var(--rule);
+    padding: 2rem 2.5rem 1.5rem;
+  }}
+  header h1 {{
+    font-family: 'DM Serif Display', serif;
+    font-size: 2.4rem;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }}
+  header h1 em {{ font-style: italic; color: var(--gold); }}
+  .header-meta {{
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 0.4rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }}
+  .page-wrap {{
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2rem 2rem 4rem;
+  }}
+  /* ── Ranked list ── */
+  .city-list {{
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }}
+  .city-row {{
+    border: 1px solid var(--rule);
+    border-top: none;
+    background: white;
+    transition: background 0.1s;
+    cursor: pointer;
+  }}
+  .city-row:first-child {{ border-top: 1px solid var(--rule); border-radius: 2px 2px 0 0; }}
+  .city-row:last-child  {{ border-radius: 0 0 2px 2px; }}
+  .city-row:hover .city-row-main {{ background: #fffdf5; }}
+  .city-row-main {{
+    display: grid;
+    grid-template-columns: 48px 1fr auto 180px;
+    align-items: center;
+    padding: 1rem 1.2rem;
+    gap: 1rem;
+    border-left: 5px solid var(--rule);
+    transition: border-color 0.15s;
+  }}
+  .city-row.rank-1 .city-row-main  {{ border-left-color: #b8960c; }}
+  .city-row.rank-2 .city-row-main  {{ border-left-color: #9aa0a6; }}
+  .city-row.rank-3 .city-row-main  {{ border-left-color: #cd7f32; }}
+  .city-row.excellent .city-row-main {{ border-left-color: var(--green); }}
+  .city-row.good      .city-row-main {{ border-left-color: #8db87a; }}
+  .city-row.fair      .city-row-main {{ border-left-color: var(--amber); }}
+  .city-row.poor      .city-row-main {{ border-left-color: var(--red); }}
+  .rank-num {{
+    font-family: var(--mono);
+    font-size: 1.2rem;
+    font-weight: 500;
+    color: var(--muted);
+    text-align: center;
+  }}
+  .city-info {{ min-width: 0; }}
+  .city-name {{
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.35rem;
+    line-height: 1.1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }}
+  .city-pills {{
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+    flex-wrap: wrap;
+  }}
+  .pill {{
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    padding: 0.1rem 0.5rem;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    color: var(--muted);
+    background: var(--cream);
+  }}
+  .pill.active {{ color: var(--green); border-color: var(--green); background: #edf7f1; }}
+  .pill.inactive {{ color: var(--muted); border-color: var(--rule); }}
+  /* Score column */
+  .city-score-col {{
+    text-align: right;
+  }}
+  .city-opp-num {{
+    font-family: var(--mono);
+    font-size: 1.6rem;
+    font-weight: 500;
+    line-height: 1;
+  }}
+  .city-opp-label {{
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin-top: 0.1rem;
+  }}
+  /* Bar + metrics strip */
+  .city-metrics {{
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+  }}
+  .opp-bar-track {{
+    height: 6px;
+    background: var(--cream);
+    border: 1px solid var(--rule);
+    border-radius: 0;
+    overflow: hidden;
+  }}
+  .opp-bar-fill {{ height: 100%; transition: width 0.3s; }}
+  .mini-stats {{
+    display: flex;
+    gap: 0.8rem;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    flex-wrap: wrap;
+  }}
+  .mini-stat span {{ font-weight: 500; }}
+  .mini-stat span.good {{ color: var(--green); }}
+  .mini-stat span.fair {{ color: var(--amber); }}
+  .mini-stat span.poor {{ color: var(--red); }}
+  /* Expand chevron */
+  .chevron {{
+    display: inline-block;
+    transition: transform 0.2s;
+    font-size: 0.7rem;
+    color: var(--muted);
+    margin-left: 0.4rem;
+  }}
+  .city-row.open .chevron {{ transform: rotate(180deg); }}
+  /* Detail panel */
+  .city-detail {{
+    display: none;
+    padding: 1.2rem 1.5rem 1.5rem 1.5rem;
+    border-top: 1px dashed var(--rule);
+    background: var(--cream);
+  }}
+  .city-row.open .city-detail {{ display: block; }}
+  .detail-verdict {{
+    font-size: 13.5px;
+    line-height: 1.65;
+    color: var(--ink);
+    padding: 0.8rem 1rem;
+    background: white;
+    border-left: 3px solid var(--gold);
+    margin-bottom: 1.2rem;
+  }}
+  .detail-grid {{
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.7rem;
+    margin-bottom: 1.2rem;
+  }}
+  .detail-card {{
+    background: white;
+    border: 1px solid var(--rule);
+    padding: 0.65rem 0.8rem;
+  }}
+  .detail-card-label {{
+    font-family: var(--mono);
+    font-size: 9px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.2rem;
+  }}
+  .detail-card-val {{
+    font-family: var(--mono);
+    font-size: 1.05rem;
+    font-weight: 500;
+  }}
+  .detail-card-val.good {{ color: var(--green); }}
+  .detail-card-val.fair {{ color: var(--amber); }}
+  .detail-card-val.poor {{ color: var(--red); }}
+  .detail-card-val.info {{ color: var(--ink); }}
+  .detail-card-sub {{
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 0.15rem;
+  }}
+  /* Factor bars */
+  .factor-section-title {{
+    font-family: var(--mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 0.3rem;
+    margin-bottom: 0.6rem;
+    margin-top: 1rem;
+  }}
+  .factor-bar-row {{
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.2rem 0;
+    font-size: 12px;
+  }}
+  .factor-bar-label {{ width: 160px; color: var(--muted); flex-shrink: 0; font-size: 11px; }}
+  .factor-bar-track {{
+    flex: 1;
+    height: 7px;
+    background: white;
+    border: 1px solid var(--rule);
+    overflow: hidden;
+  }}
+  .factor-bar-fill {{ height: 100%; background: var(--gold); }}
+  .factor-bar-right {{
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    width: 100px;
+    text-align: right;
+    flex-shrink: 0;
+  }}
+  .good {{ color: var(--green); }}
+  .fair {{ color: var(--amber); }}
+  .poor {{ color: var(--red); }}
 </style>
 </head>
 <body>
 <header>
-  <h1>City <em>Opportunity</em> Report</h1>
-  <div class="meta">Generated {today} &nbsp;·&nbsp; {len(cities)} cities &nbsp;·&nbsp; {sum(c["active"] for c in cities)} active listings</div>
+  <h1>City <em>Investment</em> Rankings</h1>
+  <div class="header-meta" id="report-date"></div>
 </header>
-<div class="explainer">Opportunity score: avg deal quality (30%) · best available deal (10%) · active listing volume (15%) · cap rate environment (15%) · price drops (10%) · days on market (10%) · cash-on-cash (10%)</div>
-<main>
-{top_card}
-  <h2 class="sh">All Cities Ranked</h2>
-  <table>
-    <thead>
-      <tr>
-        <th style="text-align:left">City</th>
-        <th>Opportunity</th>
-        <th>Active</th>
-        <th>Avg Score</th>
-        <th>Best Score</th>
-        <th>Avg Cap</th>
-        <th>Avg CoCR</th>
-        <th>Avg IRR</th>
-        <th>Price Drop</th>
-        <th>Avg DOM</th>
-        <th>Avg Price</th>
-      </tr>
-    </thead>
-    <tbody>
-{rows_html}    </tbody>
-  </table>
-</main>
+
+<div class="page-wrap">
+  <div class="city-list" id="city-list">
+  </div>
+</div>
+
+<script>
+const CITIES = {cities_json};
+
+function fp(n)  {{ return n ? n.toFixed(1) + '%' : '—'; }}
+function fi(n)  {{ return (n !== null && n !== undefined && n !== 0) ? n.toFixed(0) : '—'; }}
+function fm(n)  {{
+  if (!n) return '—';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + (n/1e3).toFixed(0) + 'K';
+  return '$' + n.toLocaleString('en-CA');
+}}
+function gc(metric, v) {{
+  if (!v && v !== 0) return 'info';
+  if (metric === 'cap')   return v >= 7   ? 'good' : v >= 5   ? 'fair' : 'poor';
+  if (metric === 'coc')   return v >= 10  ? 'good' : v >= 5   ? 'fair' : 'poor';
+  if (metric === 'irr')   return v >= 15  ? 'good' : v >= 10  ? 'fair' : 'poor';
+  if (metric === 'dscr')  return v >= 1.5 ? 'good' : v >= 1.25? 'fair' : 'poor';
+  if (metric === 'score') return v >= 70  ? 'good' : v >= 45  ? 'fair' : 'poor';
+  if (metric === 'drop')  return v > 2    ? 'good' : v > 0    ? 'fair' : 'info';
+  if (metric === 'dom')   return v >= 90  ? 'good' : v >= 60  ? 'fair' : 'info';
+  return 'info';
+}}
+
+function gradeOf(opp) {{
+  if (opp >= 75) return ['excellent', 'Excellent'];
+  if (opp >= 55) return ['good',      'Good'];
+  if (opp >= 35) return ['fair',      'Fair'];
+  return ['poor', 'Weak'];
+}}
+
+function oppColor(opp) {{
+  if (opp >= 65) return 'var(--green)';
+  if (opp >= 35) return 'var(--amber)';
+  return 'var(--red)';
+}}
+
+function buildVerdict(c, rank) {{
+  const strengths = [], weaknesses = [];
+  if (c.avg_score >= 60)  strengths.push(`average deal score of ${{fi(c.avg_score)}}/100`);
+  else if (c.avg_score > 0 && c.avg_score < 40) weaknesses.push(`low average deal score (${{fi(c.avg_score)}}/100)`);
+  if (c.avg_cap >= 7)     strengths.push(`strong cap rate of ${{fp(c.avg_cap)}}`);
+  else if (c.avg_cap > 0 && c.avg_cap < 5) weaknesses.push(`below-target cap rate (${{fp(c.avg_cap)}})`);
+  if (c.avg_coc >= 10)    strengths.push(`solid cash-on-cash return (${{fp(c.avg_coc)}})`);
+  else if (c.avg_coc > 0 && c.avg_coc < 5)  weaknesses.push(`low cash-on-cash (${{fp(c.avg_coc)}})`);
+  if (c.avg_irr >= 15)    strengths.push(`high avg IRR of ${{fp(c.avg_irr)}}`);
+  if (c.avg_drop > 3)     strengths.push(`avg price reduction of ${{fp(c.avg_drop)}} signals motivated sellers`);
+  else if (c.avg_drop === 0) weaknesses.push(`no price reductions on record`);
+  if (c.avg_dom >= 90)    strengths.push(`properties averaging ${{c.avg_dom}} days listed`);
+  else if (c.avg_dom > 0 && c.avg_dom < 30) weaknesses.push(`fast-moving market (${{c.avg_dom}}d avg DOM)`);
+  if (c.active >= 5)      strengths.push(`healthy supply with ${{c.active}} active listings`);
+  else if (c.active === 0) weaknesses.push(`no active listings — limited deal flow`);
+  if (c.inactive > 0)     weaknesses.push(`${{c.inactive}} inactive propert${{c.inactive===1?'y':'ies'}} reducing current options`);
+
+  let out = `Ranked <strong>#${{rank}}</strong> out of ${{CITIES.length}} cities`;
+  if (strengths.length)  out += ` — driven by ${{strengths.join('; ')}}.`;
+  else                   out += ` with no standout metrics.`;
+  if (weaknesses.length) out += ` Key headwinds: ${{weaknesses.join('; ')}}.`;
+  return out;
+}}
+
+function renderCity(c, i) {{
+  const rank       = i + 1;
+  const [grade, gradeLabel] = gradeOf(c.opportunity);
+  const barColor   = oppColor(c.opportunity);
+  const barW       = Math.min(100, c.opportunity);
+  const rankClass  = rank <= 3 ? `rank-${{rank}}` : grade;
+
+  // Mini stats strip
+  const miniStats = [
+    c.avg_cap  ? `Cap <span class="${{gc('cap', c.avg_cap)}}">${{fp(c.avg_cap)}}</span>` : '',
+    c.avg_coc  ? `CoCR <span class="${{gc('coc', c.avg_coc)}}">${{fp(c.avg_coc)}}</span>` : '',
+    c.avg_irr  ? `IRR <span class="${{gc('irr', c.avg_irr)}}">${{fp(c.avg_irr)}}</span>` : '',
+    c.avg_score? `Avg Score <span class="${{gc('score', c.avg_score)}}">${{fi(c.avg_score)}}</span>` : '',
+  ].filter(Boolean).map(s => `<span class="mini-stat">${{s}}</span>`).join('');
+
+  // Type breakdown
+  const typeStr = Object.entries(c.type_counts || {{}})
+    .sort((a,b) => b[1]-a[1])
+    .map(([t,n]) => `${{n}}× ${{t}}`).join(', ');
+
+  // Detail cards
+  const cards = [
+    {{ label:'Avg Deal Score',   val: c.avg_score ? fi(c.avg_score)+'/100' : '—', cls: gc('score',c.avg_score), sub:'all properties' }},
+    {{ label:'Best Deal Score',  val: c.best_score? fi(c.best_score)+'/100':'—',  cls: gc('score',c.best_score),sub:'top property' }},
+    {{ label:'Avg Cap Rate',     val: fp(c.avg_cap),   cls: gc('cap',c.avg_cap),   sub:'≥7% = strong' }},
+    {{ label:'Avg CoCR',         val: fp(c.avg_coc),   cls: gc('coc',c.avg_coc),   sub:'≥10% = strong' }},
+    {{ label:'Avg IRR',          val: fp(c.avg_irr),   cls: gc('irr',c.avg_irr),   sub:'≥15% = strong' }},
+    {{ label:'Avg DSCR',         val: c.avg_dscr ? c.avg_dscr.toFixed(2):'—', cls: gc('dscr',c.avg_dscr), sub:'≥1.5 = strong' }},
+    {{ label:'Avg Price Drop',   val: fp(c.avg_drop),  cls: gc('drop',c.avg_drop), sub:'from original list' }},
+    {{ label:'Avg Days Listed',  val: c.avg_dom ? c.avg_dom+'d':'—', cls: gc('dom',c.avg_dom), sub:'active only' }},
+    {{ label:'Active Listings',  val: c.active,        cls: c.active>=3?'good':c.active>=1?'fair':'poor', sub:`of ${{c.total}} total` }},
+    {{ label:'Inactive Props',   val: c.inactive || '0', cls:'info', sub:'sold/off market' }},
+    {{ label:'Avg Active Price', val: fm(c.avg_price_active),   cls:'info', sub:'active listings' }},
+    {{ label:'Avg Inactive Price',val: fm(c.avg_price_inactive),cls:'info', sub:'inactive listings' }},
+  ];
+  const cardsHtml = cards.map(cd => `
+    <div class="detail-card">
+      <div class="detail-card-label">${{cd.label}}</div>
+      <div class="detail-card-val ${{cd.cls}}">${{cd.val}}</div>
+      <div class="detail-card-sub">${{cd.sub}}</div>
+    </div>`).join('');
+
+  // Factor contribution bars
+  const W = {{ 'Avg Deal Score':0.30, 'Best Deal Score':0.10, 'Active Volume':0.15,
+               'Avg Cap Rate':0.15,   'Avg Price Drop':0.10,  'Avg DOM':0.10, 'Avg CoCR':0.10 }};
+  function norm(v, lo, hi) {{ return hi===lo ? 0 : Math.max(0, Math.min(1, (v-lo)/(hi-lo))); }}
+  const contributions = {{
+    'Avg Deal Score':  norm(c.avg_score, 0,   100) * W['Avg Deal Score']  * 100,
+    'Best Deal Score': norm(c.best_score,0,   100) * W['Best Deal Score'] * 100,
+    'Active Volume':   norm(c.active,    1,   10)  * W['Active Volume']   * 100,
+    'Avg Cap Rate':    norm(c.avg_cap,   3,   9)   * W['Avg Cap Rate']    * 100,
+    'Avg Price Drop':  norm(c.avg_drop,  0,   15)  * W['Avg Price Drop']  * 100,
+    'Avg DOM':         norm(c.avg_dom,   30,  180) * W['Avg DOM']         * 100,
+    'Avg CoCR':        norm(c.avg_coc,   0,   12)  * W['Avg CoCR']        * 100,
+  }};
+  const maxC = Math.max(...Object.values(contributions), 1);
+  const factorBars = Object.entries(contributions)
+    .sort((a,b) => b[1]-a[1])
+    .map(([k,v]) => {{
+      const w = (W[k]*100).toFixed(0);
+      const pct = (v/maxC*100).toFixed(0);
+      const rawVal = contributions[k];
+      return `<div class="factor-bar-row">
+        <span class="factor-bar-label">${{k}} <span style="color:var(--gold);font-size:9px">(${{w}}% weight)</span></span>
+        <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{pct}}%"></div></div>
+        <span class="factor-bar-right">${{rawVal.toFixed(1)}} pts</span>
+      </div>`;
+    }}).join('');
+
+  return `<div class="city-row ${{rankClass}}" id="city-${{i}}">
+    <div class="city-row-main" onclick="toggleCity(${{i}})">
+      <div class="rank-num">#${{rank}}</div>
+      <div class="city-info">
+        <div class="city-name">${{c.city}} <span class="chevron">▼</span></div>
+        <div class="city-pills">
+          <span class="pill active">${{c.active}} active</span>
+          ${{c.inactive ? `<span class="pill inactive">${{c.inactive}} inactive</span>` : ''}}
+          ${{typeStr ? `<span class="pill">${{typeStr}}</span>` : ''}}
+        </div>
+      </div>
+      <div class="city-score-col">
+        <div class="city-opp-num" style="color:${{barColor}}">${{c.opportunity.toFixed(0)}}</div>
+        <div class="city-opp-label">/ 100 · ${{gradeLabel}}</div>
+      </div>
+      <div class="city-metrics">
+        <div class="opp-bar-track">
+          <div class="opp-bar-fill" style="width:${{barW}}%;background:${{barColor}}"></div>
+        </div>
+        <div class="mini-stats">${{miniStats}}</div>
+      </div>
+    </div>
+    <div class="city-detail">
+      <div class="detail-verdict">${{buildVerdict(c, rank)}}</div>
+      <div class="detail-grid">${{cardsHtml}}</div>
+      <div class="factor-section-title">What drove this ranking</div>
+      ${{factorBars}}
+    </div>
+  </div>`;
+}}
+
+function toggleCity(i) {{
+  const row = document.getElementById('city-' + i);
+  row.classList.toggle('open');
+}}
+
+document.getElementById('report-date').textContent =
+  'Generated ' + new Date().toLocaleDateString('en-CA', {{year:'numeric',month:'long',day:'numeric'}})
+  + ' · ' + CITIES.length + ' cit' + (CITIES.length===1?'y':'ies') + ' · '
+  + CITIES.reduce((s,c)=>s+c.total,0) + ' properties';
+
+document.getElementById('city-list').innerHTML = CITIES.map((c,i) => renderCity(c,i)).join('');
+</script>
 </body>
 </html>"""
 
-        import pathlib
-        out_path = pathlib.Path("city_report_latest.html")
-        out_path.write_text(html, encoding="utf-8")
-        print(f"  {len(cities)} cities · report saved to {out_path.resolve()}")
-
         tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".html", delete=False,
-            prefix="city_report_", encoding="utf-8"
+            mode='w', suffix='.html', delete=False,
+            prefix='city_report_', encoding='utf-8'
         )
         tmp.write(html)
         tmp.close()
-        webbrowser.open(f"file://{os.path.abspath(tmp.name)}")
-        print("  City report opened in browser.")
+        webbrowser.open(f'file://{tmp.name}')
+        print(f"\n  City report opened in browser.")
+        print(f"  File saved to: {tmp.name}")
 
     def _open_report(self):
         props = self._store.load_properties()
@@ -2554,6 +2855,68 @@ tr:hover td{{background:#faf7f2}}
 
         print(" done.")
         data_json = json.dumps(rows, indent=2)
+
+        # ── City rankings panel (only when called from _open_city_report) ────
+        city_table_html = ""
+        if hasattr(self, '_city_rankings') and self._city_rankings:
+            cr = self._city_rankings
+            self._city_rankings = None  # consume so normal _open_report calls are clean
+
+            def _sc(v): return "good" if v and v>=70 else ("fair" if v and v>=45 else ("poor" if v else ""))
+            def _cc(v): return "good" if v and v>=7  else ("fair" if v and v>=5  else ("poor" if v else ""))
+            def _fm(n):
+                if not n: return "&mdash;"
+                if n>=1_000_000: return f"${n/1_000_000:.1f}M"
+                if n>=1_000:     return f"${n/1_000:.0f}K"
+                return f"${n:,.0f}"
+            def _fp(n): return f"{n:.1f}%" if n else "&mdash;"
+
+            rows_html = ""
+            for i, c in enumerate(cr):
+                bw  = min(100, int(c["opportunity"]))
+                bc  = "#2d6a4f" if c["opportunity"]>=65 else ("#8b1a1a" if c["opportunity"]<35 else "#b8960c")
+                sub = f'<span class="city-sub">{c["dist_km"]}km</span>' if c["dist_km"] is not None else ""
+                inactive = c["total"] - c["active"]
+                if inactive: sub += f'<span class="city-sub">({inactive} inactive)</span>'
+                as_str = f'{c["avg_score"]:.0f}' if c["avg_score"] else "&mdash;"
+                bs_str = f'{c["best_score"]:.0f}' if c["best_score"] else "&mdash;"
+                dc   = "good" if c["avg_drop"] > 0 else ""
+                domc = "good" if c["avg_dom"]>=90 else ("fair" if c["avg_dom"]>=60 else "")
+                rows_html += (
+                    f'<tr class="cr-row" data-city="{c["city"]}">'
+                    f'<td style="text-align:left"><b style="color:var(--muted);font-family:var(--mono);font-size:11px">#{i+1}</b>'
+                    f' <span class="cr-city">{c["city"]}</span>{sub}</td>'
+                    f'<td><span style="font-family:var(--mono);font-size:13px;font-weight:500">{c["opportunity"]:.0f}</span>'
+                    f'&nbsp;<span class="cr-bar-wrap"><span class="cr-bar" style="width:{bw}%;background:{bc}"></span></span></td>'
+                    f'<td>{c["active"]}</td>'
+                    f'<td class="{_sc(c["avg_score"])}">{as_str}</td>'
+                    f'<td class="{_sc(c["best_score"])}">{bs_str}</td>'
+                    f'<td class="{_cc(c["avg_cap"])}">{_fp(c["avg_cap"])}</td>'
+                    f'<td class="{_cc(c["avg_coc"])}">{_fp(c["avg_coc"])}</td>'
+                    f'<td class="{dc}">{_fp(c["avg_drop"])}</td>'
+                    f'<td class="{domc}">{c["avg_dom"] or "&mdash;"}d</td>'
+                    f'<td>{_fm(c["avg_price"])}</td>'
+                    f'</tr>\n'
+                )
+
+            city_table_html = f"""<div id="city-panel">
+  <div class="city-panel-header">
+    <span style="font-family:'DM Serif Display',serif;font-size:1.3rem">City <em style="color:var(--gold)">Opportunity</em> Rankings</span>
+    <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">click a city to filter properties below</span>
+    <button onclick="document.getElementById('city-panel').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--muted);font-size:1rem">&#x2715;</button>
+  </div>
+  <div style="overflow-x:auto;padding:0 1.5rem 1rem">
+    <table class="cr-table">
+      <thead><tr>
+        <th style="text-align:left">City</th>
+        <th>Score</th><th>Active</th><th>Avg Deal</th><th>Best Deal</th>
+        <th>Avg Cap</th><th>CoCR</th><th>Price Drop</th><th>DOM</th><th>Avg Price</th>
+      </tr></thead>
+      <tbody>{rows_html}</tbody>
+    </table>
+  </div>
+</div>"""
+
         cities    = sorted({r["city"] for r in rows if r["city"]})
         provinces = sorted({r["province"] for r in rows if r["province"]})
         types     = sorted({r["type"] for r in rows if r["type"] != "—"})
@@ -3029,9 +3392,23 @@ tr:hover td{{background:#faf7f2}}
     font-style: italic; font-size: 13px; color: var(--ink); line-height: 1.5;
   }}
   .card {{ cursor: pointer; }}
+  #city-panel {{ background:var(--cream); border-bottom:3px double var(--rule); }}
+  .city-panel-header {{ padding:0.8rem 1.5rem; display:flex; align-items:center; gap:1.5rem; }}
+  .cr-table {{ width:100%; border-collapse:collapse; font-size:13px; }}
+  .cr-table th {{ font-family:var(--mono); font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); padding:0.4rem 0.7rem; text-align:right; border-bottom:2px solid var(--rule); white-space:nowrap; }}
+  .cr-table td {{ padding:0.4rem 0.7rem; border-bottom:1px solid var(--rule); text-align:right; vertical-align:middle; }}
+  .cr-row {{ cursor:pointer; }}
+  .cr-row:hover td {{ background:#faf0d0; }}
+  .cr-row.active td {{ background:#fdf5d0; }}
+  .cr-city {{ font-family:'DM Serif Display',serif; font-size:1rem; }}
+  .city-sub {{ font-family:var(--mono); font-size:10px; color:var(--muted); margin-left:0.5rem; }}
+  .cr-bar-wrap {{ display:inline-block; width:50px; height:5px; background:var(--paper); border:1px solid var(--rule); vertical-align:middle; }}
+  .cr-bar {{ display:block; height:100%; }}
 </style>
 </head>
 <body>
+
+{city_table_html}
 
 <div class="modal-overlay" id="modal-overlay" onclick="handleOverlayClick(event)">
   <div class="modal" id="modal">
@@ -3297,6 +3674,21 @@ document.getElementById('cards').addEventListener('click', function(e) {{
   if (!isNaN(idx) && SORTED_CACHE[idx]) openModal(SORTED_CACHE[idx]);
 }});
 
+// City panel click-to-filter
+document.querySelectorAll('.cr-row').forEach(function(row) {{
+  row.addEventListener('click', function() {{
+    var city = this.getAttribute('data-city');
+    document.querySelectorAll('.cr-row').forEach(function(r) {{ r.classList.remove('active'); }});
+    this.classList.add('active');
+    var sel = document.getElementById('f-city');
+    if (sel) {{
+      sel.value = city;
+      applyFilters();
+      document.querySelector('.filters').scrollIntoView({{behavior:'smooth'}});
+    }}
+  }});
+}});
+
 // Init
 document.getElementById('report-date').textContent =
   'Generated ' + new Date().toLocaleDateString('en-CA', {{year:'numeric',month:'long',day:'numeric'}});
@@ -3517,8 +3909,6 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
         either 20 or 0.20 format.
         Empty cells use the same defaults as manual entry.
         """
-        import csv as _csv
-
         print(f"\n  CSV IMPORT")
         print(self.THIN_DIVIDER)
         print("  Enter path to CSV file, or 'template' to save a sample CSV:")
@@ -3582,9 +3972,8 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
         has_header = "address" in first_keys
         if not has_header:
             # Re-read as plain rows and zip with expected headers
-            import csv as _csv2
             with open(path, newline="", encoding=enc) as f:
-                plain_rows = list(_csv2.reader(f))
+                plain_rows = list(_csv.reader(f))
             # Pad or trim each row to match header length
             rows = []
             for r in plain_rows:
@@ -3772,7 +4161,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
                     province         = province,
                     property_type    = prop_type_field,
                     unit_mix         = unit_mix,
-            construction_cost = construction_cost,
+                    construction_cost = construction_cost,
                     hotel_rooms         = hotel_rooms,
                     hotel_adr           = hotel_adr,
                     hotel_occupancy     = hotel_occupancy,
@@ -3851,7 +4240,6 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
 
     def _save_csv_template(self):
         """Saves a sample CSV template the user can fill in."""
-        import csv as _csv
         path = "property_import_template.csv"
         headers = [
             "address", "mls_number", "status", "original_price", "property_type",
@@ -3971,7 +4359,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
             print(f"\n{'SCORING FORMULA':^75}")
             print(self.DIVIDER)
             print(f"  Weights must sum to 1.0.  Currently: {total_w:.2f}")
-            print(f"  Scores normalized automatically — set a weight to 0 to disable a component.")
+            print("  Scores normalized automatically — set a weight to 0 to disable a component.")
             print(self.DIVIDER)
             print(f"  {'#':<3} {'COMPONENT':<18} {'WEIGHT':>7}  {'FLOOR':>9}  {'CEILING':>9}  DESCRIPTION")
             print(self.DIVIDER)
@@ -4045,7 +4433,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
             cfg["weights"]    = weights
             cfg["thresholds"] = thresholds
             self._save_score_config(cfg)
-            print(f"  Saved.")
+            print("  Saved.")
 
     def _edit_city_weights(self):
         """Edit the weights used to compute the city opportunity score."""
@@ -4185,7 +4573,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
                 updated += 1
             except ValueError:
                 skipped += 1   # missing rent data — leave unchanged
-            except Exception as e:
+            except Exception:
                 errors += 1
         total = len(props)
         print(f"\n  Re-analysis complete — {updated}/{total} updated", end="")
@@ -4257,7 +4645,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
         for i, t in enumerate(COMM_TYPES, 1):
             cur = current_types.get(t, "—")
             print(f"  {i}  {t:<14} (current: ${cur}/sq ft)")
-        print(f"  0  Done")
+        print("  0  Done")
 
         updated = dict(current_types)
         while True:
@@ -4359,7 +4747,7 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
         for i, (key, label) in enumerate(RES_FIELDS, 1):
             cur = current.get(key, "—")
             print(f"  {i}  {label:<12} (current: ${cur}/mo)")
-        print(f"  0  Done")
+        print("  0  Done")
 
         updated = dict(current)
         while True:
@@ -4474,17 +4862,6 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
         else:
             print("  Cancelled.")
 
-    # def _run_all(self):
-    #     """Runs all hardcoded properties, with a toggle for output."""
-    #     show = input("  Print full analysis reports? (y/n): ").strip().lower() == "y"
-    #     for prop in _get_properties():
-    #         analyzer = CommercialPropertyAnalyzer(prop, self._resolver)
-    #         ReportPrinter.print_report(analyzer, show=show)
-    #         self._store.save_property(analyzer.to_record())
-    #     status = "Printed and saved" if show else "Saved (output suppressed)"
-    #     print(f"  {status} — {len(_get_properties())} properties -> {DataStore.PROPERTIES_PATH}")
-    #     self._list()
-
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -4568,7 +4945,6 @@ document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeModal(
             The province is the last 2-letter uppercase token found.
             The city is everything in that segment before the province token.
             """
-            import re
             if not addr or "," not in addr:
                 return None, None
 
