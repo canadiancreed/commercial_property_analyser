@@ -77,7 +77,10 @@ class CommercialPropertyAnalyzer:
             )
             self.debt     = DebtMetrics(
                 self.income.est_noi, prop.expense_ratio,
-                self.mortgage.annual_mortgage, annual_rent
+                self.mortgage.annual_mortgage, annual_rent,
+                loan_amount=self.mortgage.loan_amount,
+                interest_rate=prop.interest_rate,
+                term_years=prop.term_years,
             )
             self.returns  = ReturnMetrics(prop, self.income.est_noi, self.mortgage.annual_mortgage,
                                           self.cashflow.cash_invested, self.exit.exit_price,

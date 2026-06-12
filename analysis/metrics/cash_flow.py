@@ -29,17 +29,35 @@ class CashFlowMetrics:
 
 class DebtMetrics:
 
-    STRESS_RATE = 0.02
+    DEFAULT_STRESS_RATE = 0.02
 
     def __init__(self, est_noi: float, expense_ratio: float,
-                 annual_mortgage: float, annual_rent: float):
+                 annual_mortgage: float, annual_rent: float,
+                 loan_amount: float = 0.0, interest_rate: float = 0.05,
+                 term_years: int = 25, stress_rate_bump: float = DEFAULT_STRESS_RATE):
         self.dscr             = est_noi / annual_mortgage if annual_mortgage else float('inf')
         self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi else 1
         net_rent_per_unit     = annual_rent * (1 - expense_ratio)
         self.break_even_point = (annual_mortgage / net_rent_per_unit) * 100 if net_rent_per_unit else 0
-        stressed_debt         = annual_mortgage * (1 + self.STRESS_RATE)
-        self.stressed_dscr    = est_noi / stressed_debt if stressed_debt else 0
         self._annual_mortgage = annual_mortgage
+
+        if loan_amount > 0 and term_years > 0:
+            shocked_monthly_rate = (interest_rate + stress_rate_bump) / 12
+            n = term_years * 12
+            if shocked_monthly_rate == 0:
+                stressed_monthly = loan_amount / n
+            else:
+                stressed_monthly = (
+                    loan_amount
+                    * (shocked_monthly_rate * (1 + shocked_monthly_rate) ** n)
+                    / ((1 + shocked_monthly_rate) ** n - 1)
+                )
+            stressed_debt = stressed_monthly * 12
+        else:
+            stressed_debt = annual_mortgage * (1 + stress_rate_bump)
+
+        self.stressed_dscr = est_noi / stressed_debt if stressed_debt else 0
+        self._stress_rate_bump = stress_rate_bump
 
     def rows(self) -> list:
         stress_status = "PASS" if self.stressed_dscr >= 1.20 else "FAIL: High Rate Risk"
@@ -53,5 +71,5 @@ class DebtMetrics:
                       Grader.grade(self.be_ratio, 75, 85, higher_is_better=False)),
             ReportRow("Break-Even Occupancy %", f"{self.break_even_point:.2f}%",
                       Grader.grade(self.break_even_point, 75, 85, higher_is_better=False)),
-            ReportRow("Stress Test (+2%)",      f"{self.stressed_dscr:.2f} DSCR", stress_status),
+            ReportRow(f"Stress Test (+{self._stress_rate_bump*100:.0f}%)", f"{self.stressed_dscr:.2f} DSCR", stress_status),
         ]
