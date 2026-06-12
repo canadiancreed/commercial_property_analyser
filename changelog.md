@@ -17,6 +17,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `hotel_occupancy` present; the resolver raised a `ValueError`; and the fallback record saved
   `property_type: None`. Added `"hotel"` to the local set and added three regression tests in
   `tests/test_csv_hotel_import.py`.
+  
+## [2.3.0] — 2026-06-12
+
+### Fixed
+
+- **NOI growth rate frozen after first save** — `to_record()` persisted the resolved NOI growth
+  rate (from city demographics or the 2% default) into `properties.json` under `noi_growth_rate`.
+  On reload, that stored value was passed back into `PropertyInput.noi_growth_rate`, causing
+  `_resolve_noi_growth()` to treat it as a manual override and skip the demographics lookup
+  entirely. Any subsequent update to `city_demographics.json` was silently ignored for all
+  previously saved properties.
+- **`to_record()` now saves `None` for auto-resolved NOI growth rates** — only an explicit
+  user-set value (when a UI for that field exists) will be persisted. On every re-analysis the
+  rate is re-derived from the current demographics file, so city-level data updates propagate
+  automatically.
+- **463 existing records in `properties.json` had their baked-in auto-resolved rates cleared to
+  `null`** — all stored values were resolver-derived (no manual-entry UI exists for this field),
+  so all were reset to allow fresh resolution against the current demographics data.
 
 ---
 
