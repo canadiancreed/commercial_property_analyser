@@ -128,6 +128,25 @@ class TestDebtMetrics:
         row = next(r for r in m.rows() if r.metric == "Break-Even NOI")
         assert row.grade == "POOR"
 
+    def test_be_ratio_negative_noi_is_inf(self):
+        """Negative NOI is worse than zero — must hit the same worst-case sentinel,
+        not produce a negative ratio that grades GOOD."""
+        m = DebtMetrics(-10_000, 0.40, 24_000, 60_000)
+        assert m.be_ratio == float('inf')
+
+    def test_be_ratio_negative_noi_grades_poor(self):
+        m = DebtMetrics(-10_000, 0.40, 24_000, 60_000)
+        row = next(r for r in m.rows() if r.metric == "Break-Even NOI %")
+        assert row.value == "N/A"
+        assert row.grade == "POOR", (
+            f"Negative-NOI property must grade POOR on Break-Even NOI % but got {row.grade!r}"
+        )
+
+    def test_be_noi_row_negative_noi_grades_poor(self):
+        m = DebtMetrics(-10_000, 0.40, 24_000, 60_000)
+        row = next(r for r in m.rows() if r.metric == "Break-Even NOI")
+        assert row.grade == "POOR"
+
 
 # ── Issue #5: stress test must scale with loan size, not be a flat $9k add-on ─
 # ── Issue #8: Break-Even Occupancy % must be graded with break_even_point ─────

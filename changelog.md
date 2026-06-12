@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.7.1] — 2026-06-12
+
+### Fixed
+
+- **`DebtMetrics.be_ratio` still graded GOOD for negative-NOI properties**
+  (`analysis/metrics/cash_flow.py`): the zero-NOI sentinel added in 2.7.0 only caught
+  `est_noi == 0`; a *negative* NOI produced a negative ratio, which the grader read as
+  "well below the 75% threshold" and awarded **GOOD**. The sentinel condition is now
+  `est_noi > 0`, so any non-positive NOI hits the `float('inf')` worst-case path, grades
+  **POOR** on both Break-Even NOI rows, and displays `"N/A"`.
+- **`DataStore._write` had no rollback copy** (`data/store.py`): the atomic
+  temp-file-plus-`os.replace()` write added in 2.7.0 protects against crashes mid-write, but
+  not against successfully writing bad data. Before promoting the new content, the previous
+  file is now copied to a `.bak` sibling (copy, not rename, so the live file always exists).
+  `*.json.bak` / `*.json.tmp` added to `.gitignore`.
+
+### Tests
+
+- **`tests/test_metrics_cash_flow.py`** — 3 new tests: negative-NOI `be_ratio` is `inf`,
+  grades POOR on both Break-Even NOI rows, and displays `"N/A"`.
+- **`tests/test_data_store.py`** — 3 new tests: first write creates no `.bak`, a rewrite
+  preserves the previous content in `.bak`, and a failed write leaves both the live file and
+  the `.bak` untouched.
+
+---
+
 ## [2.7.0] — 2026-06-12
 
 ### Fixed

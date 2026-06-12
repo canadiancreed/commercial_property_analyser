@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 from datetime import date
 
 
@@ -37,6 +38,10 @@ class DataStore:
         tmp = path + ".tmp"
         with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        # Keep a rollback copy of the last good file; copy (not rename) so
+        # the live file always exists even if we crash before the replace.
+        if os.path.exists(path):
+            shutil.copy2(path, path + ".bak")
         os.replace(tmp, path)
 
     # ------------------------------------------------------------------
