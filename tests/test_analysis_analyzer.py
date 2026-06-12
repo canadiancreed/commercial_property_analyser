@@ -131,15 +131,13 @@ class TestAnalyzerWithRent:
             "resolved value should be stored on the analyzer instance instead"
         )
 
-    def test_to_record_saves_resolved_growth_when_prop_has_none(self):
-        """When prop has no explicit noi_growth_rate, to_record() should still save the
-        resolved value (demographics or default) so re-analysis reproduces the same figure."""
-        # Use a city not present in the demographics file so the 2% default is used.
+    def test_to_record_does_not_persist_resolved_growth_when_prop_has_none(self):
+        """When prop has no explicit noi_growth_rate, to_record() must save None so that
+        re-analysis re-resolves from demographics (picking up any updates)."""
         prop = _make_prop(annual_rent=60_000, city="UnknownCityXYZ", province="XX")
         a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
         rec = a.to_record()
-        assert rec["noi_growth_rate"] is not None
-        assert rec["noi_growth_rate"] == pytest.approx(0.02)  # default — no demographics entry
+        assert rec["noi_growth_rate"] is None
 
 
 # ── Construction cost propagation ─────────────────────────────────────────────
