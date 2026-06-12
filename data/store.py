@@ -34,8 +34,10 @@ class DataStore:
 
     @staticmethod
     def _write(path: str, data: dict):
-        with open(path, "w", encoding="utf-8") as f:
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
 
     # ------------------------------------------------------------------
     # Commercial rates
