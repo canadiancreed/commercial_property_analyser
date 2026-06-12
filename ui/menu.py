@@ -323,7 +323,11 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
 
             if special == "optional":
                 raw = input(f"  New {label} (Enter to clear): ").strip()
-                val = cast(raw) if raw else None
+                try:
+                    val = cast(raw) if raw else None
+                except ValueError:
+                    print("  Invalid number.")
+                    continue
                 update = {key: val}
                 if key == "commercial_rent":
                     update["commercial_rent_user_entered"] = val is not None
