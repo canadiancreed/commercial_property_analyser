@@ -80,6 +80,18 @@ class TestReadWrite:
         data = DataStore._read(path)
         assert data == {"key": "value"}
 
+    def test_write_no_tmp_file_left_behind(self, tmp_path):
+        path = str(tmp_path / "data.json")
+        DataStore._write(path, {"key": "value"})
+        assert not os.path.exists(path + ".tmp")
+
+    def test_write_replaces_atomically(self, tmp_path):
+        path = str(tmp_path / "data.json")
+        DataStore._write(path, {"version": 1})
+        DataStore._write(path, {"version": 2})
+        data = DataStore._read(path)
+        assert data == {"version": 2}
+
 
 # ── Tests: commercial rates ───────────────────────────────────────────────────
 

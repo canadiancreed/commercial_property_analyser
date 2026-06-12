@@ -36,7 +36,7 @@ class DebtMetrics:
                  loan_amount: float = 0.0, interest_rate: float = 0.05,
                  term_years: int = 25, stress_rate_bump: float = DEFAULT_STRESS_RATE):
         self.dscr             = est_noi / annual_mortgage if annual_mortgage else float('inf')
-        self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi else 1
+        self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi else float('inf')
         net_rent_per_unit     = annual_rent * (1 - expense_ratio)
         self.break_even_point = (annual_mortgage / net_rent_per_unit) * 100 if net_rent_per_unit else 0
         self._annual_mortgage = annual_mortgage
@@ -67,7 +67,8 @@ class DebtMetrics:
                                    labels=("GOOD", "FAIR", "POOR/UNBANKABLE"))),
             ReportRow("Break-Even NOI",         f"${self._annual_mortgage:,.2f}",
                       Grader.grade(self.be_ratio, 65, 80, higher_is_better=False)),
-            ReportRow("Break-Even NOI %",       f"{self.be_ratio:.2f}%",
+            ReportRow("Break-Even NOI %",
+                      "N/A" if self.be_ratio == float('inf') else f"{self.be_ratio:.2f}%",
                       Grader.grade(self.be_ratio, 75, 85, higher_is_better=False)),
             ReportRow("Break-Even Occupancy %", f"{self.break_even_point:.2f}%",
                       Grader.grade(self.break_even_point, 75, 85, higher_is_better=False)),

@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.7.0] — 2026-06-12
+
+### Fixed
+
+- **`DebtMetrics.be_ratio` sentinel was wrong-direction for zero-NOI properties**
+  (`analysis/metrics/cash_flow.py`): when `est_noi` is zero the break-even NOI ratio was set to
+  `1`, which the grader interpreted as "debt service is 1% of NOI" and awarded a **GOOD** grade.
+  The sentinel is now `float('inf')`, which correctly grades **POOR** on both Break-Even NOI rows.
+  The `Break-Even NOI %` display renders `"N/A"` rather than `"inf%"` when NOI is zero.
+- **`DataStore._write` was not crash-safe** (`data/store.py`): the method opened the target file
+  with `"w"` (truncate) before writing, leaving `properties.json` empty or partially written if
+  the process was interrupted mid-write. Writes now go to a `.tmp` sibling file first and are
+  promoted to the live path via `os.replace()`, which is atomic on both POSIX and Windows (same
+  drive). The original file is never touched until the new content is fully flushed.
+
+### Tests
+
+- **`tests/test_metrics_cash_flow.py`** — 4 new tests: zero-NOI `be_ratio` is `inf`, grades POOR
+  on both Break-Even NOI rows, and displays `"N/A"` on the percentage row.
+- **`tests/test_data_store.py`** — 2 new tests: no `.tmp` file is left behind after a successful
+  write, and an overwrite produces the correct final content.
+
+---
+
 ## [2.6.0] — 2026-06-12
 
 ### Fixed
