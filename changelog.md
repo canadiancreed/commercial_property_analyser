@@ -6,6 +6,72 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.0.1] — 2026-06-12
+
+### Fixed
+
+- **Canadian mortgage compounding convention was wrong** (`analysis/mortgage.py`,
+  `analysis/metrics/cash_flow.py`): the monthly rate was computed as `annual_rate / 12`
+  (US monthly-compounding convention). Canadian fixed-rate mortgages compound
+  **semi-annually** under the *Interest Act* (s. 6); the correct effective monthly rate is
+  `(1 + annual_rate / 2)^(1/6) − 1`. Every payment was overstated by ~1–2%, with the error
+  flowing through DSCR, annual/monthly cash flow, CoCR, loan balance at exit, IRR, the stress
+  test, and scores. On a $1 M loan at 6% over 25 years the payment was overstated by ~$45/month
+  (~$540/year).
+
+- **Stress-test payment was a duplicate of the base formula** — `DebtMetrics` re-implemented the
+  amortization formula inline, so the two paths could drift independently. The stress-test block
+  is now a call to the shared `amortization_payment()` helper; it also carries the same fix.
+
+- **Duplicate province set in `ui/menu.py`** (`ui/menu.py`): `parse_city_province` defined an
+  inline `PROVINCES = {"AB","BC",…}` that was an exact copy of the set now centralised in
+  `models/constants.py`. The inline set has been replaced with the imported `CANADIAN_PROVINCES`
+  constant.
+
+### Added
+
+- **`CANADIAN_PROVINCES` in `models/constants.py`** — single source of truth for the 13
+  Canadian province/territory codes; consumed by the mortgage compounding logic and the
+  address parser, so both always agree.
+
+- **Shared amortization helpers in `analysis/mortgage.py`**:
+  - `effective_monthly_rate(annual_rate, compounding)` — `"semi-annual"` uses the Canadian
+    formula; `"monthly"` uses `rate / 12`.
+  - `amortization_payment(loan, annual_rate, n_payments, compounding)` — single payment formula
+    called by both `MortgageCalculator` and `DebtMetrics`.
+  - `remaining_balance(loan, annual_rate, n_payments, payments_made, compounding)` — loan
+    balance at exit, consistent with the payment formula.
+  - `compounding_for_province(province)` — maps a province/state code to `"semi-annual"` for
+    Canadian provinces, `"monthly"` for everything else.
+
+- **`MortgageCalculator` accepts a `province` parameter** — compounding convention is determined
+  automatically from the property's province. Defaults to `"ON"` (semi-annual). The compounding
+  convention is now surfaced as a `"Compounding"` row in the mortgage section of the analysis
+  report.
+
+- **`DebtMetrics` accepts a `compounding` parameter** — passed through from
+  `CommercialPropertyAnalyzer` so the stress test always uses the same convention as the base
+  payment.
+
+- **`_parse_city_province` extracted to module level** in `ui/menu.py` — was a nested function
+  inside `_prompt_property`, making it unreachable by tests. Now a module-level
+  `_parse_city_province(addr)` function.
+
+### Tests
+
+- **`tests/test_analysis_mortgage.py`** — rewritten with correct Canadian amortization
+  expectations; new test classes for `compounding_for_province`, `effective_monthly_rate`,
+  `amortization_payment`, and `remaining_balance`; `TestMortgageCalculator` extended with
+  Canadian vs. US payment comparison tests and compounding label assertions; parametrized over
+  `CANADIAN_PROVINCES` so tests stay in sync automatically if the constant ever changes.
+
+- **`tests/test_menu_parse_city_province.py`** — new file, 38 tests for `_parse_city_province`:
+  both address formats (`"City, ON"` and `"City ON"`), all 13 provinces/territories, case
+  normalisation, multi-word city names, and all failure paths (no comma, unknown province, empty
+  string, `None`).
+
+---
+
 ## [2.7.1] — 2026-06-12
 
 ### Fixed
