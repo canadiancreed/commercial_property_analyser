@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.6.0] — 2026-06-12
+
+### Fixed
+
+- **Optional-field edit crash on non-numeric input** (`ui/menu.py`): typing a non-numeric value
+  (e.g. `"abc"`) into any optional `float` field during property editing — fields 7 (Commercial
+  rent), 16 (Residential rent), 18 (Construction cost), 30–32 (Industrial sqft components), and
+  35–37 (Industrial rates/height) — raised an unhandled `ValueError` that terminated the process.
+  The `"optional"` branch in `PropertyMenu._edit` is now wrapped in `try/except ValueError`,
+  matching the guard already present in every sibling branch (`pct`, `unit`, `nodec`, `hotel`,
+  `standard`). Bad input now prints `"Invalid number."` and re-prompts instead of crashing.
+
+---
+
 ## [2.5.0] — 2026-06-12
 
 ### Fixed
