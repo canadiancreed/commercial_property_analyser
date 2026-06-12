@@ -1,6 +1,11 @@
+.coverage
 .coveragerc
 coverage.xml
 properties copy.json
 .vscode/
 __pycache__/
-
+.env/
+.pytest_cache/
+.claude
+*.json.bak
+*.json.tmp

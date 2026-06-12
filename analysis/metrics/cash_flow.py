@@ -36,7 +36,7 @@ class DebtMetrics:
                  loan_amount: float = 0.0, interest_rate: float = 0.05,
                  term_years: int = 25, stress_rate_bump: float = DEFAULT_STRESS_RATE):
         self.dscr             = est_noi / annual_mortgage if annual_mortgage else float('inf')
-        self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi else float('inf')
+        self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi > 0 else float('inf')
         net_rent_per_unit     = annual_rent * (1 - expense_ratio)
         self.break_even_point = (annual_mortgage / net_rent_per_unit) * 100 if net_rent_per_unit else 0
         self._annual_mortgage = annual_mortgage

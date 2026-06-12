@@ -92,6 +92,26 @@ class TestReadWrite:
         data = DataStore._read(path)
         assert data == {"version": 2}
 
+    def test_first_write_creates_no_bak(self, tmp_path):
+        path = str(tmp_path / "data.json")
+        DataStore._write(path, {"version": 1})
+        assert not os.path.exists(path + ".bak")
+
+    def test_rewrite_keeps_bak_of_previous_content(self, tmp_path):
+        path = str(tmp_path / "data.json")
+        DataStore._write(path, {"version": 1})
+        DataStore._write(path, {"version": 2})
+        assert DataStore._read(path + ".bak") == {"version": 1}
+
+    def test_failed_write_preserves_file_and_bak(self, tmp_path):
+        path = str(tmp_path / "data.json")
+        DataStore._write(path, {"version": 1})
+        DataStore._write(path, {"version": 2})
+        with pytest.raises(TypeError):
+            DataStore._write(path, {"bad": object()})  # not JSON-serializable
+        assert DataStore._read(path) == {"version": 2}
+        assert DataStore._read(path + ".bak") == {"version": 1}
+
 
 # ── Tests: commercial rates ───────────────────────────────────────────────────
 
