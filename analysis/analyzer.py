@@ -169,6 +169,6 @@ class CommercialPropertyAnalyzer:
             "ind_office_rate":     p.ind_office_rate,
             "ind_yard_rate":       p.ind_yard_rate,
             "vacancy_rate":        p.vacancy_rate,
-            "noi_growth_rate":     self._noi_growth_rate if self._has_rent else p.noi_growth_rate,
+            "noi_growth_rate":     p.noi_growth_rate,
             "results":          [row.to_dict() for row in self.report() if row.grade != ""],
         }
