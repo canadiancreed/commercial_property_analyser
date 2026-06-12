@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.5.0] — 2026-06-12
+
+### Fixed
+
+- **Stress test was ~10× too lenient** — `DebtMetrics` previously computed the stressed debt
+  service as `annual_mortgage × 1.02`, treating the 2% shock as a 2% increase in the *payment
+  amount* rather than a 200 bp increase in the *interest rate*. On a 25-year loan at 5%, a genuine
+  +200 bp shock raises the payment by ~21%, not 2%. Properties that would have failed a real rate
+  shock were incorrectly shown as PASS.
+- **`TestStressTestScalesWithLoan` did not catch the bug** — the test only asserted that the shock
+  was proportional across loan sizes (which the flat ×1.02 trivially satisfied) and never verified
+  that the shock magnitude was realistic.
+
+### Changed
+
+- **`DebtMetrics` now recalculates the stressed payment from first principles** — accepts
+  `loan_amount`, `interest_rate`, and `term_years`; applies the standard amortization formula at
+  `interest_rate + stress_rate_bump` to derive the true shocked annual debt service.
+- **Stress rate bump is configurable** — `DebtMetrics.__init__` accepts a `stress_rate_bump`
+  parameter (default `0.02`). The row label (`Stress Test (+2%)`) reflects whatever value is
+  passed. `analyzer.py` passes the actual loan parameters so the calculation is always exact.
+- **`TestStressTestScalesWithLoan` strengthened** — tests now supply proportional loan amounts and
+  include a new `test_stress_shock_magnitude_is_realistic` assertion that the payment increase for
+  a +200 bp shock falls between 15% and 30% (the correct range near 5% / 25-year), which the old
+  ×1.02 formula would have failed.
+  
 ## [2.4.0] — 2026-06-12
 
 ### Fixed

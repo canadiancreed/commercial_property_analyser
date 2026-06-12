@@ -80,14 +80,16 @@ class TestDebtMetrics:
         assert m.break_even_point == pytest.approx(66.67, rel=0.01)
 
     def test_stressed_dscr_pass(self):
-        # Need stressed_dscr >= 1.20
-        m = DebtMetrics(50_000, 0.40, 24_000, 80_000)
+        # NOI=50k well above stressed payment on a small mortgage → PASS
+        m = DebtMetrics(50_000, 0.40, 24_000, 80_000,
+                        loan_amount=340_000, interest_rate=0.05, term_years=25)
         row = next(r for r in m.rows() if "Stress" in r.metric)
         assert row.grade == "PASS"
 
     def test_stressed_dscr_fail(self):
-        # Low NOI so stress fails
-        m = DebtMetrics(30_000, 0.40, 28_000, 60_000)
+        # NOI barely covers the current mortgage; a 200bp shock pushes DSCR below 1.20
+        m = DebtMetrics(30_000, 0.40, 28_000, 60_000,
+                        loan_amount=400_000, interest_rate=0.05, term_years=25)
         row = next(r for r in m.rows() if "Stress" in r.metric)
         assert "FAIL" in row.grade
 
@@ -110,16 +112,18 @@ class TestDebtMetrics:
 # ── Issue #8: Break-Even Occupancy % must be graded with break_even_point ─────
 
 class TestStressTestScalesWithLoan:
+    # Both loan sizes use the same rate/term so percentage payment increase is identical.
+    _RATE  = 0.05
+    _TERM  = 25
+    _BUMP  = 0.02
 
     def test_stress_increment_percentage_is_consistent(self):
-        """
-        A 2% rate shock on a $50k/yr mortgage adds ~$1k; on $500k/yr ~$10k.
-        With a flat $9k the implied shock is 18% for the small loan but 1.8% for
-        the large — inconsistent by 10×. A proportional stress must match within 5%.
-        """
+        """200bp rate shock must increase the payment by the same percentage regardless of loan size."""
         noi     = 500_000
-        m_small = DebtMetrics(noi, 0.40, annual_mortgage=50_000,  annual_rent=600_000)
-        m_large = DebtMetrics(noi, 0.40, annual_mortgage=500_000, annual_rent=600_000)
+        m_small = DebtMetrics(noi, 0.40, annual_mortgage=50_000,  annual_rent=600_000,
+                               loan_amount=700_000,   interest_rate=self._RATE, term_years=self._TERM)
+        m_large = DebtMetrics(noi, 0.40, annual_mortgage=500_000, annual_rent=600_000,
+                               loan_amount=7_000_000, interest_rate=self._RATE, term_years=self._TERM)
 
         stressed_small = noi / m_small.stressed_dscr
         stressed_large = noi / m_large.stressed_dscr
@@ -127,16 +131,30 @@ class TestStressTestScalesWithLoan:
         pct_small = (stressed_small - 50_000)  / 50_000
         pct_large = (stressed_large - 500_000) / 500_000
 
-        assert pct_small == pytest.approx(pct_large, rel=0.05), (
-            f"Flat $9k implies {pct_small*100:.1f}% shock on $50k mortgage "
-            f"but {pct_large*100:.1f}% on $500k; stress must scale with loan size"
+        assert pct_small == pytest.approx(pct_large, rel=0.001), (
+            f"Stress increment is {pct_small*100:.1f}% on small loan "
+            f"but {pct_large*100:.1f}% on large; must be proportional"
+        )
+
+    def test_stress_shock_magnitude_is_realistic(self):
+        """A +200bp shock on a 25-year loan at 5% raises the payment ~21%, not ~2%."""
+        noi = 200_000
+        m   = DebtMetrics(noi, 0.40, annual_mortgage=24_000, annual_rent=260_000,
+                          loan_amount=340_000, interest_rate=self._RATE, term_years=self._TERM)
+        stressed_payment = noi / m.stressed_dscr
+        pct_increase = (stressed_payment - 24_000) / 24_000
+        # At 5%→7%, 25yr the increase is ~21%; accept anything between 15% and 30%
+        assert 0.15 < pct_increase < 0.30, (
+            f"Expected ~21% payment increase for +200bp shock but got {pct_increase*100:.1f}%"
         )
 
     def test_stress_dscr_drop_is_proportional_regardless_of_loan_size(self):
         """Proportional rate shock → same fractional DSCR reduction for any loan size."""
         noi     = 200_000
-        m_small = DebtMetrics(noi, 0.40, annual_mortgage=40_000,  annual_rent=260_000)
-        m_large = DebtMetrics(noi, 0.40, annual_mortgage=400_000, annual_rent=260_000)
+        m_small = DebtMetrics(noi, 0.40, annual_mortgage=40_000,  annual_rent=260_000,
+                               loan_amount=570_000,   interest_rate=self._RATE, term_years=self._TERM)
+        m_large = DebtMetrics(noi, 0.40, annual_mortgage=400_000, annual_rent=260_000,
+                               loan_amount=5_700_000, interest_rate=self._RATE, term_years=self._TERM)
         pct_drop_small = (m_small.dscr - m_small.stressed_dscr) / m_small.dscr
         pct_drop_large = (m_large.dscr - m_large.stressed_dscr) / m_large.dscr
         assert pct_drop_small == pytest.approx(pct_drop_large, rel=0.001)
