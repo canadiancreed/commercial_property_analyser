@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.4.0] — 2026-06-12
+
+### Fixed
+
+- **CSV import silently erased `property_type` for Hotel rows** — the local `COMMERCIAL_TYPES`
+  set in `csv_handler.py` omitted `"hotel"`, so any row with `property_type=Hotel` was treated as
+  non-commercial and `prop_type_field` was set to `None`. The rent resolver's hotel branch
+  (which requires `ptype == "hotel"`) never fired even with `hotel_rooms`, `hotel_adr`, and
+  `hotel_occupancy` present; the resolver raised a `ValueError`; and the fallback record saved
+  `property_type: None`. Added `"hotel"` to the local set and added three regression tests in
+  `tests/test_csv_hotel_import.py`.
+  
 ## [2.3.0] — 2026-06-12
 
 ### Fixed

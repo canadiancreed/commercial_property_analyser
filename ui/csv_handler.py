@@ -92,7 +92,7 @@ class CsvHandlerMixin:
             return v / 100 if v > 1 else v
 
         PROVINCES = {"AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"}
-        COMMERCIAL_TYPES = {"office", "retail", "industrial", "mixed-use", "retail-office"}
+        COMMERCIAL_TYPES = {"office", "retail", "industrial", "mixed-use", "retail-office", "hotel"}
 
         def parse_city_province(addr):
             if not addr:
