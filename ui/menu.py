@@ -2,7 +2,7 @@ from datetime import date
 
 from core.address import _display_address, _parse_address_sort
 from models.property_input import PropertyInput, UnitMix
-from models.constants import PROP_SHORTCUTS, PROPERTY_TYPES, COMMERCIAL_TYPES_LOWER
+from models.constants import PROP_SHORTCUTS, PROPERTY_TYPES, COMMERCIAL_TYPES_LOWER, CANADIAN_PROVINCES
 from data.store import DataStore
 from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer
@@ -15,6 +15,28 @@ from scoring.city_ranker import CityRanker
 from ui.rate_editor import RateEditorMixin
 from ui.config_editor import ConfigEditorMixin
 from ui.csv_handler import CsvHandlerMixin
+
+
+def _parse_city_province(addr: str):
+    """Parse city and province from an address string.
+
+    Accepts two formats:
+      '123 Main St, Ottawa, ON'   — trailing comma-separated province
+      '123 Main St, Ottawa ON'    — province appended to city token
+    Returns (city, province) or (None, None) if not parseable.
+    """
+    if not addr or "," not in addr:
+        return None, None
+    parts = [p.strip() for p in addr.split(",")]
+    last  = parts[-1].strip()
+    if last.upper() in CANADIAN_PROVINCES:
+        province = last.upper()
+        city     = parts[-2].strip() if len(parts) >= 2 else None
+    else:
+        tokens   = last.split()
+        province = tokens[-1].upper() if tokens and tokens[-1].upper() in CANADIAN_PROVINCES else None
+        city     = " ".join(tokens[:-1]).strip() if province else None
+    return city or None, province or None
 
 
 def _parse_listing_date(raw: str) -> str:
@@ -695,25 +717,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             raw = ask(label, float, default_pct)
             return raw / 100 if raw > 1 else raw
 
-        def parse_city_province(addr: str):
-            if not addr or "," not in addr:
-                return None, None
-            parts    = [p.strip() for p in addr.split(",")]
-            last     = parts[-1].strip()
-            PROVINCES = {"AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"}
-            if last.upper() in PROVINCES:
-                province = last.upper()
-                city     = parts[-2].strip() if len(parts) >= 2 else None
-            else:
-                tokens   = last.split()
-                province = tokens[-1].upper() if tokens and tokens[-1].upper() in PROVINCES else None
-                city     = " ".join(tokens[:-1]).strip() if province else None
-            return city or None, province or None
-
         print()
         while True:
             address = ask("Address")
-            city, province = parse_city_province(address)
+            city, province = _parse_city_province(address)
             if city:
                 break
             print("  ⚠  Could not parse city from that address.")

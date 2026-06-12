@@ -55,7 +55,8 @@ class CommercialPropertyAnalyzer:
         self.mortgage = MortgageCalculator(
             prop.asking_price, prop.down_payment_pct,
             prop.interest_rate, prop.term_years, prop.hold_years,
-            prop.construction_cost or 0
+            prop.construction_cost or 0,
+            province=prop.province or "",
         )
         self.dom     = DaysOnMarketCalculator(prop.listing_date)
         self.pricing = PricingMetrics(prop, self.mortgage.loan_balance,
@@ -81,6 +82,7 @@ class CommercialPropertyAnalyzer:
                 loan_amount=self.mortgage.loan_amount,
                 interest_rate=prop.interest_rate,
                 term_years=prop.term_years,
+                compounding=self.mortgage.compounding,
             )
             self.returns  = ReturnMetrics(prop, self.income.est_noi, self.mortgage.annual_mortgage,
                                           self.cashflow.cash_invested, self.exit.exit_price,

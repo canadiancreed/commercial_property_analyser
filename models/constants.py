@@ -32,6 +32,10 @@ VACANCY_RATE_DEFAULTS = {
     "hotel":         0.00,   # Excluded — modelled via occupancy rate instead
 }
 
+CANADIAN_PROVINCES = frozenset({
+    "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
+})
+
 PROP_SHORTCUTS = {
     "o":  "Office",
     "r":  "Retail",

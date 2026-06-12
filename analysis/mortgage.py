@@ -1,43 +1,72 @@
 from datetime import date
 from models.report_row import ReportRow
+from models.constants import CANADIAN_PROVINCES
+
+
+def compounding_for_province(province: str) -> str:
+    """Return 'semi-annual' for Canadian provinces, 'monthly' for US states."""
+    return "semi-annual" if (province or "").strip().upper() in CANADIAN_PROVINCES else "monthly"
+
+
+def effective_monthly_rate(annual_rate: float, compounding: str = "semi-annual") -> float:
+    """Convert a quoted annual rate to an effective monthly rate.
+
+    Canadian fixed-rate mortgages compound semi-annually (Interest Act, s. 6):
+      monthly_rate = (1 + annual_rate / 2)^(1/6) − 1
+    US/variable-rate mortgages compound monthly:
+      monthly_rate = annual_rate / 12
+    """
+    if compounding == "semi-annual":
+        return (1 + annual_rate / 2) ** (1 / 6) - 1
+    return annual_rate / 12
+
+
+def amortization_payment(loan: float, annual_rate: float, n_payments: int,
+                         compounding: str = "semi-annual") -> float:
+    """Monthly payment for a fully-amortizing loan."""
+    r = effective_monthly_rate(annual_rate, compounding)
+    if r == 0:
+        return loan / n_payments
+    return loan * (r * (1 + r) ** n_payments) / ((1 + r) ** n_payments - 1)
+
+
+def remaining_balance(loan: float, annual_rate: float, n_payments: int,
+                      payments_made: int, compounding: str = "semi-annual") -> float:
+    """Outstanding balance after `payments_made` monthly payments."""
+    if payments_made >= n_payments:
+        return 0.0
+    r = effective_monthly_rate(annual_rate, compounding)
+    if r == 0:
+        monthly = loan / n_payments
+        return loan - monthly * payments_made
+    return (
+        loan
+        * ((1 + r) ** n_payments - (1 + r) ** payments_made)
+        / ((1 + r) ** n_payments - 1)
+    )
 
 
 class MortgageCalculator:
 
     def __init__(self, asking_price: float, down_payment_pct: float,
                  interest_rate: float, term_years: int, hold_years: int,
-                 construction_cost: float = 0.0):
+                 construction_cost: float = 0.0, province: str = "ON"):
         self._construction_cost = construction_cost or 0
         self.down_payment = asking_price * down_payment_pct
         self.loan_amount  = asking_price - self.down_payment
+        self.compounding  = compounding_for_province(province)
 
-        monthly_rate = interest_rate / 12
-        n_payments   = term_years * 12
-
-        if monthly_rate == 0:
-            self.monthly_payment = self.loan_amount / n_payments
-        else:
-            self.monthly_payment = (
-                self.loan_amount
-                * (monthly_rate * (1 + monthly_rate) ** n_payments)
-                / ((1 + monthly_rate) ** n_payments - 1)
-            )
-
+        n_payments = term_years * 12
+        self.monthly_payment = amortization_payment(
+            self.loan_amount, interest_rate, n_payments, self.compounding
+        )
         self.annual_mortgage = self.monthly_payment * 12
-
-        payments_made = hold_years * 12
-        if payments_made >= n_payments:
-            self.loan_balance = 0.0
-        elif monthly_rate == 0:
-            self.loan_balance = self.loan_amount - (self.monthly_payment * payments_made)
-        else:
-            self.loan_balance = (
-                self.loan_amount
-                * ((1 + monthly_rate) ** n_payments - (1 + monthly_rate) ** payments_made)
-                / ((1 + monthly_rate) ** n_payments - 1)
-            )
+        self.loan_balance    = remaining_balance(
+            self.loan_amount, interest_rate, n_payments, hold_years * 12, self.compounding
+        )
 
     def rows(self) -> list:
+        conv_label = "Semi-annual (CA)" if self.compounding == "semi-annual" else "Monthly (US)"
         rows = [
             ReportRow("Loan Amount",     f"${self.loan_amount:,.2f}",     "INFO"),
             ReportRow("Down Payment",    f"${self.down_payment:,.2f}",    "INFO"),
@@ -48,6 +77,7 @@ class MortgageCalculator:
         rows += [
             ReportRow("Monthly Payment", f"${self.monthly_payment:,.2f}", "INFO"),
             ReportRow("Annual Debt Svc", f"${self.annual_mortgage:,.2f}", "INFO"),
+            ReportRow("Compounding",     conv_label,                      "INFO"),
         ]
         return rows
 

@@ -1,5 +1,6 @@
 from models.report_row import ReportRow
 from analysis.metrics.grader import Grader
+from analysis.mortgage import amortization_payment
 
 
 class CashFlowMetrics:
@@ -34,7 +35,8 @@ class DebtMetrics:
     def __init__(self, est_noi: float, expense_ratio: float,
                  annual_mortgage: float, annual_rent: float,
                  loan_amount: float = 0.0, interest_rate: float = 0.05,
-                 term_years: int = 25, stress_rate_bump: float = DEFAULT_STRESS_RATE):
+                 term_years: int = 25, stress_rate_bump: float = DEFAULT_STRESS_RATE,
+                 compounding: str = "semi-annual"):
         self.dscr             = est_noi / annual_mortgage if annual_mortgage else float('inf')
         self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi > 0 else float('inf')
         net_rent_per_unit     = annual_rent * (1 - expense_ratio)
@@ -42,16 +44,9 @@ class DebtMetrics:
         self._annual_mortgage = annual_mortgage
 
         if loan_amount > 0 and term_years > 0:
-            shocked_monthly_rate = (interest_rate + stress_rate_bump) / 12
-            n = term_years * 12
-            if shocked_monthly_rate == 0:
-                stressed_monthly = loan_amount / n
-            else:
-                stressed_monthly = (
-                    loan_amount
-                    * (shocked_monthly_rate * (1 + shocked_monthly_rate) ** n)
-                    / ((1 + shocked_monthly_rate) ** n - 1)
-                )
+            stressed_monthly = amortization_payment(
+                loan_amount, interest_rate + stress_rate_bump, term_years * 12, compounding
+            )
             stressed_debt = stressed_monthly * 12
         else:
             stressed_debt = annual_mortgage * (1 + stress_rate_bump)
