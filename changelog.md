@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-## [2.2.0] — 2026-06-12
+## [2.4.0] — 2026-06-12
 
 ### Fixed
 
@@ -17,6 +17,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   `hotel_occupancy` present; the resolver raised a `ValueError`; and the fallback record saved
   `property_type: None`. Added `"hotel"` to the local set and added three regression tests in
   `tests/test_csv_hotel_import.py`.
+
+---
+
+## [2.2.0] — 2026-06-12
+
+### Fixed
 
 - **Single `rent_manually_entered` flag could not distinguish which component a user entered** —
   the previous boolean flag was property-level, not component-level. A mixed-use property with a
