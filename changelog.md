@@ -10,6 +10,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- **CSV import silently erased `property_type` for Hotel rows** — the local `COMMERCIAL_TYPES`
+  set in `csv_handler.py` omitted `"hotel"`, so any row with `property_type=Hotel` was treated as
+  non-commercial and `prop_type_field` was set to `None`. The rent resolver's hotel branch
+  (which requires `ptype == "hotel"`) never fired even with `hotel_rooms`, `hotel_adr`, and
+  `hotel_occupancy` present; the resolver raised a `ValueError`; and the fallback record saved
+  `property_type: None`. Added `"hotel"` to the local set and added three regression tests in
+  `tests/test_csv_hotel_import.py`.
+
 - **Single `rent_manually_entered` flag could not distinguish which component a user entered** —
   the previous boolean flag was property-level, not component-level. A mixed-use property with a
   manually-entered commercial rent and a resolver-derived residential rent could not express that
