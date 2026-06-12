@@ -796,6 +796,336 @@
         "four_br": 2350.0,
         "unknown": 1650.0
       }
+    },
+    "Ripley": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1425.0,
+        "two_br": 1750.0,
+        "three_br": null,
+        "four_br": null,
+        "unknown": 865.0
+      }
+    },
+    "Exeter": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1250.0,
+        "one_br": 1650.0,
+        "two_br": 2050.0,
+        "three_br": null,
+        "four_br": null,
+        "unknown": 990.0
+      }
+    },
+    "St. Marys": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1225.0,
+        "one_br": 1550.0,
+        "two_br": 1775.0,
+        "three_br": 2200.0,
+        "four_br": 2500.0,
+        "unknown": 1850.0
+      }
+    },
+    "Minto": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Mitchell": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Stratford": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1300.0,
+        "one_br": 1675.0,
+        "two_br": 1900.0,
+        "three_br": 2400.0,
+        "four_br": 2600.0,
+        "unknown": 1975.0
+      }
+    },
+    "Zurich": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Clinton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 1600.0,
+        "two_br": 1900.0,
+        "three_br": 2450.0,
+        "four_br": 3050.0,
+        "unknown": 2070.0
+      }
+    },
+    "Mildmay": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Wingham": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Collingwood": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Midland": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1450.0,
+        "one_br": 1550.0,
+        "two_br": 1850.0,
+        "three_br": 2500.0,
+        "four_br": 2900.0,
+        "unknown": 2050.0
+      }
+    },
+    "Stayner": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Kincardine": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1350.0,
+        "one_br": 1800.0,
+        "two_br": 2300.0,
+        "three_br": 2750.0,
+        "four_br": 3500.0,
+        "unknown": 2340.0
+      }
+    },
+    "Wairton": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1300.0,
+        "one_br": 1625.0,
+        "two_br": 2000.0,
+        "three_br": 2750.0,
+        "four_br": 3600.0,
+        "unknown": 2255.0
+      }
+    },
+    "Lucknow": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150.0,
+        "one_br": 1450.0,
+        "two_br": 1775.0,
+        "three_br": 2300.0,
+        "four_br": 2950.0,
+        "unknown": 1925.0
+      }
+    },
+    "Tesswater": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1050.0,
+        "one_br": 1350.0,
+        "two_br": 1700.0,
+        "three_br": 2200.0,
+        "four_br": 2800.0,
+        "unknown": 1820.0
+      }
+    },
+    "St Johns": {
+      "province": "NL",
+      "units": {
+        "bachelor": 1125.0,
+        "one_br": 1375.0,
+        "two_br": 1625.0,
+        "three_br": 2400.0,
+        "four_br": 3750.0,
+        "unknown": 2055.0
+      }
+    },
+    "Fenlon Falls": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Elmvale": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Consecon": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Thornbury": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Penetanguishene": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Durham": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Goderich": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Verona": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Jasper": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Seaforth": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Hanover": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
+    },
+    "Bath": {
+      "province": "ON",
+      "units": {
+        "bachelor": null,
+        "one_br": null,
+        "two_br": null,
+        "three_br": null,
+        "four_br": null,
+        "unknown": null
+      }
     }
   }
 }

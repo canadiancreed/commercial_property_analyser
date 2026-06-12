@@ -1,1 +1,0 @@
-d:\Code\commercial_property_analyser\.venv\Scripts\python.exe d:/Code/commercial_property_analyser/main.py

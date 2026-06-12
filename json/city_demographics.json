@@ -1,0 +1,455 @@
+{
+  "_meta": {
+    "last_updated": "2026-06-07",
+    "source_year": 2021,
+    "refresh_years": 5
+  },
+  "ottawa": {
+    "population": 1017449,
+    "population_2016": 934243,
+    "growth_pct_annual": 1.72,
+    "source": "Stats Canada 2021 Census, City of Ottawa",
+    "notes": ""
+  },
+  "kingston": {
+    "population": 136685,
+    "population_2016": 123363,
+    "growth_pct_annual": 2.07,
+    "source": "Stats Canada 2021 Census CMA",
+    "notes": ""
+  },
+  "belleville": {
+    "population": 55123,
+    "population_2016": 50716,
+    "growth_pct_annual": 1.68,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "peterborough": {
+    "population": 83651,
+    "population_2016": 81032,
+    "growth_pct_annual": 0.64,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "cornwall": {
+    "population": 47932,
+    "population_2016": 46340,
+    "growth_pct_annual": 0.68,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "brockville": {
+    "population": 21897,
+    "population_2016": 21870,
+    "growth_pct_annual": 0.02,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "pembroke": {
+    "population": 14101,
+    "population_2016": 13882,
+    "growth_pct_annual": 0.31,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "owen sound": {
+    "population": 21341,
+    "population_2016": 21688,
+    "growth_pct_annual": -0.32,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "cobourg": {
+    "population": 20711,
+    "population_2016": 18519,
+    "growth_pct_annual": 2.26,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "smiths falls": {
+    "population": 8834,
+    "population_2016": 8780,
+    "growth_pct_annual": 0.12,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "renfrew": {
+    "population": 8223,
+    "population_2016": 8218,
+    "growth_pct_annual": 0.01,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "lindsay": {
+    "population": 21922,
+    "population_2016": 20474,
+    "growth_pct_annual": 1.38,
+    "source": "Stats Canada 2021 Census (City of Kawartha Lakes)",
+    "notes": ""
+  },
+  "napanee": {
+    "population": 16792,
+    "population_2016": 15944,
+    "growth_pct_annual": 1.04,
+    "source": "Stats Canada 2021 Census (Greater Napanee)",
+    "notes": ""
+  },
+  "perth": {
+    "population": 6245,
+    "population_2016": 6002,
+    "growth_pct_annual": 0.8,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "trenton": {
+    "population": 17134,
+    "population_2016": 16571,
+    "growth_pct_annual": 0.67,
+    "source": "Stats Canada 2021 Census (Quinte West)",
+    "notes": ""
+  },
+  "arnprior": {
+    "population": 9233,
+    "population_2016": 8795,
+    "growth_pct_annual": 0.98,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "port hope": {
+    "population": 17749,
+    "population_2016": 16753,
+    "growth_pct_annual": 1.16,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "champlain": {
+    "population": 9100,
+    "population_2016": 8800,
+    "growth_pct_annual": 0.67,
+    "source": "Stats Canada 2021 Census (Champlain Township)",
+    "notes": ""
+  },
+  "prescott": {
+    "population": 4612,
+    "population_2016": 4568,
+    "growth_pct_annual": 0.19,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "picton": {
+    "population": 4869,
+    "population_2016": 4603,
+    "growth_pct_annual": 1.13,
+    "source": "Stats Canada 2021 Census (Prince Edward County)",
+    "notes": ""
+  },
+  "bancroft": {
+    "population": 4154,
+    "population_2016": 3961,
+    "growth_pct_annual": 0.96,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "kemptville": {
+    "population": 5166,
+    "population_2016": 4282,
+    "growth_pct_annual": 3.82,
+    "source": "Stats Canada 2021 Census (North Grenville)",
+    "notes": ""
+  },
+  "almonte": {
+    "population": 5231,
+    "population_2016": 4739,
+    "growth_pct_annual": 2.0,
+    "source": "Stats Canada 2021 Census (Mississippi Mills)",
+    "notes": ""
+  },
+  "hawkesbury": {
+    "population": 10541,
+    "population_2016": 10263,
+    "growth_pct_annual": 0.54,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "tweed": {
+    "population": 5916,
+    "population_2016": 5841,
+    "growth_pct_annual": 0.26,
+    "source": "Stats Canada 2021 Census (Municipality of Tweed)",
+    "notes": ""
+  },
+  "millbrook": {
+    "population": 2300,
+    "population_2016": 2118,
+    "growth_pct_annual": 1.66,
+    "source": "Stats Canada 2021 Census (Cavan Monaghan)",
+    "notes": ""
+  },
+  "brighton": {
+    "population": 12628,
+    "population_2016": 11604,
+    "growth_pct_annual": 1.71,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "campbellford": {
+    "population": 3500,
+    "population_2016": 3327,
+    "growth_pct_annual": 1.02,
+    "source": "Stats Canada 2021 Census (Trent Hills)",
+    "notes": ""
+  },
+  "chesterville": {
+    "population": 2110,
+    "population_2016": 1968,
+    "growth_pct_annual": 1.4,
+    "source": "Stats Canada 2021 Census (North Dundas)",
+    "notes": ""
+  },
+  "madoc": {
+    "population": 2000,
+    "population_2016": 1981,
+    "growth_pct_annual": 0.19,
+    "source": "Stats Canada 2021 Census (Municipality of Centre Hastings)",
+    "notes": ""
+  },
+  "merrickville": {
+    "population": 3020,
+    "population_2016": 2846,
+    "growth_pct_annual": 1.19,
+    "source": "Stats Canada 2021 Census (Merrickville-Wolford)",
+    "notes": ""
+  },
+  "norwood": {
+    "population": 2148,
+    "population_2016": 2021,
+    "growth_pct_annual": 1.23,
+    "source": "Stats Canada 2021 Census (Asphodel-Norwood)",
+    "notes": ""
+  },
+  "port perry": {
+    "population": 11249,
+    "population_2016": 9472,
+    "growth_pct_annual": 3.5,
+    "source": "Stats Canada 2021 Census (Scugog)",
+    "notes": ""
+  },
+  "southampton": {
+    "population": 3627,
+    "population_2016": 3407,
+    "growth_pct_annual": 1.26,
+    "source": "Stats Canada 2021 Census (Saugeen Shores)",
+    "notes": ""
+  },
+  "chesley": {
+    "population": 1975,
+    "population_2016": 1918,
+    "growth_pct_annual": 0.59,
+    "source": "Stats Canada 2021 Census (Arran-Elderslie)",
+    "notes": ""
+  },
+  "gananoque": {
+    "population": 5148,
+    "population_2016": 5191,
+    "growth_pct_annual": -0.17,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "athens": {
+    "population": 3100,
+    "population_2016": 3030,
+    "growth_pct_annual": 0.46,
+    "source": "Stats Canada 2021 Census (Leeds and the Thousand Islands)",
+    "notes": ""
+  },
+  "beachburg": {
+    "population": 850,
+    "population_2016": 820,
+    "growth_pct_annual": 0.72,
+    "source": "Stats Canada 2021 Census (Whitewater Region)",
+    "notes": ""
+  },
+  "bloomfield": {
+    "population": 820,
+    "population_2016": 760,
+    "growth_pct_annual": 1.53,
+    "source": "Stats Canada 2021 Census (Prince Edward County)",
+    "notes": ""
+  },
+  "bobcaygeon": {
+    "population": 3400,
+    "population_2016": 3100,
+    "growth_pct_annual": 1.86,
+    "source": "Stats Canada 2021 Census (Trent Lakes)",
+    "notes": ""
+  },
+  "casselman": {
+    "population": 4082,
+    "population_2016": 3786,
+    "growth_pct_annual": 1.52,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "chalk river": {
+    "population": 1050,
+    "population_2016": 1010,
+    "growth_pct_annual": 0.78,
+    "source": "Stats Canada 2021 Census (Laurentian Hills)",
+    "notes": ""
+  },
+  "colborne": {
+    "population": 2740,
+    "population_2016": 2576,
+    "growth_pct_annual": 1.24,
+    "source": "Stats Canada 2021 Census (Cramahe)",
+    "notes": ""
+  },
+  "eganville": {
+    "population": 1370,
+    "population_2016": 1296,
+    "growth_pct_annual": 1.12,
+    "source": "Stats Canada 2021 Census (Bonnechere Valley)",
+    "notes": ""
+  },
+  "havelock": {
+    "population": 4860,
+    "population_2016": 4670,
+    "growth_pct_annual": 0.8,
+    "source": "Stats Canada 2021 Census (Havelock-Belmont-Methuen)",
+    "notes": ""
+  },
+  "lakefield": {
+    "population": 2800,
+    "population_2016": 2680,
+    "growth_pct_annual": 0.88,
+    "source": "Stats Canada 2021 Census (Smith-Ennismore-Lakefield)",
+    "notes": ""
+  },
+  "marmora": {
+    "population": 3900,
+    "population_2016": 3803,
+    "growth_pct_annual": 0.5,
+    "source": "Stats Canada 2021 Census (Marmora and Lake)",
+    "notes": ""
+  },
+  "omemee": {
+    "population": 1670,
+    "population_2016": 1567,
+    "growth_pct_annual": 1.28,
+    "source": "Stats Canada 2021 Census (Emily)",
+    "notes": ""
+  },
+  "stirling": {
+    "population": 2360,
+    "population_2016": 2218,
+    "growth_pct_annual": 1.25,
+    "source": "Stats Canada 2021 Census (Stirling-Rawdon)",
+    "notes": ""
+  },
+  "toronto": {
+    "population": 2794356,
+    "population_2016": 2731571,
+    "growth_pct_annual": 0.46,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "finch": {
+    "population": 1950,
+    "population_2016": 1890,
+    "growth_pct_annual": 0.63,
+    "source": "Stats Canada 2021 Census (North Dundas)",
+    "notes": ""
+  },
+  "port elgin": {
+    "population": 7875,
+    "population_2016": 7152,
+    "growth_pct_annual": 1.94,
+    "source": "Stats Canada 2021 Census (Saugeen Shores)",
+    "notes": ""
+  },
+  "osgoode": {
+    "population": 5800,
+    "population_2016": 5560,
+    "growth_pct_annual": 0.85,
+    "source": "Stats Canada 2021 Census (Ottawa - Osgoode ward)",
+    "notes": ""
+  },
+  "tamworth": {
+    "population": 880,
+    "population_2016": 860,
+    "growth_pct_annual": 0.46,
+    "source": "Stats Canada 2021 Census (Stone Mills)",
+    "notes": ""
+  },
+  "wiarton": {
+    "population": 2362,
+    "population_2016": 2268,
+    "growth_pct_annual": 0.82,
+    "source": "Stats Canada 2021 Census (South Bruce Peninsula)",
+    "notes": ""
+  },
+  "paisley": {
+    "population": 1068,
+    "population_2016": 1030,
+    "growth_pct_annual": 0.73,
+    "source": "Stats Canada 2021 Census (Arran-Elderslie)",
+    "notes": ""
+  },
+  "meaford": {
+    "population": 11840,
+    "population_2016": 11100,
+    "growth_pct_annual": 1.3,
+    "source": "Stats Canada 2021 Census (Municipality of Meaford)",
+    "notes": ""
+  },
+  "north sydney": {
+    "population": 9885,
+    "population_2016": 9843,
+    "growth_pct_annual": 0.09,
+    "source": "Stats Canada 2021 Census, Cape Breton Regional Municipality",
+    "notes": ""
+  },
+  "quebec city": {
+    "population": 549459,
+    "population_2016": 531902,
+    "growth_pct_annual": 0.65,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "stockdale": {
+    "population": 400,
+    "population_2016": 380,
+    "growth_pct_annual": 1.03,
+    "source": "Stats Canada 2021 Census (Trent Hills)",
+    "notes": ""
+  },
+  "alexandria": {
+    "population": 3388,
+    "population_2016": 3326,
+    "growth_pct_annual": 0.37,
+    "source": "Stats Canada 2021 Census (North Glengarry)",
+    "notes": ""
+  },
+  "manilla": {
+    "population": 700,
+    "population_2016": 670,
+    "growth_pct_annual": 0.88,
+    "source": "Stats Canada 2021 Census (Manvers Township area)",
+    "notes": ""
+  },
+  "st johns": {
+    "population": 110525,
+    "population_2016": 108860,
+    "growth_pct_annual": 0.3,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "midland": {
+    "population": 17817,
+    "population_2016": 16864,
+    "growth_pct_annual": 1.11,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  }
+}
