@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [2.6.0] — 2026-06-12
+
+### Fixed
+
+- **Vacancy rate ratchet when switching property type** — changing a property's type via the edit
+  menu (field 6) reset `expense_ratio` to `None` but left `vacancy_rate` untouched. The old type's
+  rate (e.g. Office's 14%) would persist silently through any subsequent type change, causing
+  effective gross income to be understated for the new type. `vacancy_rate` is now also reset to
+  `None` on type change so `__post_init__` re-derives the correct market default for the new type.
+
+### Tests
+
+- **`tests/test_type_switch_vacancy_reset.py`** — 103 new tests covering the regression directly
+  (store write, in-memory dict) and every cross-type switch where the vacancy default differs,
+  asserting both `vacancy_rate` and `expense_ratio` are cleared on each transition.
+
+---
+
 ## [2.5.0] — 2026-06-12
 
 ### Fixed

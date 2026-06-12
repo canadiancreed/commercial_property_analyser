@@ -376,9 +376,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
                     if not resolved:
                         print(f"  Invalid — must be one of: {', '.join(sorted(self.VALID_TYPES))}.")
                         continue
-                    self._store.update_property(raw_idx, {key: resolved, "expense_ratio": None, "last_modified": date.today().isoformat()})
+                    self._store.update_property(raw_idx, {key: resolved, "expense_ratio": None, "vacancy_rate": None, "last_modified": date.today().isoformat()})
                     p[key] = resolved
                     p["expense_ratio"] = None
+                    p["vacancy_rate"] = None
                     print(f"  Updated to: {resolved}")
                     break
                 continue
