@@ -75,7 +75,13 @@ class TestPureCommercialExplicitRent:
         r = _resolver(comm_rates={ptype: 20.0})
         prop = _prop(property_type=ptype)
         rent, _ = r.resolve(prop)
-        assert rent == pytest.approx(20.0 * 5_000)
+        expected = 20.0 * 5_000
+        if ptype == "Industrial":
+            # Industrial applies a size-band multiplier to the city average.
+            from analysis.industrial_config import resolve_size_band
+            _, mult, _ = resolve_size_band(5_000)
+            expected *= mult
+        assert rent == pytest.approx(expected)
         r._commercial.get_rent_per_sqft.assert_called_once()
 
 

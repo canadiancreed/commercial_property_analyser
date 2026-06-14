@@ -37,13 +37,17 @@ class CityRanker:
             city   = (p.get("city") or "Unknown").strip()
             prov   = (p.get("province") or "").strip()
             key    = f"{city}, {prov}" if prov else city
+            # LOW-confidence income (undetailed industrial on an estimated rate)
+            # is a fabricated figure — keep the property in inventory (n_total)
+            # but exclude its income-derived metrics from the city averages.
+            low = (p.get("income_confidence") or "").upper() == "LOW"
             city_data[key].append({
-                "score":      scored.get("score"),
-                "cap_rate":   scored.get("cap_rate"),    # None = not computed
-                "coc":        scored.get("coc"),
-                "irr":        scored.get("irr"),
-                "dscr":       scored.get("dscr"),
-                "cf_annual":  scored.get("cf_annual"),
+                "score":      None if low else scored.get("score"),
+                "cap_rate":   None if low else scored.get("cap_rate"),  # None = not computed
+                "coc":        None if low else scored.get("coc"),
+                "irr":        None if low else scored.get("irr"),
+                "dscr":       None if low else scored.get("dscr"),
+                "cf_annual":  None if low else scored.get("cf_annual"),
                 "price_drop": scored.get("price_drop"),  # 0 = no reduction (valid)
                 "dom":        scored.get("dom"),          # 0 = listed today (valid)
                 "asking":     p.get("asking_price") or None,
@@ -142,6 +146,9 @@ class CityRanker:
                 active=n_active, inactive=len(inactive),
                 confidence=round(confidence, 2),
                 act_score=round(act_score or 0, 1),
+                # True when no active property had a scorable income figure, so
+                # consumers can render "n/a" instead of a misleading 0.
+                act_score_na=(act_score is None),
                 act_cap=act_cap, act_coc=act_coc, act_irr=act_irr,
                 act_dscr=act_dscr, act_cf=int(act_cf or 0),
                 act_drop=act_drop, act_dom=int(act_dom or 0),

@@ -61,7 +61,8 @@ class PropertyScorer:
         results = {r["metric"]: r for r in (p.get("results") or [])}
         INCOME  = INCOME_METRIC_NAMES
         if not any(m in results for m in INCOME):
-            return {"score": None, "breakdown": {}, "weights": {}}
+            return {"score": None, "breakdown": {}, "weights": {},
+                    "income_confidence": p.get("income_confidence")}
 
         cfg        = self.load_config()
         weights    = cfg["weights"]
@@ -126,6 +127,7 @@ class PropertyScorer:
             "score":       round(score, 1),
             "breakdown":   {k: round(scores[k] * 10, 1) for k in scores},
             "weights":     weights,
+            "income_confidence": p.get("income_confidence"),
             "cap_rate":    cap_rate,
             "coc":         coc,
             "dscr":        dscr,

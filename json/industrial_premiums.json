@@ -1,0 +1,12 @@
+{
+  "_meta": {
+    "confidence": "HEURISTIC",
+    "note": "Industry rules-of-thumb. No published per-unit dollar/ratio basis was found for these premiums (CBRE/Colliers publish the size-rent relationship but not clear-height/dock/office dollar premiums). These refine an estimate but never upgrade its confidence. Replace with sourced figures when available.",
+    "last_updated": "2026-06-14"
+  },
+  "clear_height_premium_per_ft": { "value": 0.02, "base_ft": 18, "cap_pct": 0.20, "source": "unsourced heuristic; capped to avoid double-counting the big-box size tier" },
+  "office_premium_ratio":        { "value": 1.40, "source": "unsourced heuristic" },
+  "yard_rate_ratio":             { "value": 0.15, "source": "unsourced heuristic" },
+  "dock_door_annual":            { "value": 1200, "source": "unsourced heuristic" },
+  "drive_in_door_annual":        { "value": 600,  "source": "unsourced heuristic" }
+}

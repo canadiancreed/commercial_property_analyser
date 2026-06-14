@@ -195,8 +195,29 @@ class TestIndustrialMetrics:
     def test_total_income(self):
         prop = self._ind_prop()
         m = IndustrialMetrics(prop, 12.0)
-        expected = m.warehouse_income + m.office_income + m.yard_income
+        expected = m.warehouse_income + m.office_income + m.yard_income + m.door_income
         assert m.total_income == pytest.approx(expected)
+
+    def test_door_income_included(self):
+        # 2 dock @ $1200 + 1 drive-in @ $600 = $3000 folded into total_income.
+        prop = self._ind_prop(ind_dock_doors=2, ind_drive_in_doors=1)
+        m = IndustrialMetrics(prop, 12.0)
+        assert m.door_income == pytest.approx(2 * 1200 + 1 * 600)
+        assert m.total_income == pytest.approx(
+            m.warehouse_income + m.office_income + m.yard_income + m.door_income)
+
+    def test_is_detailed_true_with_details(self):
+        assert IndustrialMetrics(self._ind_prop(), 12.0).is_detailed is True
+
+    def test_is_detailed_false_without_details(self):
+        prop = _make_prop(property_type="Industrial", total_sq_ft=10_000)
+        assert IndustrialMetrics(prop, 12.0).is_detailed is False
+
+    def test_clear_height_premium_capped(self):
+        # 60ft would give (60-18)*0.02 = 0.84 premium; capped at 0.20.
+        prop = self._ind_prop(ind_clear_height_ft=60.0)
+        m = IndustrialMetrics(prop, 10.0)
+        assert m.warehouse_rate == pytest.approx(10.0 * 1.20)
 
     def test_blended_rate(self):
         prop = self._ind_prop()
