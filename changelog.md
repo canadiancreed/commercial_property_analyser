@@ -6,6 +6,76 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1.1] — 2026-06-14
+
+### Tests
+
+- **`analysis/industrial_config.py` raised to 100% coverage** (was 88%). Added tests for
+  the defensive fallback and error paths that the feature tests didn't exercise: `_read`
+  on a missing file, `load_size_bands`/`load_premiums` falling back to module defaults when
+  the JSON is absent, `load_premiums` skipping malformed (non-dict / value-less) entries, the
+  no-match branch in `resolve_size_band` (falls back to the last band), the multi-tenant
+  override firing when no `small-bay` band exists to reclassify into, and the invalid-level
+  guard in `_downgrade_level`.
+
+---
+
+## [3.1.0] — 2026-06-14
+
+### Fixed
+
+- **Industrial income calculation was circular and ignored building details**
+  (`analysis/analyzer.py`, `analysis/metrics/property_types.py`,
+  `analysis/rent_resolver.py`): `RentResolver` produced a flat `rate × total_sq_ft`, the
+  analyzer back-calculated the rate, and `IndustrialMetrics` re-multiplied it — so clear
+  height, dock/drive-in doors, office and yard had **zero effect** on income or score. A basic
+  shed and a modern logistics facility of the same size and city produced identical income.
+  `IndustrialMetrics` is now built from the size-adjusted market rate **before** the income
+  metrics; when building details are present, its `total_income` becomes the rent input that
+  flows into NOI, cap rate, and the score. When details are absent, the flat estimate stands
+  but is flagged as a low-confidence approximation.
+
+- **Dead door constants now contribute income** — `DOCK_DOOR_ANNUAL` ($1200) and
+  `DRIVE_IN_DOOR_ANNUAL` ($600) were defined but never referenced, so doors had no effect even
+  on the (previously decorative) `total_income`. Door income is now folded into `total_income`.
+
+- **User-entered / explicit rent is never overridden** — the detail-driven override is gated on
+  `market_resolved` (`annual_rent is None`, not `commercial_rent_user_entered`, market base rate
+  present), so a user-supplied `commercial_rent` (or explicit `annual_rent`) on an industrial
+  property is always honoured and carries no estimate-confidence grade.
+
+### Added
+
+- **Industrial size-band multiplier** (`analysis/industrial_config.py`,
+  `json/industrial_size_bands.json`): a sourced multiplier applied to the city Industrial rate,
+  keyed off `total_sq_ft` — small-bay (<25k, ×1.08), mid-size (25k–100k, ×0.95), big-box
+  (>100k, ×1.00). The relationship is non-monotonic (Colliers: small-bay highest, big-box
+  second, mid-size trough). A **multi-tenant override** reclassifies a large footprint toward
+  small-bay (and lowers confidence) when door density or office ratio signals it is multi-tenant
+  product. Band boundaries and multipliers live in JSON with source citations.
+
+- **Component premiums externalised to sourced config**
+  (`json/industrial_premiums.json`): clear-height (capped to avoid double-counting the big-box
+  tier), office, yard, and door premiums moved out of hardcoded class constants into JSON, each
+  badged `HEURISTIC` (no published $ basis found). Class constants remain as fallbacks.
+
+- **Income confidence model** — `income_confidence = f(rate Src/Est tag, details)` graded
+  HIGH / MED / LOW, surfaced in `to_record`, the property report (confidence badge), and the
+  rent breakdown. `LOW` (undetailed industrial on an estimated rate) is **excluded from city
+  averages** in `CityRanker` but kept in inventory; an `act_score_na` flag distinguishes an
+  empty active-scored set from a genuine zero. `DataStore.load_commercial_sources` /
+  `CommercialRentLoader.get_rate_source` expose the per-city `Src:`/`Est:` provenance tag.
+
+### Tests
+
+- New `tests/test_industrial_config.py` (size bands, multi-tenant override, confidence matrix)
+  and `tests/test_integration_industrial.py` (end-to-end through the real DataStore / resolver /
+  analyzer / scorer / ranker stack: detail-driven income, size multiplier, confidence grading,
+  LOW excluded from city averages, user-entered rent preserved). Existing tests updated for door
+  income and the size multiplier.
+
+---
+
 ## [3.0.1] — 2026-06-12
 
 ### Fixed
