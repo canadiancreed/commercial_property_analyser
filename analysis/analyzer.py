@@ -64,24 +64,33 @@ class CommercialPropertyAnalyzer:
         is_industrial = (prop.property_type or "").strip().lower() == "industrial"
         if is_industrial and annual_rent and annual_rent > 0:
             base_rate = getattr(rent_resolver, "_city_rent_per_sqft", None)
+            # Detail-driven income and confidence apply only when the rent was
+            # market-resolved. A user-entered commercial_rent or an explicitly
+            # provided annual_rent always wins and is left untouched.
+            market_resolved = (
+                prop.annual_rent is None
+                and not prop.commercial_rent_user_entered
+                and base_rate is not None
+            )
             if base_rate is None:
                 base_rate = (annual_rent / prop.total_sq_ft) if prop.total_sq_ft else 0
             industrial = IndustrialMetrics(prop, base_rate)
             self.industrial = industrial
-            self._income_confidence = industrial_confidence(
-                getattr(rent_resolver, "_industrial_rate_source", None),
-                industrial.is_detailed,
-                getattr(rent_resolver, "_industrial_size_downgrade", False),
-            )
-            if industrial.is_detailed and industrial.total_income > 0:
-                annual_rent     = industrial.total_income
-                self._comm_rent = industrial.total_income
-                breakdown       = breakdown + industrial.income_breakdown
-            else:
-                breakdown = breakdown + [
-                    f"⚠ Undetailed approximation — flat market rate, no building "
-                    f"details entered (confidence: {self._income_confidence})."
-                ]
+            if market_resolved:
+                self._income_confidence = industrial_confidence(
+                    getattr(rent_resolver, "_industrial_rate_source", None),
+                    industrial.is_detailed,
+                    getattr(rent_resolver, "_industrial_size_downgrade", False),
+                )
+                if industrial.is_detailed and industrial.total_income > 0:
+                    annual_rent     = industrial.total_income
+                    self._comm_rent = industrial.total_income
+                    breakdown       = breakdown + industrial.income_breakdown
+                else:
+                    breakdown = breakdown + [
+                        f"⚠ Undetailed approximation — flat market rate, no building "
+                        f"details entered (confidence: {self._income_confidence})."
+                    ]
 
         self.mortgage = MortgageCalculator(
             prop.asking_price, prop.down_payment_pct,

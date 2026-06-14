@@ -69,6 +69,29 @@ class TestDetailDrivenIncome:
         assert detailed.income.annual_rent != pytest.approx(flat.income.annual_rent)
         assert detailed._income_confidence == "HIGH"  # Src + details
 
+    def test_user_entered_rent_not_overridden(self):
+        """A user-entered commercial_rent must survive even with details present."""
+        resolver, _ = _resolver()
+        prop = _ind_prop(
+            city="Ottawa", sqft=50_000, address="3 Test Rd",
+            commercial_rent=900_000, commercial_rent_user_entered=True,
+            ind_clear_height_ft=32.0, ind_dock_doors=4,
+        )
+        a = CommercialPropertyAnalyzer(prop, resolver)
+        assert a.income.annual_rent == pytest.approx(900_000)
+        # User-supplied figure is not graded as a market estimate.
+        assert a._income_confidence is None
+
+    def test_explicit_annual_rent_not_overridden(self):
+        resolver, _ = _resolver()
+        prop = _ind_prop(
+            city="Ottawa", sqft=50_000, address="4 Test Rd",
+            annual_rent=800_000, ind_clear_height_ft=30.0, ind_office_sqft=5_000,
+        )
+        a = CommercialPropertyAnalyzer(prop, resolver)
+        assert a.income.annual_rent == pytest.approx(800_000)
+        assert a._income_confidence is None
+
     def test_to_record_emits_confidence_and_band(self):
         resolver, _ = _resolver()
         a = CommercialPropertyAnalyzer(_ind_prop(sqft=150_000), resolver)
