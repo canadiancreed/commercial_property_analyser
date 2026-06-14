@@ -1,0 +1,22 @@
+{
+  "_meta": {
+    "basis": "Multiplier applied to the city-average Industrial PSF, keyed off total_sq_ft.",
+    "shape_source": "Colliers Canada: highest rent <25k sf, then >100k sf, trough 25k-100k.",
+    "magnitude_confidence": "INTERPOLATED — direction/rank sourced, exact factors estimated.",
+    "office_ratio_small_bay": 0.30,
+    "doors_per_10k_small_bay": 1.5,
+    "override_note": "A large footprint with high door density or high office ratio behaves like small-bay (multi-tenant) product; reclassify toward small-bay and downgrade confidence.",
+    "primary_sources": [
+      "Colliers Canada National Market Snapshot Q4-2025 (rank: <25k highest, >100k second, 25k-100k trough)",
+      "CBRE shallow-bay brief 2025 (shallow-bay defined <50k sf, 14-28ft clear)",
+      "Avison Young GTA Industrial Q4-2025 / WareCRE Toronto Q1-2026 (new-build ~+9% over avg; sub-25k commands premium)",
+      "Bisnow Philadelphia Sep-2025 (shallow-bay ~+7% over larger product)"
+    ],
+    "last_updated": "2026-06-14"
+  },
+  "bands": [
+    { "label": "small-bay", "sqft_min": 0,      "sqft_max": 25000,  "multiplier": 1.08, "confidence": "MED", "source": "Colliers rank #1; ~7-9% premium (Philly/GTA proxy)" },
+    { "label": "mid-size",  "sqft_min": 25000,  "sqft_max": 100000, "multiplier": 0.95, "confidence": "MED", "source": "Colliers: trough band" },
+    { "label": "big-box",   "sqft_min": 100000, "sqft_max": null,   "multiplier": 1.00, "confidence": "LOW", "source": "Colliers rank #2; modern logistics ~at average" }
+  ]
+}

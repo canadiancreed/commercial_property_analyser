@@ -620,6 +620,8 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             "expense_ratio":p.get("expense_ratio", 0),
             "lease_type":   p.get("lease_type", ""),
             "results":      p.get("results", []),
+            "income_confidence": p.get("income_confidence"),
+            "income_size_band":  p.get("income_size_band"),
             "targets":      targets,
             "hotel_rooms":  p.get("hotel_rooms", 0) or 0,
             "hotel_adr":    p.get("hotel_adr") or 0,

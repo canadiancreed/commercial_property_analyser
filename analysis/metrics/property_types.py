@@ -1,4 +1,5 @@
 from models.report_row import ReportRow
+from analysis.industrial_config import load_premiums
 
 
 class HotelMetrics:
@@ -70,10 +71,18 @@ class HotelMetrics:
 
 
 class IndustrialMetrics:
-    """Industrial property income breakdown by component."""
+    """Industrial property income breakdown by component.
 
+    Coefficients are loaded from json/industrial_premiums.json (heuristics with
+    no published $ basis); the class constants below are fallbacks that mirror
+    the shipped file. When building details are provided, ``total_income`` is the
+    figure the analyser feeds into NOI/score — not a flat $/sq ft estimate.
+    """
+
+    # Fallback defaults (mirror json/industrial_premiums.json).
     CLEAR_HEIGHT_BASE_FT         = 18
     CLEAR_HEIGHT_PREMIUM_PER_FT  = 0.02
+    CLEAR_HEIGHT_PREMIUM_CAP     = 0.20
     OFFICE_PREMIUM_RATIO         = 1.40
     YARD_RATE_RATIO              = 0.15
     DOCK_DOOR_ANNUAL             = 1200
@@ -82,17 +91,29 @@ class IndustrialMetrics:
     def __init__(self, prop, base_industrial_rate: float):
         self.base_rate = base_industrial_rate
 
+        prem            = load_premiums()
+        ch              = prem["clear_height_premium_per_ft"]
+        base_ft         = ch.get("base_ft", self.CLEAR_HEIGHT_BASE_FT)
+        per_ft          = ch.get("value",   self.CLEAR_HEIGHT_PREMIUM_PER_FT)
+        cap_pct         = ch.get("cap_pct", self.CLEAR_HEIGHT_PREMIUM_CAP)
+        office_ratio    = prem["office_premium_ratio"]["value"]
+        yard_ratio      = prem["yard_rate_ratio"]["value"]
+        dock_annual     = prem["dock_door_annual"]["value"]
+        drive_in_annual = prem["drive_in_door_annual"]["value"]
+
         height = prop.ind_clear_height_ft or 0
-        if height > self.CLEAR_HEIGHT_BASE_FT:
-            premium = (height - self.CLEAR_HEIGHT_BASE_FT) * self.CLEAR_HEIGHT_PREMIUM_PER_FT
+        if height > base_ft:
+            # Capped so a high-bay building does not double-reward against the
+            # big-box size tier (which already prices modern high-spec product).
+            premium = min((height - base_ft) * per_ft, cap_pct)
             self.warehouse_rate = base_industrial_rate * (1 + premium)
         else:
             self.warehouse_rate = base_industrial_rate
 
         self.office_rate = prop.ind_office_rate if prop.ind_office_rate else (
-            self.warehouse_rate * self.OFFICE_PREMIUM_RATIO)
+            self.warehouse_rate * office_ratio)
         self.yard_rate   = prop.ind_yard_rate if prop.ind_yard_rate else (
-            self.warehouse_rate * self.YARD_RATE_RATIO)
+            self.warehouse_rate * yard_ratio)
 
         total        = prop.total_sq_ft or 0
         office_sqft  = prop.ind_office_sqft  or 0
@@ -106,13 +127,41 @@ class IndustrialMetrics:
         self.drive_in_doors = prop.ind_drive_in_doors or 0
         self.clear_height   = height
 
+        # Any building-specific input means we can underwrite from details
+        # rather than a flat market rate.
+        self.is_detailed = bool(
+            height or office_sqft or yard_sqft
+            or self.dock_doors or self.drive_in_doors
+            or (prop.ind_warehouse_sqft or 0)
+        )
+
         self.warehouse_income = wh_sqft    * self.warehouse_rate
         self.office_income    = office_sqft * self.office_rate
         self.yard_income      = yard_sqft   * self.yard_rate
-        self.total_income     = self.warehouse_income + self.office_income + self.yard_income
+        self.door_income      = self.dock_doors * dock_annual + self.drive_in_doors * drive_in_annual
+        self.total_income     = (self.warehouse_income + self.office_income
+                                 + self.yard_income + self.door_income)
 
         covered_sqft      = wh_sqft + office_sqft
         self.blended_rate = (self.warehouse_income + self.office_income) / covered_sqft if covered_sqft else 0
+
+    @property
+    def income_breakdown(self) -> list:
+        """Human-readable component lines for the rent breakdown."""
+        lines = [
+            f"Warehouse {self.warehouse_sqft:,.0f} sq ft @ ${self.warehouse_rate:.2f}/sq ft: ${self.warehouse_income:,.0f}/yr"
+        ]
+        if self.office_sqft:
+            lines.append(
+                f"Office {self.office_sqft:,.0f} sq ft @ ${self.office_rate:.2f}/sq ft: ${self.office_income:,.0f}/yr")
+        if self.yard_sqft:
+            lines.append(
+                f"Yard {self.yard_sqft:,.0f} sq ft @ ${self.yard_rate:.2f}/sq ft: ${self.yard_income:,.0f}/yr")
+        if self.door_income:
+            lines.append(
+                f"Doors ({self.dock_doors} dock + {self.drive_in_doors} drive-in): ${self.door_income:,.0f}/yr")
+        lines.append(f"Total industrial income (from building details): ${self.total_income:,.0f}/yr")
+        return lines
 
     def _height_grade(self) -> str:
         if not self.clear_height: return ""
@@ -143,6 +192,10 @@ class IndustrialMetrics:
             rows.append(ReportRow("Yard/Storage",
                                   f"{self.yard_sqft:,.0f} sq ft @ ${self.yard_rate:.2f}/sq ft", ""))
             rows.append(ReportRow("Yard Income", f"${self.yard_income:,.0f}/yr", ""))
+        if self.door_income:
+            rows.append(ReportRow("Door Income",
+                                  f"${self.door_income:,.0f}/yr "
+                                  f"({self.dock_doors} dock + {self.drive_in_doors} drive-in)", ""))
         rows.append(ReportRow("Total Industrial Rev",
                                f"${self.total_income:,.0f}/yr",
                                "GOOD" if self.total_income > 0 else "POOR"))

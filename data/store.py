@@ -60,6 +60,18 @@ class DataStore:
             }
         return index
 
+    def load_commercial_sources(self) -> dict:
+        """Returns {city_lower: source_string} from the commercial rates file.
+
+        The per-city ``source`` field is prefixed ``Src:`` (sourced from a broker
+        report) or ``Est:`` (estimate); used to grade rate confidence.
+        """
+        raw = self._read(self._commercial_path)
+        return {
+            city.strip().lower(): (city_data.get("source") or "")
+            for city, city_data in raw["cities"].items()
+        }
+
     def save_commercial_rates(self, city: str, province: str, rates: dict):
         data = self._read(self._commercial_path)
         data["cities"][city] = {"province": province, "types": rates}
@@ -321,6 +333,20 @@ class CommercialRentLoader:
         if city_key not in index or type_key not in index[city_key]:
             return None
         return index[city_key][type_key]
+
+    def get_rate_source(self, city: str, province: str):
+        """Returns 'Src', 'Est', or None describing the city's rate provenance."""
+        sources = self._store.load_commercial_sources()
+        s = (sources.get(city.strip().lower(), "") or "").lower()
+        has_src, has_est = "src" in s, "est" in s
+        if has_src and not has_est:
+            return "Src"
+        if has_est and not has_src:
+            return "Est"
+        if has_est and has_src:
+            # Mixed tag across asset types — treat as the weaker (estimate).
+            return "Est"
+        return None
 
 
 class ResidentialRentLoader:

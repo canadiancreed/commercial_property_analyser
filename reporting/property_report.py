@@ -750,7 +750,12 @@ function openModal(p) {{
     {{ label: "Returns",              keys: ["IRR (*","Equity Multiple"] }},
     {{ label: "Market",               keys: ["CELOC Speed Score","{staleness_key}","Seller Bleed"] }},
     {{ label: "Hotel Operations",     keys: ["Hotel Rooms","ADR","Occupancy Rate","RevPAR","NRevPAR (low dist.)","NRevPAR (mid dist.)","NRevPAR (high dist.)","Rev/Room/Yr","GOP Margin","GOP Amount","CPOR","FF&E Reserve"] }},
+    {{ label: "Industrial",           keys: ["Clear Height","Dock Doors","Drive-In Doors","Warehouse Income","Office Income","Yard Income","Door Income","Total Industrial Rev","Blended Rate"] }},
   ];
+  const CONF_LABELS = {{ HIGH: "High confidence", MED: "Medium confidence", LOW: "Approximate — details required" }};
+  const confBadge = p.income_confidence
+    ? `<span style="color:${{p.income_confidence==='LOW'?'#8b1a1a':p.income_confidence==='MED'?'#c17f24':'#2d6a4f'}}">${{CONF_LABELS[p.income_confidence] || p.income_confidence}}</span>`
+    : '';
 
   const resultMap = {{}};
   (p.results || []).forEach(r => {{ resultMap[r.metric] = r; }});
@@ -860,6 +865,7 @@ function openModal(p) {{
           <span>${{p.type}}</span>
           <span style="color:${{p.status==='active'?'#2d6a4f':'#8b1a1a'}}">${{p.status}}</span>
           ${{p.score !== null ? `<span style="color:var(--gold);font-weight:500">Score: ${{p.score.toFixed(0)}}/100 — ${{scoreGradeLabel(p.score)[1]}}</span>` : ''}}
+          ${{confBadge}}
         </div>
       </div>
       ${{notesHtml}}

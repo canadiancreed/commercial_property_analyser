@@ -9,6 +9,7 @@ from analysis.metrics.income import IncomeMetrics, ExitMetrics
 from analysis.metrics.cash_flow import CashFlowMetrics, DebtMetrics
 from analysis.metrics.returns import ReturnMetrics, MarketMetrics
 from analysis.metrics.property_types import HotelMetrics, IndustrialMetrics
+from analysis.industrial_config import industrial_confidence
 
 _DEMOGRAPHICS_PATH = "json/city_demographics.json"
 _DEFAULT_NOI_GROWTH = 0.02
@@ -51,6 +52,45 @@ class CommercialPropertyAnalyzer:
         annual_rent, breakdown = rent_resolver.resolve(prop)
         self._comm_rent = getattr(rent_resolver, "_comm_rent", None)
         self._res_rent  = getattr(rent_resolver, "_res_rent",  None)
+
+        # ── Industrial: resolve detail-driven income BEFORE the income metrics ──
+        # When building details are present, IndustrialMetrics (built from the
+        # size-adjusted market rate) is the source of the rent figure that flows
+        # into NOI/score — not a flat $/sq ft estimate. When absent, the flat
+        # estimate stands but is flagged as a low-confidence approximation.
+        self.industrial         = None
+        self._income_confidence = None
+        self._income_size_band  = getattr(rent_resolver, "_industrial_size_band", None)
+        is_industrial = (prop.property_type or "").strip().lower() == "industrial"
+        if is_industrial and annual_rent and annual_rent > 0:
+            base_rate = getattr(rent_resolver, "_city_rent_per_sqft", None)
+            # Detail-driven income and confidence apply only when the rent was
+            # market-resolved. A user-entered commercial_rent or an explicitly
+            # provided annual_rent always wins and is left untouched.
+            market_resolved = (
+                prop.annual_rent is None
+                and not prop.commercial_rent_user_entered
+                and base_rate is not None
+            )
+            if base_rate is None:
+                base_rate = (annual_rent / prop.total_sq_ft) if prop.total_sq_ft else 0
+            industrial = IndustrialMetrics(prop, base_rate)
+            self.industrial = industrial
+            if market_resolved:
+                self._income_confidence = industrial_confidence(
+                    getattr(rent_resolver, "_industrial_rate_source", None),
+                    industrial.is_detailed,
+                    getattr(rent_resolver, "_industrial_size_downgrade", False),
+                )
+                if industrial.is_detailed and industrial.total_income > 0:
+                    annual_rent     = industrial.total_income
+                    self._comm_rent = industrial.total_income
+                    breakdown       = breakdown + industrial.income_breakdown
+                else:
+                    breakdown = breakdown + [
+                        f"⚠ Undetailed approximation — flat market rate, no building "
+                        f"details entered (confidence: {self._income_confidence})."
+                    ]
 
         self.mortgage = MortgageCalculator(
             prop.asking_price, prop.down_payment_pct,
@@ -96,17 +136,11 @@ class CommercialPropertyAnalyzer:
             )
             is_hotel = (prop.property_type or "").strip().lower() == "hotel"
             self.hotel = HotelMetrics(prop, annual_rent) if is_hotel else None
-
-            is_industrial = (prop.property_type or "").strip().lower() == "industrial"
-            if is_industrial:
-                base_rate = (annual_rent / prop.total_sq_ft) if prop.total_sq_ft else 0
-                self.industrial = IndustrialMetrics(prop, base_rate)
-            else:
-                self.industrial = None
         else:
             self.income = self.exit = self.cashflow = self.debt = self.returns = self.market = None
             self.hotel      = None
             self.industrial = None
+            self._income_confidence = None
 
     def report(self) -> list:
         rows = []
@@ -172,5 +206,7 @@ class CommercialPropertyAnalyzer:
             "ind_yard_rate":       p.ind_yard_rate,
             "vacancy_rate":        p.vacancy_rate,
             "noi_growth_rate":     p.noi_growth_rate,
+            "income_confidence":   self._income_confidence,
+            "income_size_band":    self._income_size_band,
             "results":          [row.to_dict() for row in self.report() if row.grade != ""],
         }

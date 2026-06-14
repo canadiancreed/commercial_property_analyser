@@ -1,6 +1,7 @@
 from models.property_input import PropertyInput, UnitMix
 from data.store import CommercialRentLoader, ResidentialRentLoader
 from models.constants import COMMERCIAL_TYPES_LOWER
+from analysis.industrial_config import resolve_size_band
 
 
 class RentResolver:
@@ -29,6 +30,12 @@ class RentResolver:
         """Returns (annual_rent: float, breakdown: list[str])."""
         self._city_rent_per_sqft: float | None = None
         self._comm_sq_ft: float | None = None
+        # Industrial provenance (set only when an industrial market rate is used).
+        self._industrial_base_rate: float | None = None
+        self._industrial_size_band: str | None = None
+        self._industrial_size_multiplier: float | None = None
+        self._industrial_size_downgrade: bool = False
+        self._industrial_rate_source: str | None = None
         has_units = prop.unit_mix is not None and prop.unit_mix.total_units > 0
         residential_income_recorded = prop.residential_rent is not None and prop.residential_rent > 0
         needs_residential_recalc = has_units and not residential_income_recorded
@@ -183,9 +190,28 @@ class RentResolver:
                         f"No commercial rate for {city}, {province} ({prop.property_type}). "
                         f"Use menu option 7 to add rates."
                     )
-                self._city_rent_per_sqft = rate
-                breakdown.append(f"{prop.property_type} @ ${rate}/sq ft × {prop.total_sq_ft:,.0f} sq ft")
-                comm_total = rate * prop.total_sq_ft
+                if ptype == "industrial":
+                    band, mult, downgrade = resolve_size_band(
+                        prop.total_sq_ft, prop.ind_dock_doors,
+                        prop.ind_drive_in_doors, prop.ind_office_sqft,
+                    )
+                    effective = rate * mult
+                    self._industrial_base_rate       = rate
+                    self._industrial_size_band        = band
+                    self._industrial_size_multiplier  = mult
+                    self._industrial_size_downgrade   = downgrade
+                    self._industrial_rate_source      = self._commercial.get_rate_source(city, province)
+                    self._city_rent_per_sqft          = effective
+                    comm_total = effective * prop.total_sq_ft
+                    note = " — multi-tenant signal, confidence lowered" if downgrade else ""
+                    breakdown.append(
+                        f"Industrial {band}: ${rate}/sq ft × {mult:.2f} = ${effective:.2f}/sq ft "
+                        f"× {prop.total_sq_ft:,.0f} sq ft{note}"
+                    )
+                else:
+                    self._city_rent_per_sqft = rate
+                    breakdown.append(f"{prop.property_type} @ ${rate}/sq ft × {prop.total_sq_ft:,.0f} sq ft")
+                    comm_total = rate * prop.total_sq_ft
 
         self._comm_rent = comm_total
         self._res_rent  = res_total
