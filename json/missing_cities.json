@@ -1,34 +1,4 @@
 {
-  "Minto, ON": {
-    "city": "Minto",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-03-15",
-    "last_seen": "2026-06-12"
-  },
-  "Mitchell, ON": {
-    "city": "Mitchell",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-03-15",
-    "last_seen": "2026-06-12"
-  },
-  "Zurich, ON": {
-    "city": "Zurich",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-03-16",
-    "last_seen": "2026-06-12"
-  },
   "Winchester, ON": {
     "city": "Winchester",
     "province": "ON",
@@ -42,22 +12,11 @@
     "first_seen": "2026-03-18",
     "last_seen": "2026-03-18"
   },
-  "Mildmay, ON": {
-    "city": "Mildmay",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-03-18",
-    "last_seen": "2026-06-12"
-  },
   "Goderich, ON": {
     "city": "Goderich",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Retail"
@@ -65,42 +24,11 @@
     "first_seen": "2026-03-28",
     "last_seen": "2026-03-28"
   },
-  "Wingham, ON": {
-    "city": "Wingham",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-03-28",
-    "last_seen": "2026-06-12"
-  },
-  "Collingwood, ON": {
-    "city": "Collingwood",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-04-02",
-    "last_seen": "2026-04-02"
-  },
-  "Stayner, ON": {
-    "city": "Stayner",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-04-04",
-    "last_seen": "2026-06-12"
-  },
   "Fenlon Falls, ON": {
     "city": "Fenlon Falls",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -125,8 +53,7 @@
     "city": "Elmvale",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -134,22 +61,11 @@
     "first_seen": "2026-05-02",
     "last_seen": "2026-06-12"
   },
-  "Consecon, ON": {
-    "city": "Consecon",
-    "province": "ON",
-    "missing": [
-      "residential"
-    ],
-    "property_types": [],
-    "first_seen": "2026-05-05",
-    "last_seen": "2026-06-12"
-  },
   "Thornbury, ON": {
     "city": "Thornbury",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -161,8 +77,7 @@
     "city": "Penetanguishene",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -174,8 +89,7 @@
     "city": "Durham",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -200,19 +114,11 @@
     "city": "Verona",
     "province": "ON",
     "missing": [
-      "residential"
+      "commercial"
     ],
-    "property_types": [],
-    "first_seen": "2026-06-02",
-    "last_seen": "2026-06-12"
-  },
-  "Jasper, ON": {
-    "city": "Jasper",
-    "province": "ON",
-    "missing": [
-      "residential"
+    "property_types": [
+      "Mixed-Use"
     ],
-    "property_types": [],
     "first_seen": "2026-06-02",
     "last_seen": "2026-06-12"
   },
@@ -220,8 +126,7 @@
     "city": "Seaforth",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -233,8 +138,7 @@
     "city": "Hanover",
     "province": "ON",
     "missing": [
-      "commercial",
-      "residential"
+      "commercial"
     ],
     "property_types": [
       "Mixed-Use"
@@ -242,14 +146,17 @@
     "first_seen": "2026-06-06",
     "last_seen": "2026-06-12"
   },
-  "Bath, ON": {
-    "city": "Bath",
+  "Victoria Harbour, ON": {
+    "city": "Victoria Harbour",
     "province": "ON",
     "missing": [
+      "commercial",
       "residential"
     ],
-    "property_types": [],
-    "first_seen": "2026-06-09",
-    "last_seen": "2026-06-12"
+    "property_types": [
+      "Mixed-Use"
+    ],
+    "first_seen": "2026-06-13",
+    "last_seen": "2026-06-13"
   }
 }

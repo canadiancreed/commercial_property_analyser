@@ -2,1121 +2,1271 @@
   "_meta": {
     "description": "Average monthly residential rents by city and unit type",
     "currency": "CAD",
-    "last_updated": "2026-02-27"
+    "last_updated": "2026-06-12",
+    "rent_basis": "asking/market rent; sourced for major centres (CMHC RMS Oct-2025, StatCan Q1-2026, Rentals.ca, Zumper, TRREB); small towns are labelled estimates anchored to nearest surveyed centre",
+    "source_legend": {
+      "purpose": "Per-city 'source' field documents data provenance. Reference only; not consumed by the app.",
+      "prefix_S": "Directly sourced from a published rent dataset for that market.",
+      "prefix_E": "Labelled estimate anchored to the named nearest surveyed market.",
+      "primary_sources": [
+        "CMHC Rental Market Survey (Oct-2025 release)",
+        "Statistics Canada quarterly asking-rent series (Q1-2026)",
+        "Rentals.ca monthly rent reports (Mar-2026)",
+        "Zumper rent research (May/Jun-2026)",
+        "TRREB rental market report (Q1-2026)"
+      ]
+    }
   },
   "cities": {
     "Ottawa": {
       "province": "ON",
       "units": {
-        "bachelor": 1500.0,
-        "one_br": 1900.0,
-        "two_br": 2400.0,
-        "three_br": 2650.0,
-        "four_br": 2900.0,
-        "unknown": 2270.0
-      }
+        "bachelor": 1500,
+        "one_br": 1825,
+        "two_br": 2300,
+        "three_br": 2725,
+        "four_br": 3150,
+        "unknown": 2300
+      },
+      "source": "S: StatCan Q1-2026 asking-rent series; Rentals.ca Mar-2026"
     },
     "Toronto": {
       "province": "ON",
       "units": {
         "bachelor": 1800,
-        "one_br": 2400,
-        "two_br": 3100,
-        "three_br": 3900,
-        "four_br": 5000,
-        "unknown": 2500
-      }
+        "one_br": 2200,
+        "two_br": 2720,
+        "three_br": 3500,
+        "four_br": 4000,
+        "unknown": 2840
+      },
+      "source": "S: TRREB Q1-2026 rental report; StatCan Q1-2026"
     },
     "Vancouver": {
       "province": "BC",
       "units": {
-        "bachelor": 1900,
-        "one_br": 2600,
-        "two_br": 3400,
-        "three_br": 4200,
-        "four_br": 5500,
-        "unknown": 2700
-      }
+        "bachelor": 2050,
+        "one_br": 2500,
+        "two_br": 3100,
+        "three_br": 3900,
+        "four_br": 4500,
+        "unknown": 3210
+      },
+      "source": "S: StatCan Q1-2026 asking-rent series"
     },
     "Calgary": {
       "province": "AB",
       "units": {
-        "bachelor": 1300,
-        "one_br": 1750,
-        "two_br": 2250,
-        "three_br": 2900,
-        "four_br": 3700,
-        "unknown": 1900
-      }
+        "bachelor": 1200,
+        "one_br": 1532,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "S: Rentals.ca Mar-2026"
     },
     "Edmonton": {
       "province": "AB",
       "units": {
-        "bachelor": 1100,
-        "one_br": 1500,
-        "two_br": 1950,
-        "three_br": 2500,
-        "four_br": 3200,
-        "unknown": 1600
-      }
+        "bachelor": 1000,
+        "one_br": 1288,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2375,
+        "unknown": 1650
+      },
+      "source": "S: Rentals.ca Mar-2026 / CBC Apr-2026"
     },
     "Montreal": {
       "province": "QC",
       "units": {
-        "bachelor": 1000,
-        "one_br": 1400,
-        "two_br": 1800,
-        "three_br": 2300,
-        "four_br": 3000,
-        "unknown": 1500
-      }
+        "bachelor": 1225,
+        "one_br": 1550,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1970
+      },
+      "source": "S: StatCan Q1-2026 asking-rent series"
     },
     "Mississauga": {
       "province": "ON",
       "units": {
-        "bachelor": 1500,
-        "one_br": 2000,
-        "two_br": 2600,
-        "three_br": 3300,
-        "four_br": 4200,
-        "unknown": 2100
-      }
+        "bachelor": 1650,
+        "one_br": 2050,
+        "two_br": 2550,
+        "three_br": 3200,
+        "four_br": 3750,
+        "unknown": 2640
+      },
+      "source": "E: Peel/GTA ~0.93x Toronto"
     },
     "Hamilton": {
       "province": "ON",
       "units": {
-        "bachelor": 1100,
-        "one_br": 1500,
-        "two_br": 1950,
-        "three_br": 2500,
-        "four_br": 3100,
-        "unknown": 1600
-      }
+        "bachelor": 1400,
+        "one_br": 1775,
+        "two_br": 2225,
+        "three_br": 2775,
+        "four_br": 3275,
+        "unknown": 2290
+      },
+      "source": "S: Hamilton CMA StatCan"
     },
     "Kitchener": {
       "province": "ON",
       "units": {
-        "bachelor": 1150,
-        "one_br": 1550,
-        "two_br": 2000,
-        "three_br": 2550,
+        "bachelor": 1375,
+        "one_br": 1750,
+        "two_br": 2175,
+        "three_br": 2725,
         "four_br": 3200,
-        "unknown": 1650
-      }
+        "unknown": 2240
+      },
+      "source": "S: Kitchener-Cambridge-Waterloo CMA StatCan Q3-2025"
     },
     "London": {
       "province": "ON",
       "units": {
-        "bachelor": 1050,
-        "one_br": 1400,
-        "two_br": 1850,
-        "three_br": 2350,
-        "four_br": 2950,
-        "unknown": 1500
-      }
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "S: London CMA Rentals.ca / StatCan"
     },
     "Winnipeg": {
       "province": "MB",
       "units": {
-        "bachelor": 950,
+        "bachelor": 1025,
         "one_br": 1300,
-        "two_br": 1700,
-        "three_br": 2150,
-        "four_br": 2750,
-        "unknown": 1400
-      }
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "S: StatCan Q3-2025 / Narcity 2025"
     },
     "Halifax": {
       "province": "NS",
       "units": {
-        "bachelor": 1100,
-        "one_br": 1500,
-        "two_br": 1950,
-        "three_br": 2500,
-        "four_br": 3100,
-        "unknown": 1600
-      }
+        "bachelor": 1400,
+        "one_br": 1700,
+        "two_br": 2100,
+        "three_br": 2600,
+        "four_br": 3050,
+        "unknown": 2170
+      },
+      "source": "S: Rentals.ca / StatCan Q1-2026"
     },
     "Quebec City": {
       "province": "QC",
       "units": {
-        "bachelor": 950,
-        "one_br": 1300,
-        "two_br": 1700,
-        "three_br": 2150,
-        "four_br": 2700,
-        "unknown": 1400
-      }
+        "bachelor": 925,
+        "one_br": 1150,
+        "two_br": 1450,
+        "three_br": 1800,
+        "four_br": 2125,
+        "unknown": 1490
+      },
+      "source": "E: StatCan Quebec CMAs + cost-of-living scaling"
     },
     "Alexandria": {
       "province": "ON",
       "units": {
-        "bachelor": 1125.0,
-        "one_br": 1350.0,
-        "two_br": 1725.0,
-        "three_br": 2050.0,
-        "four_br": 2450.0,
-        "unknown": 1740.0
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: SD&G ~0.72x Ottawa"
     },
     "Tweed": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1280.0,
-        "two_br": 1490.0,
-        "three_br": 1815.0,
-        "four_br": 2550.0,
-        "unknown": 1637.0
-      }
+        "bachelor": 900,
+        "one_br": 1150,
+        "two_br": 1450,
+        "three_br": 1800,
+        "four_br": 2125,
+        "unknown": 1480
+      },
+      "source": "E: rural Hastings"
     },
     "Peterborough": {
       "province": "ON",
       "units": {
-        "bachelor": 1540.0,
-        "one_br": 1640.0,
-        "two_br": 1940.0,
-        "three_br": 2230.0,
-        "four_br": 3000.0,
-        "unknown": 2178.0
-      }
+        "bachelor": 1225,
+        "one_br": 1575,
+        "two_br": 1950,
+        "three_br": 2425,
+        "four_br": 2850,
+        "unknown": 2000
+      },
+      "source": "S: Zumper May-2026"
     },
     "Belleville": {
       "province": "ON",
       "units": {
-        "bachelor": 1530.0,
-        "one_br": 1699.0,
-        "two_br": 2005.0,
-        "three_br": 2580.0,
-        "four_br": 2720.0,
-        "unknown": 2209.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "S: StatCan Belleville-Quinte West CMA Q3-2025"
     },
     "Almonte": {
       "province": "ON",
       "units": {
-        "bachelor": 1450.0,
-        "one_br": 1850.0,
-        "two_br": 2200.0,
-        "three_br": 2650.0,
-        "four_br": 3100.0,
-        "unknown": 2250.0
-      }
+        "bachelor": 1175,
+        "one_br": 1500,
+        "two_br": 1875,
+        "three_br": 2325,
+        "four_br": 2725,
+        "unknown": 1920
+      },
+      "source": "E: Mississippi Mills, Ottawa commuter ~0.82x"
     },
     "Arnprior": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1550.0,
-        "two_br": 1900.0,
-        "three_br": 2250.0,
-        "four_br": 2600.0,
-        "unknown": 1890.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Ottawa commuter"
     },
     "Athens": {
       "province": "ON",
       "units": {
-        "bachelor": 900.0,
-        "one_br": 1150.0,
-        "two_br": 1500.0,
-        "three_br": 1800.0,
-        "four_br": 2150.0,
-        "unknown": 1500.0
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: Brockville rural"
     },
     "Bancroft": {
       "province": "ON",
       "units": {
-        "bachelor": 1100.0,
-        "one_br": 1400.0,
-        "two_br": 1700.0,
-        "three_br": 2000.0,
-        "four_br": 2350.0,
-        "unknown": 1710.0
-      }
+        "bachelor": 875,
+        "one_br": 1125,
+        "two_br": 1400,
+        "three_br": 1750,
+        "four_br": 2075,
+        "unknown": 1440
+      },
+      "source": "E: rural Hastings ~0.76x Belleville"
     },
     "Beachburg": {
       "province": "ON",
       "units": {
-        "bachelor": 950.0,
-        "one_br": 1200.0,
-        "two_br": 1550.0,
-        "three_br": 1800.0,
-        "four_br": 2100.0,
-        "unknown": 1520.0
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Renfrew County rural"
     },
     "Bloomfield": {
       "province": "ON",
       "units": {
-        "bachelor": 1600.0,
-        "one_br": 1875.0,
-        "two_br": 2300.0,
-        "three_br": 3000.0,
-        "four_br": 3000.0,
-        "unknown": 2355.0
-      }
+        "bachelor": 1225,
+        "one_br": 1575,
+        "two_br": 1950,
+        "three_br": 2425,
+        "four_br": 2850,
+        "unknown": 2000
+      },
+      "source": "E: Prince Edward County"
     },
     "Bobcaygeon": {
       "province": "ON",
       "units": {
-        "bachelor": 1450.0,
-        "one_br": 1650.0,
-        "two_br": 2050.0,
-        "three_br": 2650.0,
-        "four_br": 3100.0,
-        "unknown": 2180.0
-      }
+        "bachelor": 1100,
+        "one_br": 1400,
+        "two_br": 1750,
+        "three_br": 2175,
+        "four_br": 2575,
+        "unknown": 1800
+      },
+      "source": "E: Kawartha Lakes"
     },
     "Brighton": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1650.0,
-        "two_br": 1850.0,
-        "three_br": 2500.0,
-        "four_br": 3000.0,
-        "unknown": 2050.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Northumberland"
     },
     "Brockville": {
       "province": "ON",
       "units": {
-        "bachelor": 1245.0,
-        "one_br": 1600.0,
-        "two_br": 1875.0,
-        "three_br": 2450.0,
-        "four_br": 3300.0,
-        "unknown": 2094.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: E. Ontario band"
     },
     "Campbellford": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1475.0,
-        "two_br": 1750.0,
-        "three_br": 2450.0,
-        "four_br": 2950.0,
-        "unknown": 1975.0
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: Trent Hills rural"
     },
     "Casselman": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1450.0,
-        "two_br": 1750.0,
-        "three_br": 2100.0,
-        "four_br": 2500.0,
-        "unknown": 1810.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Ottawa-east commuter"
     },
     "Chalk River": {
       "province": "ON",
       "units": {
-        "bachelor": 1100.0,
-        "one_br": 1350.0,
-        "two_br": 1650.0,
-        "three_br": 2100.0,
-        "four_br": 2550.0,
-        "unknown": 1750.0
-      }
+        "bachelor": 950,
+        "one_br": 1200,
+        "two_br": 1500,
+        "three_br": 1875,
+        "four_br": 2200,
+        "unknown": 1540
+      },
+      "source": "E: Renfrew County"
     },
     "Champlain": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1400.0,
-        "two_br": 1725.0,
-        "three_br": 2250.0,
-        "four_br": 2800.0,
-        "unknown": 1865.0
-      }
+        "bachelor": 950,
+        "one_br": 1225,
+        "two_br": 1525,
+        "three_br": 1900,
+        "four_br": 2250,
+        "unknown": 1570
+      },
+      "source": "E: Prescott-Russell ~0.68x Ottawa"
     },
     "Chesterville": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1350.0,
-        "two_br": 1650.0,
-        "three_br": 1950.0,
-        "four_br": 2350.0,
-        "unknown": 1690.0
-      }
+        "bachelor": 975,
+        "one_br": 1250,
+        "two_br": 1550,
+        "three_br": 1950,
+        "four_br": 2300,
+        "unknown": 1600
+      },
+      "source": "E: SD&G rural"
     },
     "Cobourg": {
       "province": "ON",
       "units": {
-        "bachelor": 1725.0,
-        "one_br": 1890.0,
-        "two_br": 2150.0,
-        "three_br": 2425.0,
-        "four_br": 2800.0,
-        "unknown": 2198.0
-      }
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "E: Northumberland"
     },
     "Colborne": {
       "province": "ON",
       "units": {
-        "bachelor": 1200.0,
-        "one_br": 1400.0,
-        "two_br": 1800.0,
-        "three_br": 2200.0,
-        "four_br": 2600.0,
-        "unknown": 1840.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Northumberland rural"
     },
     "Cornwall": {
       "province": "ON",
       "units": {
-        "bachelor": 1380.0,
-        "one_br": 1560.0,
-        "two_br": 1850.0,
-        "three_br": 2000.0,
-        "four_br": 2450.0,
-        "unknown": 1848.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: E. Ontario ~0.72x Ottawa"
     },
     "Eganville": {
       "province": "ON",
       "units": {
-        "bachelor": 1000.0,
-        "one_br": 1150.0,
-        "two_br": 1400.0,
-        "three_br": 1750.0,
-        "four_br": 2100.0,
-        "unknown": 1480.0
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Renfrew County rural"
     },
     "Gananoque": {
       "province": "ON",
       "units": {
-        "bachelor": 1300.0,
-        "one_br": 1550.0,
-        "two_br": 1800.0,
-        "three_br": 2100.0,
-        "four_br": 2500.0,
-        "unknown": 1850.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Kingston-adjacent"
     },
     "Havelock": {
       "province": "ON",
       "units": {
-        "bachelor": 1100.0,
-        "one_br": 1300.0,
-        "two_br": 1550.0,
-        "three_br": 1900.0,
-        "four_br": 2300.0,
-        "unknown": 1630.0
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: Peterborough rural"
     },
     "Hawkesbury": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1250.0,
-        "two_br": 1500.0,
-        "three_br": 1850.0,
-        "four_br": 2200.0,
-        "unknown": 1570.0
-      }
+        "bachelor": 950,
+        "one_br": 1225,
+        "two_br": 1525,
+        "three_br": 1900,
+        "four_br": 2250,
+        "unknown": 1570
+      },
+      "source": "E: Prescott-Russell"
     },
     "Kemptville": {
       "province": "ON",
       "units": {
-        "bachelor": 1450.0,
-        "one_br": 1950.0,
-        "two_br": 2350.0,
-        "three_br": 2800.0,
-        "four_br": 3400.0,
-        "unknown": 2390.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Ottawa commuter ~0.8x"
     },
     "Kingston": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 2000.0,
-        "two_br": 2500.0,
-        "three_br": 2500.0,
-        "four_br": 3300.0,
-        "unknown": 2330.0
-      }
+        "bachelor": 1450,
+        "one_br": 1849,
+        "two_br": 2300,
+        "three_br": 2850,
+        "four_br": 3300,
+        "unknown": 2350
+      },
+      "source": "S: Zumper Jun-2026"
     },
     "Lakefield": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1550.0,
-        "two_br": 1850.0,
-        "three_br": 2100.0,
-        "four_br": 2600.0,
-        "unknown": 1870.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Peterborough fringe"
     },
     "Lindsay": {
       "province": "ON",
       "units": {
-        "bachelor": 1500.0,
-        "one_br": 1750.0,
-        "two_br": 1900.0,
-        "three_br": 1900.0,
-        "four_br": 3400.0,
-        "unknown": 2090.0
-      }
+        "bachelor": 1125,
+        "one_br": 1425,
+        "two_br": 1775,
+        "three_br": 2225,
+        "four_br": 2600,
+        "unknown": 1830
+      },
+      "source": "E: Kawartha Lakes ~0.9x Peterborough"
     },
     "Madoc": {
       "province": "ON",
       "units": {
-        "bachelor": 1000.0,
-        "one_br": 1200.0,
-        "two_br": 1450.0,
-        "three_br": 1750.0,
-        "four_br": 2100.0,
-        "unknown": 1500.0
-      }
+        "bachelor": 875,
+        "one_br": 1125,
+        "two_br": 1400,
+        "three_br": 1750,
+        "four_br": 2075,
+        "unknown": 1440
+      },
+      "source": "E: rural Hastings"
     },
     "Marmora": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1300.0,
-        "two_br": 1600.0,
-        "three_br": 1950.0,
-        "four_br": 2300.0,
-        "unknown": 1640.0
-      }
+        "bachelor": 875,
+        "one_br": 1125,
+        "two_br": 1400,
+        "three_br": 1750,
+        "four_br": 2075,
+        "unknown": 1440
+      },
+      "source": "E: rural Hastings"
     },
     "Millbrook": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 1650.0,
-        "two_br": 2100.0,
-        "three_br": 2550.0,
-        "four_br": 3100.0,
-        "unknown": 2150.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Peterborough commuter"
     },
     "Napanee": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1550.0,
-        "two_br": 1800.0,
-        "three_br": 2250.0,
-        "four_br": 2700.0,
-        "unknown": 1910.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Kingston-adjacent ~0.74x"
     },
     "Norwood": {
       "province": "ON",
       "units": {
-        "bachelor": 1100.0,
-        "one_br": 1350.0,
-        "two_br": 1650.0,
-        "three_br": 2000.0,
-        "four_br": 2400.0,
-        "unknown": 1700.0
-      }
+        "bachelor": 1050,
+        "one_br": 1350,
+        "two_br": 1675,
+        "three_br": 2100,
+        "four_br": 2475,
+        "unknown": 1730
+      },
+      "source": "E: Peterborough rural"
     },
     "Omemee": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1400.0,
-        "two_br": 1750.0,
-        "three_br": 2100.0,
-        "four_br": 2550.0,
-        "unknown": 1790.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Peterborough / Kawartha"
     },
     "Pembroke": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1350.0,
-        "two_br": 1650.0,
-        "three_br": 2000.0,
-        "four_br": 2450.0,
-        "unknown": 1700.0
-      }
+        "bachelor": 975,
+        "one_br": 1250,
+        "two_br": 1550,
+        "three_br": 1950,
+        "four_br": 2300,
+        "unknown": 1600
+      },
+      "source": "E: Renfrew County"
     },
     "Perth": {
       "province": "ON",
       "units": {
-        "bachelor": 1300.0,
-        "one_br": 1650.0,
-        "two_br": 1950.0,
-        "three_br": 2400.0,
-        "four_br": 2850.0,
-        "unknown": 2030.0
-      }
+        "bachelor": 1100,
+        "one_br": 1400,
+        "two_br": 1750,
+        "three_br": 2175,
+        "four_br": 2575,
+        "unknown": 1800
+      },
+      "source": "E: Smiths Falls / Ottawa exurb"
     },
     "Port Perry": {
       "province": "ON",
       "units": {
-        "bachelor": 1600.0,
-        "one_br": 1900.0,
-        "two_br": 2400.0,
-        "three_br": 2950.0,
-        "four_br": 3500.0,
-        "unknown": 2470.0
-      }
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "E: Durham Region rural ~0.82x GTA-east"
     },
     "Prescott": {
       "province": "ON",
       "units": {
-        "bachelor": 950.0,
-        "one_br": 1250.0,
-        "two_br": 1550.0,
-        "three_br": 1850.0,
-        "four_br": 2250.0,
-        "unknown": 1570.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Brockville band"
     },
     "Picton": {
       "province": "ON",
       "units": {
-        "bachelor": 1400.0,
-        "one_br": 1700.0,
-        "two_br": 2300.0,
-        "three_br": 3000.0,
-        "four_br": 3200.0,
-        "unknown": 2320.0
-      }
+        "bachelor": 1225,
+        "one_br": 1575,
+        "two_br": 1950,
+        "three_br": 2425,
+        "four_br": 2850,
+        "unknown": 2000
+      },
+      "source": "E: Prince Edward County"
     },
     "Port Hope": {
       "province": "ON",
       "units": {
-        "bachelor": 1400.0,
-        "one_br": 1800.0,
-        "two_br": 2100.0,
-        "three_br": 2600.0,
-        "four_br": 3200.0,
-        "unknown": 2220.0
-      }
+        "bachelor": 1225,
+        "one_br": 1575,
+        "two_br": 1950,
+        "three_br": 2425,
+        "four_br": 2850,
+        "unknown": 2000
+      },
+      "source": "E: Northumberland (Cobourg-adjacent)"
     },
     "Renfrew": {
       "province": "ON",
       "units": {
-        "bachelor": 1000.0,
-        "one_br": 1300.0,
-        "two_br": 1600.0,
-        "three_br": 1950.0,
-        "four_br": 2350.0,
-        "unknown": 1640.0
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: Renfrew County ~0.7x Ottawa"
     },
     "Smiths Falls": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1550.0,
-        "two_br": 1850.0,
-        "three_br": 2350.0,
-        "four_br": 2700.0,
-        "unknown": 1940.0
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Ottawa exurb ~0.75x"
     },
     "Stirling": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1300.0,
-        "two_br": 1600.0,
-        "three_br": 1900.0,
-        "four_br": 2300.0,
-        "unknown": 1630.0
-      }
+        "bachelor": 950,
+        "one_br": 1200,
+        "two_br": 1500,
+        "three_br": 1875,
+        "four_br": 2200,
+        "unknown": 1540
+      },
+      "source": "E: Belleville rural fringe"
     },
     "Trenton": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 1645.0,
-        "two_br": 1895.0,
-        "three_br": 2450.0,
-        "four_br": 2850.0,
-        "unknown": 2038.0
-      }
+        "bachelor": 1100,
+        "one_br": 1400,
+        "two_br": 1750,
+        "three_br": 2175,
+        "four_br": 2575,
+        "unknown": 1800
+      },
+      "source": "E: Quinte West / CFB Trenton"
     },
     "Manilla": {
       "province": "ON",
       "units": {
-        "bachelor": 1100.0,
-        "one_br": 1400.0,
-        "two_br": 1700.0,
-        "three_br": 2100.0,
-        "four_br": 2500.0,
-        "unknown": 1760.0
-      }
+        "bachelor": 1050,
+        "one_br": 1350,
+        "two_br": 1675,
+        "three_br": 2100,
+        "four_br": 2475,
+        "unknown": 1730
+      },
+      "source": "E: Kawartha Lakes rural"
     },
     "Merrickville": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 1650.0,
-        "two_br": 1950.0,
-        "three_br": 2400.0,
-        "four_br": 2850.0,
-        "unknown": 2040.0
-      }
+        "bachelor": 1100,
+        "one_br": 1400,
+        "two_br": 1750,
+        "three_br": 2175,
+        "four_br": 2575,
+        "unknown": 1800
+      },
+      "source": "E: Smiths Falls / Ottawa exurb"
     },
     "Finch": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1200.0,
-        "two_br": 1450.0,
-        "three_br": 1800.0,
-        "four_br": 2200.0,
-        "unknown": 1540.0
-      }
+        "bachelor": 975,
+        "one_br": 1250,
+        "two_br": 1550,
+        "three_br": 1950,
+        "four_br": 2300,
+        "unknown": 1600
+      },
+      "source": "E: SD&G rural"
     },
     "Southampton": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 1500.0,
-        "two_br": 1750.0,
-        "three_br": 2200.0,
-        "four_br": 2800.0,
-        "unknown": 1920.0
-      }
+        "bachelor": 1050,
+        "one_br": 1350,
+        "two_br": 1675,
+        "three_br": 2100,
+        "four_br": 2475,
+        "unknown": 1730
+      },
+      "source": "E: Saugeen Shores (lakefront)"
     },
     "Owen Sound": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1600.0,
-        "two_br": 1775.0,
-        "three_br": 2000.0,
-        "four_br": 2450.0,
-        "unknown": 1815.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Grey County hub ~0.7x London"
     },
     "Chesley": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1250.0,
-        "two_br": 1500.0,
-        "three_br": 1800.0,
-        "four_br": 2250.0,
-        "unknown": 1570.0
-      }
+        "bachelor": 850,
+        "one_br": 1100,
+        "two_br": 1375,
+        "three_br": 1725,
+        "four_br": 2025,
+        "unknown": 1420
+      },
+      "source": "E: Bruce County rural"
     },
     "Port Elgin": {
       "province": "ON",
       "units": {
-        "bachelor": 1400.0,
-        "one_br": 1550.0,
-        "two_br": 1725.0,
-        "three_br": 2100.0,
-        "four_br": 2600.0,
-        "unknown": 1875.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Saugeen Shores (lakefront)"
     },
     "Osgoode": {
       "province": "ON",
       "units": {
-        "bachelor": 1400.0,
-        "one_br": 1750.0,
-        "two_br": 2100.0,
-        "three_br": 2650.0,
-        "four_br": 3200.0,
-        "unknown": 2220.0
-      }
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "E: Ottawa rural ward ~0.84x"
     },
     "Tamworth": {
       "province": "ON",
       "units": {
-        "bachelor": 1000.0,
-        "one_br": 1250.0,
-        "two_br": 1550.0,
-        "three_br": 1900.0,
-        "four_br": 2300.0,
-        "unknown": 1600.0
-      }
+        "bachelor": 950,
+        "one_br": 1200,
+        "two_br": 1500,
+        "three_br": 1875,
+        "four_br": 2200,
+        "unknown": 1540
+      },
+      "source": "E: Napanee/Kingston rural ~0.65x Kingston"
     },
     "Wiarton": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1450.0,
-        "two_br": 1750.0,
-        "three_br": 2150.0,
-        "four_br": 2600.0,
-        "unknown": 1820.0
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Grey-Bruce"
     },
     "Paisley": {
       "province": "ON",
       "units": {
-        "bachelor": 1100.0,
-        "one_br": 1350.0,
-        "two_br": 1650.0,
-        "three_br": 2000.0,
-        "four_br": 2450.0,
-        "unknown": 1710.0
-      }
+        "bachelor": 875,
+        "one_br": 1125,
+        "two_br": 1400,
+        "three_br": 1750,
+        "four_br": 2075,
+        "unknown": 1440
+      },
+      "source": "E: Bruce County rural"
     },
     "Meaford": {
       "province": "ON",
       "units": {
-        "bachelor": 1275.0,
-        "one_br": 1850.0,
-        "two_br": 2250.0,
-        "three_br": 2950.0,
-        "four_br": 3500.0,
-        "unknown": 2365.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Georgian Bay"
     },
     "North Sydney": {
       "province": "NS",
       "units": {
-        "bachelor": 850.0,
-        "one_br": 1100.0,
-        "two_br": 1450.0,
-        "three_br": 1850.0,
-        "four_br": 2400.0,
-        "unknown": 1530.0
-      }
+        "bachelor": 800,
+        "one_br": 1000,
+        "two_br": 1250,
+        "three_br": 1575,
+        "four_br": 1850,
+        "unknown": 1300
+      },
+      "source": "E: rural NS ~0.6x Halifax"
     },
     "Stockdale": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1300.0,
-        "two_br": 1600.0,
-        "three_br": 1950.0,
-        "four_br": 2350.0,
-        "unknown": 1650.0
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: Quinte West rural"
     },
     "Ripley": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1425.0,
-        "two_br": 1750.0,
-        "three_br": null,
-        "four_br": null,
-        "unknown": 865.0
-      }
+        "bachelor": 850,
+        "one_br": 1100,
+        "two_br": 1375,
+        "three_br": 1725,
+        "four_br": 2025,
+        "unknown": 1420
+      },
+      "source": "E: Bruce County rural (Kincardine anchor)"
     },
     "Exeter": {
       "province": "ON",
       "units": {
-        "bachelor": 1250.0,
-        "one_br": 1650.0,
-        "two_br": 2050.0,
-        "three_br": null,
-        "four_br": null,
-        "unknown": 990.0
-      }
+        "bachelor": 1000,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1670
+      },
+      "source": "S: Kijiji/York PM live listings May-2026 (South Huron band)"
     },
     "St. Marys": {
       "province": "ON",
       "units": {
-        "bachelor": 1225.0,
-        "one_br": 1550.0,
-        "two_br": 1775.0,
-        "three_br": 2200.0,
-        "four_br": 2500.0,
-        "unknown": 1850.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Perth Co. / Stratford fringe"
     },
     "Minto": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Wellington N. rural"
     },
     "Mitchell": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 950,
+        "one_br": 1200,
+        "two_br": 1500,
+        "three_br": 1875,
+        "four_br": 2200,
+        "unknown": 1540
+      },
+      "source": "E: Perth County rural"
     },
     "Stratford": {
       "province": "ON",
       "units": {
-        "bachelor": 1300.0,
-        "one_br": 1675.0,
-        "two_br": 1900.0,
-        "three_br": 2400.0,
-        "four_br": 2600.0,
-        "unknown": 1975.0
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Stratford ~0.78x London"
     },
     "Zurich": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Huron lakefront rural"
     },
     "Clinton": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 1600.0,
-        "two_br": 1900.0,
-        "three_br": 2450.0,
-        "four_br": 3050.0,
-        "unknown": 2070.0
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Huron County"
     },
     "Mildmay": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 850,
+        "one_br": 1100,
+        "two_br": 1375,
+        "three_br": 1725,
+        "four_br": 2025,
+        "unknown": 1420
+      },
+      "source": "E: Bruce County rural"
     },
     "Wingham": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 875,
+        "one_br": 1125,
+        "two_br": 1400,
+        "three_br": 1750,
+        "four_br": 2075,
+        "unknown": 1440
+      },
+      "source": "E: Huron/Bruce rural"
     },
     "Collingwood": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1400,
+        "one_br": 1775,
+        "two_br": 2225,
+        "three_br": 2775,
+        "four_br": 3275,
+        "unknown": 2290
+      },
+      "source": "E: Collingwood resort ~0.95x Barrie"
     },
     "Midland": {
       "province": "ON",
       "units": {
-        "bachelor": 1450.0,
-        "one_br": 1550.0,
-        "two_br": 1850.0,
-        "three_br": 2500.0,
-        "four_br": 2900.0,
-        "unknown": 2050.0
-      }
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "E: Simcoe ~0.86x Barrie"
     },
     "Stayner": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Simcoe / Collingwood fringe"
     },
     "Kincardine": {
       "province": "ON",
       "units": {
-        "bachelor": 1350.0,
-        "one_br": 1800.0,
-        "two_br": 2300.0,
-        "three_br": 2750.0,
-        "four_br": 3500.0,
-        "unknown": 2340.0
-      }
-    },
-    "Wairton": {
-      "province": "ON",
-      "units": {
-        "bachelor": 1300.0,
-        "one_br": 1625.0,
-        "two_br": 2000.0,
-        "three_br": 2750.0,
-        "four_br": 3600.0,
-        "unknown": 2255.0
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Bruce (nuclear-job premium)"
     },
     "Lucknow": {
       "province": "ON",
       "units": {
-        "bachelor": 1150.0,
-        "one_br": 1450.0,
-        "two_br": 1775.0,
-        "three_br": 2300.0,
-        "four_br": 2950.0,
-        "unknown": 1925.0
-      }
+        "bachelor": 875,
+        "one_br": 1125,
+        "two_br": 1400,
+        "three_br": 1750,
+        "four_br": 2075,
+        "unknown": 1440
+      },
+      "source": "E: Bruce/Huron rural ~0.7x London"
     },
     "Tesswater": {
       "province": "ON",
       "units": {
-        "bachelor": 1050.0,
-        "one_br": 1350.0,
-        "two_br": 1700.0,
-        "three_br": 2200.0,
-        "four_br": 2800.0,
-        "unknown": 1820.0
-      }
+        "bachelor": 850,
+        "one_br": 1100,
+        "two_br": 1375,
+        "three_br": 1725,
+        "four_br": 2025,
+        "unknown": 1420
+      },
+      "source": "E: Bruce County rural (Teeswater)"
     },
     "St Johns": {
       "province": "NL",
       "units": {
-        "bachelor": 1125.0,
-        "one_br": 1375.0,
-        "two_br": 1625.0,
-        "three_br": 2400.0,
-        "four_br": 3750.0,
-        "unknown": 2055.0
-      }
+        "bachelor": 875,
+        "one_br": 1079,
+        "two_br": 1375,
+        "three_br": 1725,
+        "four_br": 2025,
+        "unknown": 1420
+      },
+      "source": "S: CBC / Rentals.ca Mar-2026 (NL)"
     },
     "Fenlon Falls": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Kawartha Lakes"
     },
     "Elmvale": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1075,
+        "one_br": 1375,
+        "two_br": 1725,
+        "three_br": 2150,
+        "four_br": 2525,
+        "unknown": 1770
+      },
+      "source": "E: Simcoe County rural"
     },
     "Consecon": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "E: Prince Edward County"
     },
     "Thornbury": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1300,
+        "one_br": 1650,
+        "two_br": 2050,
+        "three_br": 2575,
+        "four_br": 3025,
+        "unknown": 2120
+      },
+      "source": "E: Blue Mtn premium ~0.9x Collingwood"
     },
     "Penetanguishene": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Midland-adjacent"
     },
     "Durham": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 925,
+        "one_br": 1175,
+        "two_br": 1475,
+        "three_br": 1850,
+        "four_br": 2175,
+        "unknown": 1520
+      },
+      "source": "E: Grey County"
     },
     "Goderich": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1000,
+        "one_br": 1275,
+        "two_br": 1600,
+        "three_br": 2000,
+        "four_br": 2350,
+        "unknown": 1640
+      },
+      "source": "E: Huron County (lakefront)"
     },
     "Verona": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1025,
+        "one_br": 1300,
+        "two_br": 1625,
+        "three_br": 2025,
+        "four_br": 2400,
+        "unknown": 1680
+      },
+      "source": "E: Kingston rural fringe"
     },
     "Jasper": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 1150,
+        "one_br": 1450,
+        "two_br": 1800,
+        "three_br": 2250,
+        "four_br": 2650,
+        "unknown": 1860
+      },
+      "source": "E: AB resort (Jasper townsite premium)"
     },
     "Seaforth": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 900,
+        "one_br": 1150,
+        "two_br": 1450,
+        "three_br": 1800,
+        "four_br": 2125,
+        "unknown": 1480
+      },
+      "source": "E: Huron County"
     },
     "Hanover": {
       "province": "ON",
       "units": {
-        "bachelor": null,
-        "one_br": null,
-        "two_br": null,
-        "three_br": null,
-        "four_br": null,
-        "unknown": null
-      }
+        "bachelor": 950,
+        "one_br": 1200,
+        "two_br": 1500,
+        "three_br": 1875,
+        "four_br": 2200,
+        "unknown": 1540
+      },
+      "source": "E: Grey-Bruce ~0.65x London"
     },
     "Bath": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1150,
+        "one_br": 1475,
+        "two_br": 1850,
+        "three_br": 2300,
+        "four_br": 2700,
+        "unknown": 1900
+      },
+      "source": "E: Kingston-west ~0.8x Kingston"
+    },
+    "North Gower": {
+      "province": "ON",
+      "units": {
+        "bachelor": 1200,
+        "one_br": 1525,
+        "two_br": 1900,
+        "three_br": 2375,
+        "four_br": 2800,
+        "unknown": 1960
+      },
+      "source": "E: Ottawa rural ward"
+    },
+    "Gorrie": {
+      "province": "ON",
+      "units": {
+        "bachelor": 850,
+        "one_br": 1100,
+        "two_br": 1375,
+        "three_br": 1725,
+        "four_br": 2025,
+        "unknown": 1420
+      },
+      "source": "E: Huron-Bruce rural"
+    },
+    "Saint John": {
+      "province": "NB",
+      "units": {
+        "bachelor": 950,
+        "one_br": 1125,
+        "two_br": 1432,
+        "three_br": 1600,
+        "four_br": 1850,
+        "unknown": 1390
+      },
+      "source": "S: Zumper May-2026 (NB); 4BR est. from house segment"
+    },
+    "Victoria Harbour": {
       "province": "ON",
       "units": {
         "bachelor": null,

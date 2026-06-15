@@ -1,920 +1,1065 @@
 {
   "_meta": {
-    "description": "Commercial rent rates in $/sq ft/year by city and property type",
+    "description": "Average commercial rents by city and asset class",
     "currency": "CAD",
-    "last_updated": "2026-02-27"
+    "unit": "CAD_per_sqft_per_year_gross",
+    "last_updated": "2026-06-12",
+    "commercial_notes": {
+      "basis": "Gross asking rent (net base + TMI/CAM) in CAD per square foot per year.",
+      "Mixed-Use": "Constructed blend = 55% Retail (ground floor) + 45% Office/upper. Not a directly observed market rate.",
+      "prefix_Src": "Sourced from a published commercial broker report for that or an adjacent market.",
+      "prefix_Est": "Estimate; commercial PSF is not published for towns this small. Anchor market and scaling logic named per city.",
+      "confidence": "Sourced metros reliable; small-town figures are planning-grade (approx +/-40%). Industrial PSF in villages is the weakest cell (no tracked logistics inventory).",
+      "primary_sources": [
+        "CBRE Canada Industrial Figures Q4-2025 (net rent + TMI by market)",
+        "Colliers Canada National Market Snapshot Q4-2025 (Office net rent by market)",
+        "Colliers Ottawa Office Market Report Q4-2025",
+        "TRREB Commercial Realty Watch Q2-2025 (GTA Office/Retail/Industrial net lease rates)"
+      ]
+    }
   },
   "cities": {
     "Ottawa": {
       "province": "ON",
       "types": {
-        "Office": 28.5,
-        "Retail": 32.0,
-        "Industrial": 14.75,
-        "Mixed-Use": 26.0
-      }
+        "Office": 33,
+        "Retail": 30,
+        "Industrial": 21,
+        "Mixed-Use": 31
+      },
+      "source": "Src: Colliers Q4-2025 Office net $17.03 + TMI; Industrial net $17.33 (Colliers Q2-2025)"
     },
     "Toronto": {
       "province": "ON",
       "types": {
-        "Office": 42.0,
-        "Retail": 65.0,
-        "Industrial": 18.5,
-        "Mixed-Use": 38.0
-      }
+        "Office": 36,
+        "Retail": 34,
+        "Industrial": 19,
+        "Mixed-Use": 34
+      },
+      "source": "Src: TRREB Q2-2025 (Office net $20.84, Retail net $22.13); CBRE Q4-2025 Industrial"
     },
     "Vancouver": {
       "province": "BC",
       "types": {
-        "Office": 48.0,
-        "Retail": 72.0,
-        "Industrial": 22.0,
-        "Mixed-Use": 44.0
-      }
+        "Office": 38,
+        "Retail": 36,
+        "Industrial": 24,
+        "Mixed-Use": 36
+      },
+      "source": "Src: Colliers Q4-2025 Office net $34.25; CBRE Industrial net $22.09"
     },
     "Calgary": {
       "province": "AB",
       "types": {
-        "Office": 30.0,
-        "Retail": 35.0,
-        "Industrial": 16.0,
-        "Mixed-Use": 28.0
-      }
+        "Office": 28,
+        "Retail": 28,
+        "Industrial": 16,
+        "Mixed-Use": 28
+      },
+      "source": "Src: Colliers Q4-2025 Office net $14.31 + high TMI; CBRE Q4-2025 Industrial"
     },
     "Edmonton": {
       "province": "AB",
       "types": {
-        "Office": 24.0,
-        "Retail": 28.0,
-        "Industrial": 13.0,
-        "Mixed-Use": 22.0
-      }
+        "Office": 26,
+        "Retail": 26,
+        "Industrial": 15,
+        "Mixed-Use": 26
+      },
+      "source": "Src: Colliers Q4-2025 Office; CBRE Q4-2025 Industrial net (rising)"
     },
     "Montreal": {
       "province": "QC",
       "types": {
-        "Office": 26.0,
-        "Retail": 38.0,
-        "Industrial": 12.5,
-        "Mixed-Use": 24.0
-      }
+        "Office": 30,
+        "Retail": 28,
+        "Industrial": 18,
+        "Mixed-Use": 29
+      },
+      "source": "Src: CBRE Q4-2025 Industrial; Colliers Office; Retail prime $30s gross"
     },
     "Mississauga": {
       "province": "ON",
       "types": {
-        "Office": 32.0,
-        "Retail": 40.0,
-        "Industrial": 17.0,
-        "Mixed-Use": 30.0
-      }
+        "Office": 30,
+        "Retail": 30,
+        "Industrial": 18,
+        "Mixed-Use": 30
+      },
+      "source": "Src: GTA-west, TRREB Q2-2025 + CBRE Q4-2025"
     },
     "Hamilton": {
       "province": "ON",
       "types": {
-        "Office": 20.0,
-        "Retail": 24.0,
-        "Industrial": 11.5,
-        "Mixed-Use": 18.5
-      }
+        "Office": 26,
+        "Retail": 26,
+        "Industrial": 17,
+        "Mixed-Use": 26
+      },
+      "source": "Src: CBRE/TRREB-adjacent GTA-west"
     },
     "Kitchener": {
       "province": "ON",
       "types": {
-        "Office": 22.0,
-        "Retail": 26.0,
-        "Industrial": 12.0,
-        "Mixed-Use": 20.0
-      }
+        "Office": 26,
+        "Retail": 26,
+        "Industrial": 16,
+        "Mixed-Use": 26
+      },
+      "source": "Src: CBRE Waterloo Region Q4-2025 Industrial"
     },
     "London": {
       "province": "ON",
       "types": {
-        "Office": 19.0,
-        "Retail": 22.0,
-        "Industrial": 10.5,
-        "Mixed-Use": 17.5
-      }
+        "Office": 24,
+        "Retail": 25,
+        "Industrial": 15,
+        "Mixed-Use": 25
+      },
+      "source": "Src: CBRE Q4-2025 Industrial; Colliers Office"
     },
     "Winnipeg": {
       "province": "MB",
       "types": {
-        "Office": 18.0,
-        "Retail": 22.0,
-        "Industrial": 9.5,
-        "Mixed-Use": 16.0
-      }
+        "Office": 24,
+        "Retail": 24,
+        "Industrial": 14,
+        "Mixed-Use": 24
+      },
+      "source": "Src: CBRE Q4-2025 Industrial; Colliers Office"
     },
     "Halifax": {
       "province": "NS",
       "types": {
-        "Office": 20.0,
-        "Retail": 24.0,
-        "Industrial": 10.0,
-        "Mixed-Use": 18.0
-      }
+        "Office": 30,
+        "Retail": 28,
+        "Industrial": 19,
+        "Mixed-Use": 28
+      },
+      "source": "Src: CBRE Q4-2025 Industrial (rising every quarter); Colliers Office"
     },
     "Quebec City": {
       "province": "QC",
       "types": {
-        "Office": 20.0,
-        "Retail": 25.0,
-        "Industrial": 10.5,
-        "Mixed-Use": 18.5
-      }
-    },
-    "Tweed": {
-      "province": "ON",
-      "types": {
-        "Office": 12.0,
-        "Retail": 15.0,
-        "Industrial": 9.5,
-        "Mixed-Use": 15.0
-      }
-    },
-    "Peterborough": {
-      "province": "ON",
-      "types": {
-        "Office": 15.0,
-        "Retail": 22.5,
-        "Industrial": 12.0,
-        "Mixed-Use": 18.5
-      }
-    },
-    "Belleville": {
-      "province": "ON",
-      "types": {
-        "Office": 20.0,
-        "Retail": 23.0,
-        "Industrial": 12.5,
-        "Mixed-Use": 23.0
-      }
-    },
-    "Almonte": {
-      "province": "ON",
-      "types": {
-        "Office": 19.0,
-        "Retail": 20.0,
-        "Industrial": 13.25,
-        "Mixed-Use": 20.0
-      }
+        "Office": 24,
+        "Retail": 24,
+        "Industrial": 14,
+        "Mixed-Use": 24
+      },
+      "source": "Src: Colliers Office net $14.50-16.50; regional Retail"
     },
     "Alexandria": {
       "province": "ON",
       "types": {
-        "Office": 13.0,
-        "Retail": 19.0,
-        "Industrial": 14.0,
-        "Mixed-Use": 19.0
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: SD&G rural village, ~0.5x Cornwall sourced"
+    },
+    "Tweed": {
+      "province": "ON",
+      "types": {
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Tweed village, rural Hastings"
+    },
+    "Peterborough": {
+      "province": "ON",
+      "types": {
+        "Office": 20,
+        "Retail": 22,
+        "Industrial": 12,
+        "Mixed-Use": 21
+      },
+      "source": "Est: CMA hub, ~0.85x Kingston band"
+    },
+    "Belleville": {
+      "province": "ON",
+      "types": {
+        "Office": 19,
+        "Retail": 21,
+        "Industrial": 12,
+        "Mixed-Use": 20
+      },
+      "source": "Est: regional hub, ~0.9x Kingston; interpolated CBRE Eastern-ON"
+    },
+    "Almonte": {
+      "province": "ON",
+      "types": {
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 10,
+        "Mixed-Use": 18
+      },
+      "source": "Est: Ottawa exurb (Mississippi Mills), ~0.55x Ottawa Office (Colliers Q4-2025 net $17.03)"
     },
     "Arnprior": {
       "province": "ON",
       "types": {
-        "Office": 14.5,
-        "Retail": 18.5,
-        "Industrial": 11.5,
-        "Mixed-Use": 18.5
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 11,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Ottawa commuter, scaled off Ottawa Industrial net $17.33 (Colliers Q2-2025)"
     },
     "Athens": {
       "province": "ON",
       "types": {
-        "Office": 12.0,
-        "Retail": 13.5,
-        "Industrial": 8.5,
-        "Mixed-Use": 13.5
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: Leeds County village, ~0.65x Brockville"
     },
     "Bancroft": {
       "province": "ON",
       "types": {
-        "Office": 15.5,
-        "Retail": 21.0,
-        "Industrial": 10.5,
-        "Mixed-Use": 21.0
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 7,
+        "Mixed-Use": 14
+      },
+      "source": "Est: rural Hastings town, no purpose-built Office market"
     },
     "Beachburg": {
       "province": "ON",
       "types": {
-        "Office": 11.0,
-        "Retail": 10.5,
-        "Industrial": 7.5,
-        "Mixed-Use": 10.5
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 7,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Whitewater Region hamlet, ~0.45x Pembroke"
     },
     "Bloomfield": {
       "province": "ON",
       "types": {
-        "Office": 15.5,
-        "Retail": 20.0,
-        "Industrial": null,
-        "Mixed-Use": 20.0
-      }
+        "Office": 18,
+        "Retail": 22,
+        "Industrial": 9,
+        "Mixed-Use": 20
+      },
+      "source": "Est: Prince Edward County tourism main-st Retail premium"
     },
     "Bobcaygeon": {
       "province": "ON",
       "types": {
-        "Office": 16.5,
-        "Retail": 20.75,
-        "Industrial": null,
-        "Mixed-Use": 20.75
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 8,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Kawartha Lakes tourism town"
     },
     "Brighton": {
       "province": "ON",
       "types": {
-        "Office": 17.5,
-        "Retail": 16.0,
-        "Industrial": 13.5,
-        "Mixed-Use": 16.0
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Northumberland village, ~0.75x Cobourg"
     },
     "Brockville": {
       "province": "ON",
       "types": {
-        "Office": 13.0,
-        "Retail": 16.0,
-        "Industrial": 10.0,
-        "Mixed-Use": 16.0
-      }
+        "Office": 18,
+        "Retail": 20,
+        "Industrial": 11,
+        "Mixed-Use": 19
+      },
+      "source": "Est: small city, interpolated Cornwall-Kingston sourced band"
     },
     "Campbellford": {
       "province": "ON",
       "types": {
-        "Office": 15.0,
-        "Retail": 15.0,
-        "Industrial": null,
-        "Mixed-Use": 15.0
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: Trent Hills town, ~0.7x Cobourg"
     },
     "Casselman": {
       "province": "ON",
       "types": {
-        "Office": 16.75,
-        "Retail": 20.0,
-        "Industrial": 13.5,
-        "Mixed-Use": 20.0
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 10,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Ottawa-east village, ~0.6x Ottawa Industrial"
     },
     "Chalk River": {
       "province": "ON",
       "types": {
-        "Office": 11.5,
-        "Retail": 11.5,
-        "Industrial": null,
-        "Mixed-Use": 11.5
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 7,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Renfrew County hamlet, ~0.4x Pembroke"
     },
     "Champlain": {
       "province": "ON",
       "types": {
-        "Office": 18.5,
-        "Retail": 18.5,
-        "Industrial": null,
-        "Mixed-Use": 18.5
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Prescott-Russell rural township"
     },
     "Chesterville": {
       "province": "ON",
       "types": {
-        "Office": 11.5,
-        "Retail": 13.5,
-        "Industrial": 9.5,
-        "Mixed-Use": 13.5
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: SD&G village, ~0.55x Cornwall"
     },
     "Cobourg": {
       "province": "ON",
       "types": {
-        "Office": 19.0,
-        "Retail": 20.0,
-        "Industrial": 13.5,
-        "Mixed-Use": 20.0
-      }
+        "Office": 17,
+        "Retail": 20,
+        "Industrial": 11,
+        "Mixed-Use": 19
+      },
+      "source": "Est: GTA-east commuter town, ~0.6x GTA (TRREB Q2-2025)"
     },
     "Colborne": {
       "province": "ON",
       "types": {
-        "Office": 13.5,
-        "Retail": 17.5,
-        "Industrial": 11.0,
-        "Mixed-Use": 17.5
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Cramahe village, ~0.75x Cobourg"
     },
     "Cornwall": {
       "province": "ON",
       "types": {
-        "Office": 15.0,
-        "Retail": 23.5,
-        "Industrial": 8.5,
-        "Mixed-Use": 23.5
-      }
+        "Office": 17,
+        "Retail": 19,
+        "Industrial": 11,
+        "Mixed-Use": 18
+      },
+      "source": "Src/Est: small city, Colliers Eastern-ON regional + CBRE Industrial scaling"
     },
     "Eganville": {
       "province": "ON",
       "types": {
-        "Office": 9.5,
-        "Retail": 11.0,
-        "Industrial": 7.75,
-        "Mixed-Use": 11.0
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 7,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Bonnechere village, ~0.45x Pembroke"
     },
     "Gananoque": {
       "province": "ON",
       "types": {
-        "Office": 14.0,
-        "Retail": 18.5,
-        "Industrial": 9.5,
-        "Mixed-Use": 18.5
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 9,
+        "Mixed-Use": 17
+      },
+      "source": "Est: 1000 Islands tourism town, ~0.7x Kingston"
     },
     "Havelock": {
       "province": "ON",
       "types": {
-        "Office": 9.5,
-        "Retail": 12.0,
-        "Industrial": 8.5,
-        "Mixed-Use": 12.0
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Peterborough County village"
     },
     "Hawkesbury": {
       "province": "ON",
       "types": {
-        "Office": 11.0,
-        "Retail": 16.5,
-        "Industrial": 12.5,
-        "Mixed-Use": 16.5
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 9,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Prescott-Russell town, ~0.55x Ottawa"
     },
     "Kemptville": {
       "province": "ON",
       "types": {
-        "Office": 19.0,
-        "Retail": 27.0,
-        "Industrial": 12.0,
-        "Mixed-Use": 27.0
-      }
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 11,
+        "Mixed-Use": 18
+      },
+      "source": "Est: North Grenville, Ottawa commuter ~0.6x Ottawa"
     },
     "Kingston": {
       "province": "ON",
       "types": {
-        "Office": 16.5,
-        "Retail": 30.0,
-        "Industrial": 10.0,
-        "Mixed-Use": 30.0
-      }
+        "Office": 22,
+        "Retail": 24,
+        "Industrial": 13,
+        "Mixed-Use": 23
+      },
+      "source": "Src/Est: regional hub, Colliers Eastern-ON + CBRE Industrial"
     },
     "Lakefield": {
       "province": "ON",
       "types": {
-        "Office": 12.0,
-        "Retail": 18.5,
-        "Industrial": 9.5,
-        "Mixed-Use": 18.5
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 8,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Selwyn village nr Peterborough"
     },
     "Lindsay": {
       "province": "ON",
       "types": {
-        "Office": 14.0,
-        "Retail": 21.0,
-        "Industrial": 11.0,
-        "Mixed-Use": 21.0
-      }
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 10,
+        "Mixed-Use": 18
+      },
+      "source": "Est: Kawartha Lakes hub town"
     },
     "Madoc": {
       "province": "ON",
       "types": {
-        "Office": 9.5,
-        "Retail": 12.0,
-        "Industrial": 8.5,
-        "Mixed-Use": 12.0
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Centre Hastings village"
     },
     "Marmora": {
       "province": "ON",
       "types": {
-        "Office": 10.0,
-        "Retail": 12.5,
-        "Industrial": 8.5,
-        "Mixed-Use": 12.5
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Marmora & Lake village"
     },
     "Millbrook": {
       "province": "ON",
       "types": {
-        "Office": 13.5,
-        "Retail": 21.0,
-        "Industrial": 11.75,
-        "Mixed-Use": 21.0
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Cavan Monaghan commuter village"
     },
     "Napanee": {
       "province": "ON",
       "types": {
-        "Office": 13.0,
-        "Retail": 20.0,
-        "Industrial": 10.0,
-        "Mixed-Use": 20.0
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 10,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Greater Napanee town, ~0.7x Kingston"
     },
     "Norwood": {
       "province": "ON",
       "types": {
-        "Office": 11.0,
-        "Retail": 13.5,
-        "Industrial": 8.75,
-        "Mixed-Use": 13.5
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Asphodel-Norwood village"
     },
     "Omemee": {
       "province": "ON",
       "types": {
-        "Office": 12.0,
-        "Retail": 15.0,
-        "Industrial": 9.5,
-        "Mixed-Use": 15.0
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Kawartha Lakes village"
     },
     "Pembroke": {
       "province": "ON",
       "types": {
-        "Office": 12.5,
-        "Retail": 16.5,
-        "Industrial": 9.5,
-        "Mixed-Use": 16.5
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 10,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Upper Ottawa Valley town"
     },
     "Perth": {
       "province": "ON",
       "types": {
-        "Office": 14.5,
-        "Retail": 19.0,
-        "Industrial": 10.25,
-        "Mixed-Use": 19.0
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 9,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Lanark heritage town"
     },
     "Port Perry": {
       "province": "ON",
       "types": {
-        "Office": 21.0,
-        "Retail": 31.0,
-        "Industrial": 14.0,
-        "Mixed-Use": 31.0
-      }
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 11,
+        "Mixed-Use": 18
+      },
+      "source": "Est: Scugog town, Durham Region edge"
     },
     "Prescott": {
       "province": "ON",
       "types": {
-        "Office": 10.5,
-        "Retail": 13.0,
-        "Industrial": 8.5,
-        "Mixed-Use": 13.0
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: Leeds-Grenville town, ~0.7x Brockville"
     },
     "Picton": {
       "province": "ON",
       "types": {
-        "Office": 18.5,
-        "Retail": 25.0,
-        "Industrial": 11.0,
-        "Mixed-Use": 25.0
-      }
+        "Office": 18,
+        "Retail": 22,
+        "Industrial": 10,
+        "Mixed-Use": 20
+      },
+      "source": "Est: Prince Edward County seat, tourism Retail premium"
     },
     "Port Hope": {
       "province": "ON",
       "types": {
-        "Office": 17.0,
-        "Retail": 24.0,
-        "Industrial": 12.0,
-        "Mixed-Use": 24.0
-      }
+        "Office": 17,
+        "Retail": 20,
+        "Industrial": 11,
+        "Mixed-Use": 19
+      },
+      "source": "Est: GTA-east heritage town, ~0.6x GTA"
     },
     "Renfrew": {
       "province": "ON",
       "types": {
-        "Office": 11.5,
-        "Retail": 14.5,
-        "Industrial": 8.75,
-        "Mixed-Use": 14.5
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 9,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Renfrew County town"
     },
     "Smiths Falls": {
       "province": "ON",
       "types": {
-        "Office": 13.0,
-        "Retail": 16.5,
-        "Industrial": 11.0,
-        "Mixed-Use": 16.5
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 10,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Lanark town, ~0.5x Ottawa Industrial"
     },
     "Stirling": {
       "province": "ON",
       "types": {
-        "Office": 12.0,
-        "Retail": 14.5,
-        "Industrial": 9.5,
-        "Mixed-Use": 14.5
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Stirling-Rawdon village"
     },
     "Trenton": {
       "province": "ON",
       "types": {
-        "Office": 18.0,
-        "Retail": 25.0,
-        "Industrial": 12.0,
-        "Mixed-Use": 25.0
-      }
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 11,
+        "Mixed-Use": 18
+      },
+      "source": "Est: Quinte West urban core / CFB Trenton"
     },
     "Manilla": {
       "province": "ON",
       "types": {
-        "Office": 9.5,
-        "Retail": 11.5,
-        "Industrial": 8.25,
-        "Mixed-Use": 11.5
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Kawartha Lakes hamlet"
     },
     "Merrickville": {
       "province": "ON",
       "types": {
-        "Office": 16.0,
-        "Retail": 21.5,
-        "Industrial": 11.0,
-        "Mixed-Use": 21.5
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 8,
+        "Mixed-Use": 17
+      },
+      "source": "Est: heritage village, Rideau tourism"
     },
     "Finch": {
       "province": "ON",
       "types": {
-        "Office": 8.75,
-        "Retail": 10.0,
-        "Industrial": 7.5,
-        "Mixed-Use": 10.0
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: North Stormont hamlet, ~0.5x Cornwall"
     },
     "Southampton": {
       "province": "ON",
       "types": {
-        "Office": 16.0,
-        "Retail": 22.0,
-        "Industrial": 11.0,
-        "Mixed-Use": 22.0
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 9,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Saugeen Shores lakefront"
     },
     "Owen Sound": {
       "province": "ON",
       "types": {
-        "Office": 15.5,
-        "Retail": 20.5,
-        "Industrial": 9.0,
-        "Mixed-Use": 20.5
-      }
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 10,
+        "Mixed-Use": 18
+      },
+      "source": "Est: Grey County seat / regional hub"
     },
     "Chesley": {
       "province": "ON",
       "types": {
-        "Office": 10.0,
-        "Retail": 12.0,
-        "Industrial": 8.75,
-        "Mixed-Use": 12.0
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Bruce County village, main-st only"
     },
     "Port Elgin": {
       "province": "ON",
       "types": {
-        "Office": 19.0,
-        "Retail": 26.0,
-        "Industrial": 14.0,
-        "Mixed-Use": 26.0
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 9,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Saugeen Shores lakefront town"
     },
     "Osgoode": {
       "province": "ON",
       "types": {
-        "Office": 17.5,
-        "Retail": 21.5,
-        "Industrial": 12.75,
-        "Mixed-Use": 21.5
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 9,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Ottawa rural ward"
     },
     "Tamworth": {
       "province": "ON",
       "types": {
-        "Office": 10.0,
-        "Retail": 11.5,
-        "Industrial": 8.0,
-        "Mixed-Use": 11.5
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Stone Mills hamlet"
     },
     "Wiarton": {
       "province": "ON",
       "types": {
-        "Office": 12.5,
-        "Retail": 16.0,
-        "Industrial": 10.0,
-        "Mixed-Use": 16.0
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 7,
+        "Mixed-Use": 14
+      },
+      "source": "Est: South Bruce Peninsula village"
     },
     "Paisley": {
       "province": "ON",
       "types": {
-        "Office": 10.5,
-        "Retail": 12.5,
-        "Industrial": 8.75,
-        "Mixed-Use": 12.5
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Arran-Elderslie village"
     },
     "Meaford": {
       "province": "ON",
       "types": {
-        "Office": 15.0,
-        "Retail": 19.0,
-        "Industrial": 10.25,
-        "Mixed-Use": 19.0
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 8,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Georgian Bay town"
     },
     "North Sydney": {
       "province": "NS",
       "types": {
-        "Office": 13.5,
-        "Retail": 16.5,
-        "Industrial": 10.0,
-        "Mixed-Use": 16.5
-      }
+        "Office": 13,
+        "Retail": 15,
+        "Industrial": 9,
+        "Mixed-Use": 14
+      },
+      "source": "Est: CBRM rural NS, ~0.45x Halifax"
     },
     "Stockdale": {
       "province": "ON",
       "types": {
-        "Office": 11.0,
-        "Retail": 12.5,
-        "Industrial": 9.25,
-        "Mixed-Use": 12.5
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Quinte West hamlet"
     },
     "Ripley": {
       "province": "ON",
       "types": {
-        "Office": 11.0,
-        "Retail": 13.0,
-        "Industrial": 11.0,
-        "Mixed-Use": 13.0
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Huron-Kinloss hamlet, Bruce County"
     },
     "Exeter": {
       "province": "ON",
       "types": {
-        "Office": 12.0,
-        "Retail": 15.5,
-        "Industrial": 9.25,
-        "Mixed-Use": 15.5
-      }
-    },
-    "Minto": {
-      "province": "ON",
-      "types": {
-        "Office": 12.75,
-        "Retail": 14.5,
-        "Industrial": 9.5,
-        "Mixed-Use": 12.25
-      }
-    },
-    "Mitchell": {
-      "province": "ON",
-      "types": {
-        "Office": 12.0,
-        "Retail": 14.0,
-        "Industrial": 10.0,
-        "Mixed-Use": 12.25
-      }
-    },
-    "Stratford": {
-      "province": "ON",
-      "types": {
-        "Office": 15.25,
-        "Retail": 23.5,
-        "Industrial": 13.0,
-        "Mixed-Use": 17.0
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: South Huron town, newer main-st stock (live Kijiji CRE listings May-2026)"
     },
     "St. Marys": {
       "province": "ON",
       "types": {
-        "Office": 13.5,
-        "Retail": 16.5,
-        "Industrial": 10.75,
-        "Mixed-Use": 13.75
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Perth County town nr Stratford"
+    },
+    "Minto": {
+      "province": "ON",
+      "types": {
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Wellington North village (Harriston/Palmerston)"
+    },
+    "Mitchell": {
+      "province": "ON",
+      "types": {
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: West Perth village"
+    },
+    "Stratford": {
+      "province": "ON",
+      "types": {
+        "Office": 17,
+        "Retail": 20,
+        "Industrial": 11,
+        "Mixed-Use": 19
+      },
+      "source": "Est: Perth County city, ~0.7x London"
     },
     "Zurich": {
       "province": "ON",
       "types": {
-        "Office": 11.5,
-        "Retail": 12.0,
-        "Industrial": 7.75,
-        "Mixed-Use": 10.75
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 6,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Bluewater hamlet, lakefront"
     },
     "Clinton": {
       "province": "ON",
       "types": {
-        "Office": 11.5,
-        "Retail": 13.0,
-        "Industrial": 8.5,
-        "Mixed-Use": 11.25
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Huron County village"
     },
     "Mildmay": {
       "province": "ON",
       "types": {
-        "Office": 10.5,
-        "Retail": 12.0,
-        "Industrial": 7.5,
-        "Mixed-Use": 12.0
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: South Bruce village"
     },
     "Wingham": {
       "province": "ON",
       "types": {
-        "Office": 1.5,
-        "Retail": 13.0,
-        "Industrial": 8.5,
-        "Mixed-Use": 13.0
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: North Huron village"
     },
     "Collingwood": {
       "province": "ON",
       "types": {
-        "Office": 22.0,
-        "Retail": 26.0,
-        "Industrial": 14.25,
-        "Mixed-Use": 26.0
-      }
+        "Office": 19,
+        "Retail": 23,
+        "Industrial": 11,
+        "Mixed-Use": 21
+      },
+      "source": "Est: resort town Retail premium, Georgian Bay"
     },
     "Midland": {
       "province": "ON",
       "types": {
-        "Office": 13.0,
-        "Retail": 15.0,
-        "Industrial": 12.0,
-        "Mixed-Use": 15.0
-      }
+        "Office": 16,
+        "Retail": 19,
+        "Industrial": 10,
+        "Mixed-Use": 18
+      },
+      "source": "Est: Simcoe town, ~0.6x Barrie"
     },
     "Stayner": {
       "province": "ON",
       "types": {
-        "Office": 13.5,
-        "Retail": 16.0,
-        "Industrial": 10.5,
-        "Mixed-Use": 16.0
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 9,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Clearview village"
     },
     "Kincardine": {
       "province": "ON",
       "types": {
-        "Office": 20.0,
-        "Retail": 24.0,
-        "Industrial": 14.0,
-        "Mixed-Use": 24.0
-      }
-    },
-    "Wairton": {
-      "province": "ON",
-      "types": {
-        "Office": 13.75,
-        "Retail": 15.75,
-        "Industrial": 9.5,
-        "Mixed-Use": 15.75
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 10,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Bruce County town, Bruce Power employment premium, ~0.8x Owen Sound"
     },
     "Lucknow": {
       "province": "ON",
       "types": {
-        "Office": 10.0,
-        "Retail": 12.0,
-        "Industrial": 7.5,
-        "Mixed-Use": 11.0
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Huron-Kinloss village"
     },
     "Tesswater": {
       "province": "ON",
       "types": {
-        "Office": 9.5,
-        "Retail": 10.25,
-        "Industrial": 7.5,
-        "Mixed-Use": 10.25
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: South Bruce hamlet (Teeswater)"
     },
     "St Johns": {
       "province": "NL",
       "types": {
-        "Office": 20.0,
-        "Retail": 22.5,
-        "Industrial": 12.75,
-        "Mixed-Use": 22.5
-      }
+        "Office": 22,
+        "Retail": 24,
+        "Industrial": 14,
+        "Mixed-Use": 24
+      },
+      "source": "Src/Est: CBRE/Colliers Atlantic regional (NL)"
     },
     "Fenlon Falls": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Kawartha Lakes village"
     },
     "Elmvale": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: Springwater village, ~0.7x Midland"
     },
     "Consecon": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 15,
+        "Retail": 18,
+        "Industrial": 9,
+        "Mixed-Use": 17
+      },
+      "source": "Est: Prince Edward County rural"
     },
     "Thornbury": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 18,
+        "Retail": 22,
+        "Industrial": 9,
+        "Mixed-Use": 20
+      },
+      "source": "Est: Blue Mountains Retail premium"
     },
     "Penetanguishene": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 9,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Simcoe town nr Midland"
     },
     "Durham": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 12,
+        "Retail": 15,
+        "Industrial": 8,
+        "Mixed-Use": 14
+      },
+      "source": "Est: Grey County village"
     },
     "Goderich": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 9,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Huron County seat, lakefront town"
     },
     "Verona": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: South Frontenac hamlet"
     },
     "Jasper": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Leeds-Grenville ON hamlet nr Smiths Falls, Eastern-ON rural tier (NOT Jasper AB)"
     },
     "Seaforth": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 11,
+        "Retail": 14,
+        "Industrial": 7,
+        "Mixed-Use": 13
+      },
+      "source": "Est: Huron East village"
     },
     "Hanover": {
       "province": "ON",
       "types": {
-        "Office": null,
-        "Retail": null,
-        "Industrial": null,
-        "Mixed-Use": null
-      }
+        "Office": 13,
+        "Retail": 16,
+        "Industrial": 9,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Grey County town"
     },
     "Bath": {
+      "province": "ON",
+      "types": {
+        "Office": 14,
+        "Retail": 16,
+        "Industrial": 8,
+        "Mixed-Use": 15
+      },
+      "source": "Est: Loyalist village, ~0.6x Kingston"
+    },
+    "North Gower": {
+      "province": "ON",
+      "types": {
+        "Office": 14,
+        "Retail": 17,
+        "Industrial": 9,
+        "Mixed-Use": 16
+      },
+      "source": "Est: Ottawa rural ward, ~0.5x Ottawa"
+    },
+    "Gorrie": {
+      "province": "ON",
+      "types": {
+        "Office": 10,
+        "Retail": 13,
+        "Industrial": 6,
+        "Mixed-Use": 12
+      },
+      "source": "Est: Huron-Bruce hamlet"
+    },
+    "Saint John": {
+      "province": "NB",
+      "types": {
+        "Office": 18,
+        "Retail": 20,
+        "Industrial": 13,
+        "Mixed-Use": 20
+      },
+      "source": "Src/Est: CBRE Atlantic regional, lower-cost NB market"
+    },
+    "Victoria Harbour": {
       "province": "ON",
       "types": {
         "Office": null,

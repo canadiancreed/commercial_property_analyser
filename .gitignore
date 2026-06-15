@@ -9,3 +9,5 @@ __pycache__/
 .claude
 *.json.bak
 *.json.tmp
+properties - Copy.json
+properties copy_v1.json

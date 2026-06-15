@@ -1,9 +1,4 @@
 {
-  "_meta": {
-    "last_updated": "2026-06-07",
-    "source_year": 2021,
-    "refresh_years": 5
-  },
   "ottawa": {
     "population": 1017449,
     "population_2016": 934243,
@@ -449,6 +444,216 @@
     "population": 17817,
     "population_2016": 16864,
     "growth_pct_annual": 1.11,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "ripley": {
+    "population": 440,
+    "population_2016": 440,
+    "growth_pct_annual": 0.0,
+    "source": "CityFacts",
+    "notes": "Last data was from 2015"
+  },
+  "mitchell": {
+    "population": 4868,
+    "population_2016": 4604,
+    "growth_pct_annual": 1.12,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "clinton": {
+    "population": 3113,
+    "population_2016": 3049,
+    "growth_pct_annual": 0.42,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "zurich": {
+    "population": 941,
+    "population_2016": 917,
+    "growth_pct_annual": 0.52,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "mildmay": {
+    "population": 1222,
+    "population_2016": 1219,
+    "growth_pct_annual": 0.05,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "verona": {
+    "population": 733,
+    "population_2016": 733,
+    "growth_pct_annual": 0.0,
+    "source": "CityFacts",
+    "notes": "Data ends 2015"
+  },
+  "goderich": {
+    "population": 7728,
+    "population_2016": 7536,
+    "growth_pct_annual": 0.5,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "tesswater": {
+    "population": 1030,
+    "population_2016": 995,
+    "growth_pct_annual": 0.69,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "collingwood": {
+    "population": 22983,
+    "population_2016": 20213,
+    "growth_pct_annual": 2.6,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "bath": {
+    "population": 1825,
+    "population_2016": 1670,
+    "growth_pct_annual": 1.79,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "consecon": {
+    "population": 177,
+    "population_2016": 177,
+    "growth_pct_annual": 0.0,
+    "source": "Cityfacts",
+    "notes": "Population dropped 5.3% from 2000 to 2015"
+  },
+  "durham": {
+    "population": 2755,
+    "population_2016": 2609,
+    "growth_pct_annual": 1.09,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "elmvale": {
+    "population": 2520,
+    "population_2016": 2314,
+    "growth_pct_annual": 1.72,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "fenelon falls": {
+    "population": 2490,
+    "population_2016": 2464,
+    "growth_pct_annual": 0.21,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "exeter": {
+    "population": 4863,
+    "population_2016": 4649,
+    "growth_pct_annual": 0.9,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "gorrie": {
+    "population": 4045,
+    "population_2016": 3873,
+    "growth_pct_annual": 0.87,
+    "source": "Stats Canada 2021 Census",
+    "notes": "There are no datapoints anywhere for Gorrie specifically. Used the township data."
+  },
+  "hanover": {
+    "population": 7761,
+    "population_2016": 7507,
+    "growth_pct_annual": 0.67,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "jasper": {
+    "population": 240,
+    "population_2016": 240,
+    "growth_pct_annual": 0.0,
+    "source": "CityFacts",
+    "notes": "Last updated in 2015. Dropped 8% in previous 20 years"
+  },
+  "kincardine": {
+    "population": 9343,
+    "population_2016": 8506,
+    "growth_pct_annual": 1.89,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "lucknow": {
+    "population": 1154,
+    "population_2016": 1121,
+    "growth_pct_annual": 0.58,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "minto": {
+    "population": 9094,
+    "population_2016": 8671,
+    "growth_pct_annual": 0.96,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "north gower": {
+    "population": 2187,
+    "population_2016": 2187,
+    "growth_pct_annual": 0.0,
+    "source": "Stats Canada 2016 Census",
+    "notes": "No 2021 data"
+  },
+  "penetanguishene": {
+    "population": 10077,
+    "population_2016": 8962,
+    "growth_pct_annual": 2.37,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "saint john": {
+    "population": 63447,
+    "population_2016": 61152,
+    "growth_pct_annual": 0.74,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "seaforth": {
+    "population": 2673,
+    "population_2016": 2680,
+    "growth_pct_annual": -0.05,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "st marys": {
+    "population": 7386,
+    "population_2016": 7265,
+    "growth_pct_annual": 0.33,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "stayner": {
+    "population": 4699,
+    "population_2016": 4258,
+    "growth_pct_annual": 1.99,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "stratford": {
+    "population": 32878,
+    "population_2016": 31094,
+    "growth_pct_annual": 1.12,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "thornbury": {
+    "population": 3474,
+    "population_2016": 2873,
+    "growth_pct_annual": 3.87,
+    "source": "Stats Canada 2021 Census",
+    "notes": ""
+  },
+  "wingham": {
+    "population": 2981,
+    "population_2016": 2934,
+    "growth_pct_annual": 0.32,
     "source": "Stats Canada 2021 Census",
     "notes": ""
   }

@@ -212,8 +212,8 @@
     "nearest_centre": "Barrie"
   },
   "Chesley": {
-    "distance_km": 118.0,
-    "nearest_centre": "Guelph"
+    "distance_km": 119.0,
+    "nearest_centre": "Waterloo"
   },
   "Port Elgin": {
     "distance_km": 146.0,
@@ -303,20 +303,76 @@
     "distance_km": 137.0,
     "nearest_centre": "Waterloo"
   },
-  "Wairton": {
-    "distance_km": null,
-    "nearest_centre": ""
-  },
   "Lucknow": {
-    "distance_km": null,
-    "nearest_centre": ""
+    "distance_km": 101.0,
+    "nearest_centre": "Waterloo"
   },
   "Tesswater": {
-    "distance_km": null,
-    "nearest_centre": ""
+    "distance_km": 97.0,
+    "nearest_centre": "Waterloo"
   },
   "St Johns": {
     "distance_km": 0.0,
     "nearest_centre": "St Johns"
+  },
+  "Fenlon Falls": {
+    "distance_km": 68.0,
+    "nearest_centre": "Peterborough"
+  },
+  "Elmvale": {
+    "distance_km": 27.0,
+    "nearest_centre": "Barrie"
+  },
+  "Consecon": {
+    "distance_km": 98.0,
+    "nearest_centre": "Peterborough"
+  },
+  "Thornbury": {
+    "distance_km": 75.0,
+    "nearest_centre": "Barrie"
+  },
+  "Penetanguishene": {
+    "distance_km": 53.0,
+    "nearest_centre": "Barrie"
+  },
+  "Durham": {
+    "distance_km": 93.0,
+    "nearest_centre": "Waterloo"
+  },
+  "Goderich": {
+    "distance_km": 100.0,
+    "nearest_centre": "London"
+  },
+  "Verona": {
+    "distance_km": 35.0,
+    "nearest_centre": "Kingston"
+  },
+  "Jasper": {
+    "distance_km": 88.0,
+    "nearest_centre": "Ottawa"
+  },
+  "Seaforth": {
+    "distance_km": 75.0,
+    "nearest_centre": "London"
+  },
+  "Hanover": {
+    "distance_km": 99.0,
+    "nearest_centre": "Waterloo"
+  },
+  "Bath": {
+    "distance_km": 26.0,
+    "nearest_centre": "Kingston"
+  },
+  "North Gower": {
+    "distance_km": 43.0,
+    "nearest_centre": "Ottawa"
+  },
+  "Gorrie": {
+    "distance_km": 71.0,
+    "nearest_centre": "Waterloo"
+  },
+  "Saint John": {
+    "distance_km": 0.0,
+    "nearest_centre": "Saint John"
   }
 }

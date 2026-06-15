@@ -3,7 +3,7 @@
     "city": "Oshawa",
     "province": "ON",
     "first_seen": "2026-06-06",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Bath, ON": {
     "city": "Bath",
@@ -15,42 +15,66 @@
     "city": "Stubville",
     "province": "ON",
     "first_seen": "2026-06-12",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Othercity, ON": {
     "city": "Othercity",
     "province": "ON",
     "first_seen": "2026-06-12",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Newcity, ON": {
     "city": "Newcity",
     "province": "ON",
     "first_seen": "2026-06-12",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Alpha, ON": {
     "city": "Alpha",
     "province": "ON",
     "first_seen": "2026-06-12",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Newtown, ON": {
     "city": "Newtown",
     "province": "ON",
     "first_seen": "2026-06-12",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Stubcity, ON": {
     "city": "Stubcity",
     "province": "ON",
     "first_seen": "2026-06-12",
-    "last_seen": "2026-06-12"
+    "last_seen": "2026-06-14"
   },
   "Realcity, ON": {
     "city": "Realcity",
     "province": "ON",
     "first_seen": "2026-06-12",
+    "last_seen": "2026-06-14"
+  },
+  "North Gower, ON": {
+    "city": "North Gower",
+    "province": "ON",
+    "first_seen": "2026-06-12",
     "last_seen": "2026-06-12"
+  },
+  "Gorrie, ON": {
+    "city": "Gorrie",
+    "province": "ON",
+    "first_seen": "2026-06-12",
+    "last_seen": "2026-06-12"
+  },
+  "Saint John, NB": {
+    "city": "Saint John",
+    "province": "NB",
+    "first_seen": "2026-06-12",
+    "last_seen": "2026-06-12"
+  },
+  "Victoria Harbour, ON": {
+    "city": "Victoria Harbour",
+    "province": "ON",
+    "first_seen": "2026-06-13",
+    "last_seen": "2026-06-13"
   }
 }
