@@ -14,10 +14,11 @@ INCOME_METRIC_NAMES: frozenset = frozenset({
 
 class IncomeMetrics:
 
-    def __init__(self, prop, annual_rent: float, rent_breakdown: list):
+    def __init__(self, prop, annual_rent: float, rent_breakdown: list,
+                 vacancy_rate: float = None):
         self.annual_rent    = annual_rent
         self.rent_breakdown = rent_breakdown
-        self.vacancy_rate   = prop.vacancy_rate
+        self.vacancy_rate   = vacancy_rate if vacancy_rate is not None else (prop.vacancy_rate or 0.0)
         self.egi            = annual_rent * (1 - self.vacancy_rate)  # Effective Gross Income
         self.est_expenses   = self.egi * prop.expense_ratio
         self.est_noi        = self.egi - self.est_expenses
