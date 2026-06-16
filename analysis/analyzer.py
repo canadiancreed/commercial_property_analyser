@@ -15,6 +15,74 @@ _DEMOGRAPHICS_PATH = "json/city_demographics.json"
 _DEFAULT_NOI_GROWTH = 0.02
 
 
+def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
+    """Serialize a property to a record with no analysis results.
+
+    Used when analysis can't be completed (e.g. no market rate exists for the
+    city yet). The property is still saved so the entry isn't lost and the city
+    can be registered for later rate entry; ``results`` is empty and
+    ``analyzed_on`` is None so the UI flags it as un-analyzed. Mirrors the field
+    set of ``CommercialPropertyAnalyzer.to_record`` so a later re-analysis fills
+    the same shape.
+    """
+    now = date.today().isoformat()
+    return {
+        "address":          prop.address,
+        "mls_number":       prop.mls_number,
+        "status":           prop.status,
+        "listing_date":     prop.listing_date,
+        "created_at":       (existing or {}).get("created_at", now),
+        "last_modified":    now,
+        "analyzed_on":      None,
+        "asking_price":     prop.asking_price,
+        "original_price":   prop.original_price,
+        "total_sq_ft":      prop.total_sq_ft,
+        "city":             prop.city,
+        "province":         prop.province,
+        "property_type":    prop.property_type,
+        "property_taxes":   prop.property_taxes,
+        "down_payment_pct": prop.down_payment_pct,
+        "interest_rate":    prop.interest_rate,
+        "term_years":       prop.term_years,
+        "hold_years":       prop.hold_years,
+        "expense_ratio":    prop.expense_ratio,
+        "lease_type":       prop.lease_type,
+        "construction_cost": prop.construction_cost or 0,
+        "annual_rent":      prop.annual_rent,
+        "commercial_rent":      prop.commercial_rent or 0.0,
+        "residential_rent":     prop.residential_rent or 0.0,
+        "commercial_rent_user_entered":  prop.commercial_rent_user_entered,
+        "residential_rent_user_entered": prop.residential_rent_user_entered,
+        "rent_breakdown":   [],
+        "unit_mix":         {
+            "bachelor":  prop.unit_mix.bachelor  if prop.unit_mix else 0,
+            "one_br":    prop.unit_mix.one_br     if prop.unit_mix else 0,
+            "two_br":    prop.unit_mix.two_br     if prop.unit_mix else 0,
+            "three_br":  prop.unit_mix.three_br   if prop.unit_mix else 0,
+            "four_br":   prop.unit_mix.four_br    if prop.unit_mix else 0,
+            "unknown":   prop.unit_mix.unknown    if prop.unit_mix else 0,
+            "floors":    prop.unit_mix.floors     if prop.unit_mix else (existing or {}).get("floors", 1),
+        },
+        "floors":           prop.unit_mix.floors if prop.unit_mix else (existing or {}).get("floors", 1),
+        "hotel_rooms":      prop.hotel_rooms or 0,
+        "hotel_adr":        prop.hotel_adr,
+        "hotel_occupancy":  prop.hotel_occupancy,
+        "ind_warehouse_sqft":  prop.ind_warehouse_sqft or 0,
+        "ind_office_sqft":     prop.ind_office_sqft    or 0,
+        "ind_yard_sqft":       prop.ind_yard_sqft      or 0,
+        "ind_dock_doors":      prop.ind_dock_doors     or 0,
+        "ind_drive_in_doors":  prop.ind_drive_in_doors or 0,
+        "ind_clear_height_ft": prop.ind_clear_height_ft or 0,
+        "ind_office_rate":     prop.ind_office_rate,
+        "ind_yard_rate":       prop.ind_yard_rate,
+        "vacancy_rate":        prop.vacancy_rate,
+        "noi_growth_rate":     prop.noi_growth_rate,
+        "income_confidence":   None,
+        "income_size_band":    None,
+        "results":          [],
+    }
+
+
 def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
     """Return (growth_rate, source_label) in priority: explicit override > locale > default."""
     if prop.noi_growth_rate is not None:

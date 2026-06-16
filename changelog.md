@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.1.2] — 2026-06-16
+
+### Fixed
+
+- **Adding a commercial property for a city with no rate data lost the entry and the city**
+  (`ui/menu.py`, `ui/csv_handler.py`, `analysis/analyzer.py`): `RentResolver` raises
+  `ValueError` when no market rate exists for a city (Office/Retail/**Industrial**/Mixed-Use/
+  Retail-Office). `PropertyMenu._add` caught that, printed an error, and returned **before**
+  `save_property` or `ensure_city_in_rates` — so the property was discarded and the city was
+  never registered for rate entry. `_add` now mirrors the CSV import: it saves a partial record
+  (no analysis results, `analyzed_on: None`) and registers the city via `ensure_city_in_rates`,
+  so the user can add rates (option 7/8) and re-analyze.
+- **Shared partial-record builder** — extracted `build_partial_record(prop)` in
+  `analysis/analyzer.py`; both `_add` and the CSV import now use it. The CSV path's hand-rolled
+  partial dict had drifted (missing `construction_cost`, `vacancy_rate`, `noi_growth_rate`,
+  `income_confidence`, `income_size_band`) and never registered the city — both fixed by the
+  shared builder.
+
+---
+
 ## [3.1.1] — 2026-06-14
 
 ### Tests

@@ -5,7 +5,7 @@ from models.property_input import PropertyInput, UnitMix
 from models.constants import PROP_SHORTCUTS, PROPERTY_TYPES, COMMERCIAL_TYPES_LOWER, CANADIAN_PROVINCES
 from data.store import DataStore
 from analysis.rent_resolver import RentResolver
-from analysis.analyzer import CommercialPropertyAnalyzer
+from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
@@ -177,7 +177,18 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         try:
             analyzer = CommercialPropertyAnalyzer(prop, self._resolver)
         except ValueError as e:
-            print(f"  Error during analysis: {e}")
+            # No market rate for this city yet — save the property without
+            # analysis so the entry isn't lost, and register the city so rates
+            # can be added (option 7/8) and the property re-analyzed later.
+            print(f"  No analysis — {e}")
+            record = build_partial_record(prop)
+            notes  = input("  Notes (Enter to skip): ").strip()
+            if notes:
+                record["notes"] = notes
+            self._store.save_property(record)
+            if prop.city and prop.province:
+                self._store.ensure_city_in_rates(prop.city, prop.province)
+            print(f"  Saved (no analysis): {_display_address(prop.address)}")
             return
         except Exception as e:
             print(f"  Unexpected error: {e}")

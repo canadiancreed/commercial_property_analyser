@@ -4,7 +4,7 @@ import os
 from datetime import date
 
 from models.property_input import PropertyInput, UnitMix
-from analysis.analyzer import CommercialPropertyAnalyzer
+from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 
 
 class CsvHandlerMixin:
@@ -223,34 +223,9 @@ class CsvHandlerMixin:
                     saved += 1
                     print(f"  ✓ Imported: {address} [{mls}]")
                 except ValueError as e:
-                    now = date.today().isoformat()
-                    self._store.save_property({
-                        "address": address, "mls_number": mls, "status": status,
-                        "listing_date": now, "created_at": now, "last_modified": now,
-                        "analyzed_on": None, "asking_price": int(original_price),
-                        "original_price": int(original_price), "total_sq_ft": int(total_sq_ft),
-                        "city": city, "province": province, "property_type": prop_type_field,
-                        "property_taxes": property_taxes or 0,
-                        "down_payment_pct": down_payment_pct, "interest_rate": interest_rate,
-                        "term_years": term_years, "hold_years": hold_years,
-                        "expense_ratio": expense_ratio, "lease_type": lease_type,
-                        "annual_rent": None,
-                    "commercial_rent": commercial_rent or None,
-                    "residential_rent": residential_rent or None,
-                    "commercial_rent_user_entered": bool(commercial_rent),
-                    "residential_rent_user_entered": bool(residential_rent),
-                        "unit_mix": {"bachelor": bachelor, "one_br": one_br, "two_br": two_br,
-                                     "three_br": three_br, "four_br": four_br, "unknown": unknown,
-                                     "floors": floors},
-                        "floors": floors, "hotel_rooms": hotel_rooms, "hotel_adr": hotel_adr,
-                        "hotel_occupancy": hotel_occupancy,
-                        "ind_warehouse_sqft": ind_warehouse_sqft, "ind_office_sqft": ind_office_sqft,
-                        "ind_yard_sqft": ind_yard_sqft, "ind_dock_doors": ind_dock_doors,
-                        "ind_drive_in_doors": ind_drive_in_doors,
-                        "ind_clear_height_ft": ind_clear_height_ft,
-                        "ind_office_rate": ind_office_rate, "ind_yard_rate": ind_yard_rate,
-                        "results": [],
-                    })
+                    self._store.save_property(build_partial_record(prop))
+                    if city and province:
+                        self._store.ensure_city_in_rates(city, province)
                     saved += 1
                     print(f"  ✓ Imported (no analysis): {address} [{mls}] — {e}")
             except Exception as e:
