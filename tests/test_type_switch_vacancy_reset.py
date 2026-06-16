@@ -2,8 +2,8 @@
 Regression tests for the vacancy-rate ratchet bug.
 
 When a property's type is changed via _edit (field 6), both expense_ratio and
-vacancy_rate must be reset to None so __post_init__ re-derives correct defaults
-for the new type on the next analysis pass.
+vacancy_rate must be reset to None so _resolve_vacancy_rate() re-derives the
+correct constant for the new type on the next analysis pass.
 
 Without the fix, the old type's vacancy_rate would survive the type change and
 silently distort effective gross income for the new property type.
@@ -100,8 +100,8 @@ class TestTypeChangeResetsRates:
         written = _type_change_write(store)
         assert written is not None, "No property_type update written"
         assert written["vacancy_rate"] is None, (
-            "vacancy_rate must be None after type change so __post_init__ "
-            "re-derives the correct default for the new type"
+            "vacancy_rate must be None after type change so _resolve_vacancy_rate() "
+            "re-derives the correct constant for the new type"
         )
 
     def test_store_write_clears_expense_ratio(self):

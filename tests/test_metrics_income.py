@@ -293,29 +293,33 @@ class TestVacancyModelling:
         ("Residential",   "residential"),
         ("Hotel",         "hotel"),
     ])
-    def test_property_type_vacancy_defaults_applied(self, prop_type, expected_key):
-        """PropertyInput.__post_init__ resolves vacancy_rate from VACANCY_RATE_DEFAULTS for every type."""
+    def test_property_type_vacancy_defaults_resolved(self, prop_type, expected_key):
+        """_resolve_vacancy_rate picks the correct VACANCY_RATE_DEFAULTS entry per type."""
         from models.constants import VACANCY_RATE_DEFAULTS
+        from analysis.analyzer import _resolve_vacancy_rate
         prop = PropertyInput(
             original_price=500_000, asking_price=500_000, total_sq_ft=5000,
             property_taxes=8000, down_payment_pct=0.25, interest_rate=0.055,
             term_years=25, hold_years=10, lease_type="Normal",
             property_type=prop_type,
         )
-        assert prop.vacancy_rate == pytest.approx(VACANCY_RATE_DEFAULTS[expected_key])
+        assert prop.vacancy_rate is None
+        assert _resolve_vacancy_rate(prop) == pytest.approx(VACANCY_RATE_DEFAULTS[expected_key])
 
     def test_unknown_property_type_vacancy_fallback(self):
         """An unrecognised property type falls back to 5%."""
+        from analysis.analyzer import _resolve_vacancy_rate
         prop = PropertyInput(
             original_price=500_000, asking_price=500_000, total_sq_ft=5000,
             property_taxes=8000, down_payment_pct=0.25, interest_rate=0.055,
             term_years=25, hold_years=10, lease_type="Normal",
             property_type="Warehouse",
         )
-        assert prop.vacancy_rate == pytest.approx(0.05)
+        assert _resolve_vacancy_rate(prop) == pytest.approx(0.05)
 
     def test_explicit_vacancy_rate_not_overridden(self):
-        """A caller-supplied vacancy_rate must not be replaced by the default."""
+        """A caller-supplied vacancy_rate is returned as-is by _resolve_vacancy_rate."""
+        from analysis.analyzer import _resolve_vacancy_rate
         prop = PropertyInput(
             original_price=500_000, asking_price=500_000, total_sq_ft=5000,
             property_taxes=8000, down_payment_pct=0.25, interest_rate=0.055,
@@ -323,3 +327,4 @@ class TestVacancyModelling:
             property_type="Office", vacancy_rate=0.20,
         )
         assert prop.vacancy_rate == pytest.approx(0.20)
+        assert _resolve_vacancy_rate(prop) == pytest.approx(0.20)

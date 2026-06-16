@@ -2,6 +2,7 @@ import json
 import os
 from datetime import date
 from models.property_input import PropertyInput
+from models.constants import VACANCY_RATE_DEFAULTS
 from analysis.mortgage import MortgageCalculator, DaysOnMarketCalculator
 from analysis.rent_resolver import RentResolver
 from analysis.metrics.pricing import PricingMetrics
@@ -112,6 +113,14 @@ def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
     return _DEFAULT_NOI_GROWTH, "default (no locale data)"
 
 
+def _resolve_vacancy_rate(prop: PropertyInput) -> float:
+    """Return vacancy rate: explicit override if set, else type-specific constant."""
+    if prop.vacancy_rate is not None:
+        return prop.vacancy_rate
+    ptype = (prop.property_type or "").strip().lower()
+    return VACANCY_RATE_DEFAULTS.get(ptype, 0.05)
+
+
 class CommercialPropertyAnalyzer:
 
     def __init__(self, prop: PropertyInput, rent_resolver: RentResolver):
@@ -176,7 +185,8 @@ class CommercialPropertyAnalyzer:
             self._has_rent = True
             noi_growth_rate, noi_growth_source = _resolve_noi_growth(prop)
             self._noi_growth_rate = noi_growth_rate
-            self.income   = IncomeMetrics(prop, annual_rent, breakdown)
+            vacancy_rate = _resolve_vacancy_rate(prop)
+            self.income   = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate)
             self.exit     = ExitMetrics(prop, self.income.entry_cap, self.income.est_noi,
                                         self.mortgage.loan_balance,
                                         noi_growth_rate=noi_growth_rate)
@@ -200,7 +210,7 @@ class CommercialPropertyAnalyzer:
             self.market   = MarketMetrics(
                 self.income.est_noi, self.cashflow.cash_invested,
                 self.income.est_expenses, self.mortgage.annual_mortgage, self.dom.count,
-                vacancy_rate=prop.vacancy_rate
+                vacancy_rate=vacancy_rate
             )
             is_hotel = (prop.property_type or "").strip().lower() == "hotel"
             self.hotel = HotelMetrics(prop, annual_rent) if is_hotel else None
