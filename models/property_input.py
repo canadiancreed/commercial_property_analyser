@@ -94,5 +94,3 @@ class PropertyInput:
                 self.expense_ratio = EXPENSE_RATIO_DEFAULTS["nnn"]
             else:
                 self.expense_ratio = EXPENSE_RATIO_DEFAULTS.get(ptype, 0.40)
-        if self.vacancy_rate is None:
-            self.vacancy_rate = VACANCY_RATE_DEFAULTS.get(ptype, 0.05)

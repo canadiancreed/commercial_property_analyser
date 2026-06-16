@@ -111,10 +111,17 @@ class TestAnalyzerWithRent:
         a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
         assert a.to_record()["analyzed_on"] == date.today().isoformat()
 
-    def test_to_record_persists_vacancy_rate(self):
+    def test_to_record_persists_explicit_vacancy_rate(self):
+        """An explicitly set vacancy_rate is stored so it can be round-tripped."""
         prop = _make_prop(annual_rent=60_000, vacancy_rate=0.08)
         a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
         assert a.to_record()["vacancy_rate"] == pytest.approx(0.08)
+
+    def test_to_record_stores_null_when_vacancy_not_set(self):
+        """No explicit vacancy_rate → stored as None so re-analysis re-resolves from constants."""
+        prop = _make_prop(annual_rent=60_000)
+        a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        assert a.to_record()["vacancy_rate"] is None
 
     def test_to_record_persists_noi_growth_rate(self):
         prop = _make_prop(annual_rent=60_000, noi_growth_rate=0.03)
@@ -122,14 +129,50 @@ class TestAnalyzerWithRent:
         assert a.to_record()["noi_growth_rate"] == pytest.approx(0.03)
 
     def test_prop_not_mutated_by_analyzer(self):
-        """Analyzer must not write noi_growth_rate back onto the input PropertyInput."""
+        """Analyzer must not write noi_growth_rate or vacancy_rate back onto PropertyInput."""
         prop = _make_prop(annual_rent=60_000)
-        original_growth = prop.noi_growth_rate  # None — user set no explicit value
+        original_growth   = prop.noi_growth_rate  # None
+        original_vacancy  = prop.vacancy_rate      # None
         CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
         assert prop.noi_growth_rate == original_growth, (
-            "Analyzer must not mutate prop.noi_growth_rate; "
-            "resolved value should be stored on the analyzer instance instead"
+            "Analyzer must not mutate prop.noi_growth_rate"
         )
+        assert prop.vacancy_rate == original_vacancy, (
+            "Analyzer must not mutate prop.vacancy_rate"
+        )
+
+    def test_vacancy_rate_roundtrip_picks_up_updated_default(self):
+        """Core regression: after to_record() → reload → re-analyze, a changed
+        VACANCY_RATE_DEFAULTS entry must propagate (not be frozen at the original value)."""
+        import models.constants as consts
+
+        prop = _make_prop(annual_rent=60_000, property_type="Office")
+        a    = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        rec  = a.to_record()
+
+        assert rec["vacancy_rate"] is None, "must store None so defaults can change"
+
+        original_default = consts.VACANCY_RATE_DEFAULTS.get("office", 0.14)
+        patched_default  = original_default + 0.05
+        consts.VACANCY_RATE_DEFAULTS["office"] = patched_default
+        try:
+            reloaded = PropertyInput(
+                address=rec["address"], mls_number=rec.get("mls_number", ""),
+                status=rec.get("status", "active"),
+                listing_date=rec.get("listing_date", date.today().isoformat()),
+                original_price=rec["original_price"], asking_price=rec["asking_price"],
+                total_sq_ft=rec["total_sq_ft"], property_taxes=rec["property_taxes"],
+                down_payment_pct=rec["down_payment_pct"], interest_rate=rec["interest_rate"],
+                term_years=rec["term_years"], hold_years=rec["hold_years"],
+                property_type=rec["property_type"], lease_type=rec.get("lease_type", "Normal"),
+                vacancy_rate=rec["vacancy_rate"],  # None — triggers re-resolution
+            )
+            a2 = CommercialPropertyAnalyzer(reloaded, _make_resolver(60_000))
+            assert a2.income.vacancy_rate == pytest.approx(patched_default), (
+                "Re-analysis must use the updated default, not the frozen original"
+            )
+        finally:
+            consts.VACANCY_RATE_DEFAULTS["office"] = original_default
 
     def test_to_record_does_not_persist_resolved_growth_when_prop_has_none(self):
         """When prop has no explicit noi_growth_rate, to_record() must save None so that

@@ -6,6 +6,54 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.2.0] — 2026-06-14
+
+### Fixed
+
+- **Vacancy rate frozen after first save** — `PropertyInput.__post_init__` was filling
+  `vacancy_rate` from `VACANCY_RATE_DEFAULTS` on construction, so `to_record()` always
+  persisted a resolved number. On reload that stored value was treated as an explicit
+  override and `VACANCY_RATE_DEFAULTS` was never consulted again. Any future update to the
+  constants would be silently ignored for all previously saved records, and it was
+  impossible to distinguish a user-set value from a frozen default in the stored data.
+
+- **`__post_init__` no longer mutates `vacancy_rate`** — the field stays `None` unless a
+  caller explicitly supplies a value. Resolution is now performed by `_resolve_vacancy_rate()`
+  in `analysis/analyzer.py` (mirrors the existing `_resolve_noi_growth()` pattern), which
+  reads from `VACANCY_RATE_DEFAULTS` at analysis time and passes the result explicitly into
+  `IncomeMetrics` and `MarketMetrics`.
+
+- **`to_record()` now stores `None` for auto-resolved vacancy rates** — only an explicit
+  caller-supplied value will be persisted. On every re-analysis the rate is re-derived from
+  the current constants, so any update to `VACANCY_RATE_DEFAULTS` propagates immediately to
+  all existing records.
+
+### Added
+
+- **`DataStore.migrate_vacancy_rate_to_null()`** — idempotent one-time migration that clears
+  all frozen `vacancy_rate` values in `properties.json` to `null`. Called automatically at
+  startup in `main.py`; returns the count of records updated (0 once the migration is
+  complete and on every subsequent run).
+
+### Tests
+
+- Updated three `test_metrics_income.py` tests to assert `prop.vacancy_rate is None` after
+  construction (no more `__post_init__` fill) and to test `_resolve_vacancy_rate()` directly
+  rather than the now-removed side-effect.
+- Added `test_to_record_stores_null_when_vacancy_not_set` — verifies `to_record()` serialises
+  `None` when no explicit vacancy rate is provided.
+- Renamed `test_to_record_persists_vacancy_rate` →
+  `test_to_record_persists_explicit_vacancy_rate` to clarify it covers the override path only.
+- Added `test_vacancy_rate_roundtrip_picks_up_updated_default` — patches
+  `VACANCY_RATE_DEFAULTS`, round-trips a record through `to_record()` and reconstruction,
+  and asserts the updated constant propagates into `IncomeMetrics.vacancy_rate`.
+- Extended `test_prop_not_mutated_by_analyzer` to also assert `prop.vacancy_rate` is
+  unchanged after analysis.
+- Updated `test_type_switch_vacancy_reset.py` docstring and assertion message to reference
+  `_resolve_vacancy_rate()` instead of `__post_init__`.
+
+---
+
 ## [3.1.1] — 2026-06-14
 
 ### Tests

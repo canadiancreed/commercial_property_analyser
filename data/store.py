@@ -142,6 +142,22 @@ class DataStore:
         self._write(self._properties_path, data)
         return True
 
+    def migrate_vacancy_rate_to_null(self) -> int:
+        """One-time migration: clears frozen vacancy_rate values so they re-resolve
+        from VACANCY_RATE_DEFAULTS on next analysis. Safe to run on every startup;
+        returns the number of records updated (0 once migration is complete)."""
+        if not os.path.exists(self._properties_path):
+            return 0
+        data  = self._read(self._properties_path)
+        props = data.get("properties", [])
+        count = sum(1 for p in props if p.get("vacancy_rate") is not None)
+        if count:
+            for p in props:
+                p["vacancy_rate"] = None
+            data["properties"] = props
+            self._write(self._properties_path, data)
+        return count
+
     # ------------------------------------------------------------------
     # Missing cities report
     # ------------------------------------------------------------------
