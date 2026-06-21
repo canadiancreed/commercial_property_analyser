@@ -15,6 +15,7 @@ class DataStore:
     PROPERTIES_PATH  = "properties.json"
     MISSING_PATH     = "json/missing_cities.json"
     MISSING_RENT_PATH = "json/missing_rent_data.json"
+    PRICE_CHECK_PROGRESS_PATH = "json/price_check_progress.json"
 
     def __init__(self,
                  commercial_path:  str = COMMERCIAL_PATH,
@@ -157,6 +158,50 @@ class DataStore:
             data["properties"] = props
             self._write(self._properties_path, data)
         return count
+
+    # ------------------------------------------------------------------
+    # realtor.ca price-check progress (resume/checkpoint)
+    # ------------------------------------------------------------------
+
+    def load_price_check_progress(self) -> dict:
+        """Returns {key: row} of results saved so far, or {} if no run is in progress."""
+        path = self.PRICE_CHECK_PROGRESS_PATH
+        if not os.path.exists(path):
+            return {}
+        try:
+            return self._read(path).get("checked", {})
+        except Exception:
+            return {}
+
+    def save_price_check_result(self, key: str, row: dict):
+        """Checkpoint a single price-check result so an interrupted sweep can resume.
+
+        Saved on every property; written without a .bak copy since the file is
+        transient progress, not durable data.
+        """
+        path = self.PRICE_CHECK_PROGRESS_PATH
+        if os.path.exists(path):
+            try:
+                data = self._read(path)
+            except Exception:
+                data = {"checked": {}}
+        else:
+            data = {"checked": {}}
+        data.setdefault("checked", {})[key] = row
+        data["updated_at"] = date.today().isoformat()
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, path)
+
+    def clear_price_check_progress(self):
+        """Remove the saved progress file (and any stray temp/backup siblings)."""
+        for p in (self.PRICE_CHECK_PROGRESS_PATH,
+                  self.PRICE_CHECK_PROGRESS_PATH + ".bak",
+                  self.PRICE_CHECK_PROGRESS_PATH + ".tmp"):
+            if os.path.exists(p):
+                os.remove(p)
 
     # ------------------------------------------------------------------
     # Missing cities report

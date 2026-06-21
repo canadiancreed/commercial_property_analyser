@@ -36,6 +36,29 @@ def tmp_store(tmp_path):
     )
 
 
+def test_price_check_progress_roundtrip(tmp_store, tmp_path):
+    tmp_store.PRICE_CHECK_PROGRESS_PATH = str(tmp_path / "json" / "progress.json")
+
+    assert tmp_store.load_price_check_progress() == {}
+
+    tmp_store.save_price_check_result("1 Main St||2024-01-01",
+                                      {"status": "dropped", "stored": 500_000})
+    tmp_store.save_price_check_result("2 King St||2024-02-02",
+                                      {"status": "error"})
+
+    progress = tmp_store.load_price_check_progress()
+    assert set(progress) == {"1 Main St||2024-01-01", "2 King St||2024-02-02"}
+    assert progress["1 Main St||2024-01-01"]["status"] == "dropped"
+
+    # Re-saving the same key overwrites rather than duplicates.
+    tmp_store.save_price_check_result("2 King St||2024-02-02", {"status": "same"})
+    assert tmp_store.load_price_check_progress()["2 King St||2024-02-02"]["status"] == "same"
+
+    tmp_store.clear_price_check_progress()
+    assert tmp_store.load_price_check_progress() == {}
+    assert not os.path.exists(tmp_store.PRICE_CHECK_PROGRESS_PATH)
+
+
 @pytest.fixture
 def store_with_rates(tmp_path):
     comm_data = {

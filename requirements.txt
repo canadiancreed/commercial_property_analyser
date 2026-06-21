@@ -1,2 +1,5 @@
 pytest
 pytest-cov
+# After `pip install playwright`, download the browser binary it drives:
+#   python -m playwright install chromium
+playwright
