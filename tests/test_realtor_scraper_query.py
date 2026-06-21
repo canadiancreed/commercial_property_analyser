@@ -54,6 +54,16 @@ def test_no_match_on_substring_number():
     assert not address_matches("100 King St", "/real-estate/7/1000-king-street-toronto")
 
 
+def test_no_match_on_different_number_same_street_and_town():
+    # Reported case: 104 King St must not match 154 King St in the same town.
+    href = "/real-estate/8/154-king-street-belleville"
+    assert not address_matches("104 King St, Belleville", href)
+    assert address_matches("154 King St, Belleville", href)
+    # And it is not offered as a candidate at all.
+    assert listing_candidates(["https://www.realtor.ca" + href],
+                              "104 King St, Belleville") == []
+
+
 # ── listing_candidates ────────────────────────────────────────────────────────
 
 def test_candidates_returns_only_matches():
