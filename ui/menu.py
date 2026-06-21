@@ -690,8 +690,13 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
                 print("\n  Stopped. Progress saved — choose Resume next time.")
             except Exception as exc:
                 print(f"\n  Browser error: {exc}")
-                print("  Is Playwright installed?  pip install playwright && "
-                      "python -m playwright install firefox")
+                if "launch" in str(exc).lower() or "timeout" in str(exc).lower():
+                    print("  Firefox couldn't start. Close any open Firefox windows "
+                          "using this tool's\n  profile and try Resume. If it "
+                          "persists, ensure the browser is installed:\n"
+                          "  python -m playwright install firefox")
+                else:
+                    print("  Progress was saved — choose Resume to continue.")
             else:
                 print(" done.")
         else:

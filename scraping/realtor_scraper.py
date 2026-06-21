@@ -301,20 +301,46 @@ class RealtorScraper:
         self._fetch_count    = 0
 
     # ── lifecycle ─────────────────────────────────────────────────────────
+    def _clear_profile_lock(self):
+        """Remove a stale Firefox profile lock left by a crashed/killed run.
+
+        A leftover lock makes launch_persistent_context hang until it times out
+        (the BrowserType.launch ...Timeout error). Safe to delete when no Firefox
+        is actually holding the profile, which is the case on a fresh launch.
+        """
+        for name in ("parent.lock", ".parentlock", "lock"):
+            try:
+                os.remove(os.path.join(self._user_data_dir, name))
+            except OSError:
+                pass
+
     def _launch_context(self):
-        """Launch a stealthy persistent Firefox context."""
+        """Launch a stealthy persistent Firefox context, clearing a stale lock.
+
+        Retries once after clearing the lock and pausing, since the lock is the
+        common cause of a launch timeout.
+        """
         os.makedirs(self._user_data_dir, exist_ok=True)
-        ctx = self._pw.firefox.launch_persistent_context(
-            user_data_dir=self._user_data_dir,
-            headless=self._headless,
-            firefox_user_prefs=FIREFOX_PREFS,
-            locale="en-CA",
-            timezone_id="America/Toronto",
-            viewport={"width": 1366, "height": 900},
-        )
-        ctx.set_default_timeout(self._nav_timeout_ms)
-        ctx.add_init_script(STEALTH_INIT_JS)
-        return ctx
+        last_exc = None
+        for attempt in range(2):
+            self._clear_profile_lock()
+            try:
+                ctx = self._pw.firefox.launch_persistent_context(
+                    user_data_dir=self._user_data_dir,
+                    headless=self._headless,
+                    firefox_user_prefs=FIREFOX_PREFS,
+                    locale="en-CA",
+                    timezone_id="America/Toronto",
+                    viewport={"width": 1366, "height": 900},
+                    timeout=60000,
+                )
+                ctx.set_default_timeout(self._nav_timeout_ms)
+                ctx.add_init_script(STEALTH_INIT_JS)
+                return ctx
+            except Exception as exc:
+                last_exc = exc
+                time.sleep(3.0)
+        raise last_exc
 
     def __enter__(self):
         from playwright.sync_api import sync_playwright
@@ -346,6 +372,7 @@ class RealtorScraper:
                 self._context.close()
         except Exception:
             pass
+        time.sleep(2.0)   # let the OS release the profile lock before reopening
         self._context = self._launch_context()
         self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
 
