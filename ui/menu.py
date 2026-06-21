@@ -10,6 +10,9 @@ from analysis.metrics.income import INCOME_METRIC_NAMES
 from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
 from reporting.city_report import CityReportGenerator
+from reporting.price_check_report import PriceCheckReportGenerator
+from scraping.realtor_scraper import RealtorScraper
+from scraping.price_comparator import compare
 from scoring.scorer import PropertyScorer
 from scoring.city_ranker import CityRanker
 from ui.rate_editor import RateEditorMixin
@@ -90,6 +93,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             print("  5  Delete a property")
             print("  6  Open investment report in browser")
             print("  c  Open city opportunity report")
+            print("  p  Check realtor.ca prices (all properties)")
             print("  7  Edit commercial rent rates")
             print("  8  Edit residential rent rates")
             print("  9  Import properties from CSV")
@@ -107,6 +111,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             elif choice == "5": self._delete()
             elif choice == "6": self._open_report()
             elif choice == "c": self._open_city_report()
+            elif choice == "p": self._price_check()
             elif choice == "7": self._edit_commercial_rates()
             elif choice == "8": self._edit_residential_rates()
             elif choice == "9": self._import_csv()
@@ -591,6 +596,110 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         cities = self._ranker.rank(props)
         print(" done.")
         self._city_rpt.open_in_browser(cities)
+
+    @staticmethod
+    def _price_check_key(p: dict) -> str:
+        """Checkpoint key for a property — address + listing date, matching the
+        record identity used by DataStore.save_property."""
+        return f"{p.get('address', '')}||{p.get('listing_date', '')}"
+
+    def _price_check(self):
+        """Look stored properties up on realtor.ca and report price changes.
+
+        Drives a real Chromium browser (slow, and realtor.ca may rate-limit a
+        large sweep), so it confirms before starting and checkpoints every result
+        to disk — an interrupted run can be resumed instead of restarted. Read-only
+        on properties.json; results go to an HTML report, nothing is written back.
+        """
+        props = self._store.load_properties()
+        if not props:
+            print("\n  No properties on file.")
+            return
+
+        key_of   = self._price_check_key
+        progress = self._store.load_price_check_progress()
+
+        # If a previous run exists, let the user resume / retry failures / restart.
+        if progress:
+            done   = sum(1 for p in props if key_of(p) in progress)
+            failed = sum(1 for p in props
+                         if progress.get(key_of(p), {}).get("status") == "error")
+            print(f"\n  A previous run is saved: {done}/{len(props)} checked "
+                  f"({failed} not checked).")
+            print("    r  Resume   — check only properties not done yet")
+            print("    f  Retry    — re-check only the 'not checked' failures")
+            print("    s  Start fresh — discard the previous run")
+            sel = input("  Choose (r/f/s, Enter to cancel): ").strip().lower()
+            if sel == "r":
+                todo = [p for p in props if key_of(p) not in progress]
+            elif sel == "f":
+                todo = [p for p in props
+                        if progress.get(key_of(p), {}).get("status") == "error"]
+            elif sel == "s":
+                self._store.clear_price_check_progress()
+                progress = {}
+                todo = list(props)
+            else:
+                print("  Cancelled.")
+                return
+        else:
+            todo = list(props)
+
+        if todo:
+            raw = input(f"  How many to check this run? ({len(todo)} pending, "
+                        "Enter = all): ").strip()
+            if raw.isdigit() and int(raw) > 0:
+                todo = todo[:int(raw)]
+
+            print(f"\n  This opens a browser and checks {len(todo)} listings on "
+                  "realtor.ca one\n  by one. It can take a long time and may be "
+                  "rate-limited. Progress is\n  saved after each — Ctrl-C to stop "
+                  "and resume later.")
+            if input("  Continue? (y/N): ").strip().lower() != "y":
+                print("  Cancelled.")
+                return
+
+            print("  Checking", end="", flush=True)
+            try:
+                with RealtorScraper() as scraper:
+                    for p in todo:
+                        address  = p.get("address", "")
+                        city     = p.get("city") or ""
+                        province = p.get("province") or ""
+                        result   = scraper.fetch_price(address, city, province)
+                        row      = compare(p.get("asking_price"), result)
+                        row.update({
+                            "address":  address or "—",
+                            "city":     city,
+                            "province": province,
+                            "mls":      p.get("mls_number", ""),
+                        })
+                        self._store.save_price_check_result(key_of(p), row)
+                        progress[key_of(p)] = row
+                        print(".", end="", flush=True)
+            except KeyboardInterrupt:
+                print("\n  Stopped. Progress saved — choose Resume next time.")
+            except Exception as exc:
+                print(f"\n  Browser error: {exc}")
+                print("  Is Playwright installed?  pip install playwright && "
+                      "python -m playwright install chromium")
+            else:
+                print(" done.")
+        else:
+            print("  Nothing left to check.")
+
+        # Report over everything checked so far (this run plus any prior runs).
+        rows = [progress[key_of(p)] for p in props if key_of(p) in progress]
+        if not rows:
+            print("  No results to report yet.")
+            return
+        PriceCheckReportGenerator().open_in_browser(rows)
+
+        if all(key_of(p) in progress for p in props):
+            if input("  All properties checked. Clear saved progress? "
+                     "(y/N): ").strip().lower() == "y":
+                self._store.clear_price_check_progress()
+                print("  Progress cleared.")
 
     @staticmethod
     def _build_report_row(p: dict, scored: dict, targets: dict) -> dict:
