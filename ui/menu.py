@@ -663,12 +663,12 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
                 with RealtorScraper() as scraper:
                     # Warm-up: let the user clear any Akamai/CAPTCHA challenge by
                     # hand once; the persistent profile carries it for the batch.
-                    print("\n  Opening realtor.ca in the browser window...")
+                    print("\n  Opening the search engine in the browser window...")
                     if scraper.open_home():
-                        input("  realtor.ca is challenging the browser. In the "
-                              "window, solve any\n  CAPTCHA / 'Access Denied' page "
-                              "and accept cookies, then press Enter\n  to continue "
-                              "(or Enter anyway to try): ")
+                        input("  The search engine is challenging the browser. In "
+                              "the window, solve any\n  CAPTCHA and accept cookies, "
+                              "then press Enter to continue\n  (or Enter anyway to "
+                              "try): ")
                     print("  Checking", end="", flush=True)
                     for p in todo:
                         address  = p.get("address", "")
