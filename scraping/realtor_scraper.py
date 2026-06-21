@@ -223,8 +223,8 @@ class RealtorScraper:
             result = scraper.fetch_price(address, city, province)
     """
 
-    def __init__(self, headless: bool = False, min_delay: float = 3.0,
-                 max_delay: float = 8.0, nav_timeout_ms: int = 30000,
+    def __init__(self, headless: bool = False, min_delay: float = 6.0,
+                 max_delay: float = 14.0, nav_timeout_ms: int = 30000,
                  user_data_dir: str = USER_DATA_DIR, recycle_every: int = 40):
         self._headless       = headless
         self._min_delay      = min_delay
