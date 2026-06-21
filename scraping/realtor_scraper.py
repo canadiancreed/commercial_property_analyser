@@ -131,6 +131,12 @@ BLOCK_MARKERS = ("just a moment", "checking your browser", "captcha",
 NOT_FOUND_MARKERS = ("no results", "we couldn't find", "0 listings",
                      "no properties found", "page not found")
 
+# realtor.ca sometimes rejects a free-typed search and demands you pick from the
+# autocomplete dropdown. These fragments flag that prompt so we can retry.
+SELECT_ADDRESS_MARKERS = ("select an address", "select a location",
+                          "choose an address", "select one of the",
+                          "from the list", "from those presented")
+
 # Outcome values for FetchResult.outcome.
 OUTCOME_FOUND     = "found"
 OUTCOME_NOT_FOUND = "not_found"
@@ -325,6 +331,48 @@ class RealtorScraper:
             if not acted:
                 break
 
+    def _autocomplete_pick(self, retries: int = 5) -> bool:
+        """Click the first autocomplete suggestion once it appears; True if clicked.
+
+        realtor.ca expects you to pick from the dropdown rather than submit raw
+        text, so this is preferred over pressing Enter.
+        """
+        for _ in range(retries):
+            time.sleep(random.uniform(0.6, 1.1))
+            s = self._first_visible(AUTOCOMPLETE_SELECTORS)
+            if s is not None:
+                try:
+                    s.click()
+                    return True
+                except Exception:
+                    return False
+        return False
+
+    def _run_search(self, box, query: str, force_pick: bool = False):
+        """Type the query and submit by picking an autocomplete suggestion.
+
+        Falls back to Enter only when no suggestion appears and ``force_pick`` is
+        not set. Waits for the results page to settle.
+        """
+        box.click()
+        box.fill("")
+        box.type(query, delay=random.randint(40, 110))
+        if not self._autocomplete_pick() and not force_pick:
+            box.press("Enter")
+        try:
+            self._page.wait_for_load_state("domcontentloaded")
+        except Exception:
+            pass
+        time.sleep(random.uniform(2.0, 3.5))
+
+    def _needs_address_selection(self) -> bool:
+        """True if realtor.ca is showing the 'pick an address from the list' prompt."""
+        try:
+            body = (self._page.content() or "").lower()
+        except Exception:
+            return False
+        return any(m in body for m in SELECT_ADDRESS_MARKERS)
+
     def fetch_price(self, address: str, city: str = "",
                     province: str = "") -> FetchResult:
         """Search realtor.ca (Commercial tab) for an address and return its price.
@@ -349,20 +397,18 @@ class RealtorScraper:
                 # Couldn't find the search box → treat as a block, not a 404.
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
-            box.click()
-            box.fill("")
-            box.type(query, delay=random.randint(40, 110))
-            time.sleep(random.uniform(1.0, 2.0))
-
-            suggestion = self._first_visible(AUTOCOMPLETE_SELECTORS)
-            if suggestion is None:
-                box.press("Enter")          # no autocomplete match → submit
-            else:
-                suggestion.click()
-
-            self._page.wait_for_load_state("domcontentloaded")
-            time.sleep(random.uniform(2.0, 3.5))
+            self._run_search(box, query)
             self._dismiss_overlays()
+
+            # realtor.ca sometimes rejects a free-typed search with a "select an
+            # address from those presented" prompt. Satisfy it by retyping and
+            # picking from the autocomplete dropdown; if it still insists, move on.
+            if self._needs_address_selection():
+                box = self._first_visible(SEARCH_INPUT_SELECTORS)
+                if box is not None:
+                    self._run_search(box, query, force_pick=True)
+                    self._dismiss_overlays()
+
             if self._is_blocked():
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
