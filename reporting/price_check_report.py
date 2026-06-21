@@ -50,7 +50,7 @@ class PriceCheckReportGenerator:
         )
 
         body_rows = "".join(self._row_html(r) for r in rows_sorted) or (
-            '<tr><td colspan="7" class="empty">No properties checked.</td></tr>'
+            '<tr><td colspan="8" class="empty">No properties checked.</td></tr>'
         )
 
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -147,6 +147,8 @@ class PriceCheckReportGenerator:
   .s-err  {{ background: #8a8278;      }} .pill.s-err  {{ color: #8a8278;      }}
   td.delta-drop {{ color: var(--green); }}
   td.delta-rise {{ color: var(--red); }}
+  .st-active {{ color: var(--green); font-weight: 500; }}
+  .st-inactive {{ color: var(--muted); }}
   .empty {{ text-align: center; color: var(--muted); padding: 2rem; }}
 </style>
 </head>
@@ -162,6 +164,7 @@ class PriceCheckReportGenerator:
       <tr>
         <th>Address</th>
         <th>City</th>
+        <th>State</th>
         <th style="text-align:right">Stored</th>
         <th style="text-align:right">Found</th>
         <th style="text-align:right">&Delta; $</th>
@@ -190,6 +193,11 @@ class PriceCheckReportGenerator:
 
         loc = ", ".join(p for p in (r.get("city"), r.get("province")) if p)
 
+        state     = (r.get("state") or "").strip()
+        state_cls = "st-active" if state.lower() == "active" else "st-inactive"
+        state_cell = (f'<span class="{state_cls}">{html.escape(state).title()}</span>'
+                      if state else "—")
+
         delta     = r.get("delta")
         delta_cls = ""
         if status == "dropped":
@@ -200,6 +208,7 @@ class PriceCheckReportGenerator:
         return f"""      <tr>
         <td class="addr">{addr_cell}</td>
         <td>{html.escape(loc) or '—'}</td>
+        <td>{state_cell}</td>
         <td class="num">{_money(r.get('stored'))}</td>
         <td class="num">{_money(r.get('fetched'))}</td>
         <td class="num{delta_cls}">{_money(delta) if delta is not None else '—'}</td>

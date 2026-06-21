@@ -681,6 +681,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
                             "city":     city,
                             "province": province,
                             "mls":      p.get("mls_number", ""),
+                            "state":    p.get("status") or "",   # active / inactive
                         })
                         self._store.save_price_check_result(key_of(p), row)
                         progress[key_of(p)] = row
