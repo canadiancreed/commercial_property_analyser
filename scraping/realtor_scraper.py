@@ -29,6 +29,9 @@ from typing import Optional
 from urllib.parse import quote_plus
 
 from core.address import _display_address, _parse_address_sort
+from models.constants import CANADIAN_PROVINCES
+
+_PROVINCE_TOKENS = {p.lower() for p in CANADIAN_PROVINCES}
 
 # Persistent browser profile — cookies and any solved challenge survive between
 # runs, which makes realtor.ca's Akamai bot manager (and search-engine consent) less
@@ -211,20 +214,31 @@ def _slug_address(href: str):
     return _parse_address_sort(slug) if slug else ("", 0)
 
 
-def address_matches(address: str, href: str) -> bool:
-    """True only if the listing slug is the SAME street address as ``address``.
+def _city_tokens(address: str, city: str) -> list:
+    """City words to require in the slug, from an explicit city or the address.
 
-    Strict on purpose: requires the exact street number and every street-name
-    word — name, type, and directional — to appear in the slug (abbreviations
-    normalised on both sides). So 'King St W' won't match 'King St E', and
-    'Main St' won't match 'Main Ave'. City is not required (realtor.ca groups
-    some towns under regions), only the street.
+    Uses the ``city`` argument when given, else everything after the first comma
+    of the address. Province codes (ON, QC…) and digits are dropped.
     """
-    slug_tokens = _norm_tokens(_listing_slug(href))
-    if not slug_tokens:
+    src = city if (city or "").strip() else ",".join((address or "").split(",")[1:])
+    return [w for w in _norm_tokens(src)
+            if not w.isdigit() and w not in _PROVINCE_TOKENS]
+
+
+def address_matches(address: str, href: str, city: str = "") -> bool:
+    """True only if the listing slug is the SAME full address as ``address``.
+
+    Strict on purpose: requires the exact street number, every street-name word
+    (name, type, and directional), AND the city to appear in the slug, with
+    abbreviations normalised on both sides. So 'King St W' won't match 'King St E',
+    'Main St' won't match 'Main Ave', and '9 Main St, Athens' won't match
+    '9 Main St, Uxbridge'.
+    """
+    slug_set = set(_norm_tokens(_listing_slug(href)))
+    if not slug_set:
         return False
 
-    # Street portion only (before the first comma), so the city doesn't dilute it.
+    # Street portion (before the first comma).
     a = _norm_tokens((address or "").split(",")[0])
     num_idx = next((i for i, w in enumerate(a) if w.isdigit()), None)
     if num_idx is None:
@@ -234,23 +248,28 @@ def address_matches(address: str, href: str) -> bool:
     if not street:
         return False
 
-    slug_set = set(slug_tokens)
-    if number not in slug_set:
+    if number not in slug_set or not all(w in slug_set for w in street):
         return False
-    return all(w in slug_set for w in street)
+
+    # City must also be present, so the same street number/name in a different
+    # town can't match (a wrong town is what produces absurd price deltas).
+    city_words = _city_tokens(address, city)
+    if city_words and not all(w in slug_set for w in city_words):
+        return False
+    return True
 
 
-def listing_candidates(links, address: str):
-    """realtor.ca listing links whose address matches, newest first.
+def listing_candidates(links, address: str, city: str = ""):
+    """realtor.ca listing links whose full address matches, newest first.
 
-    Only exact street matches are returned — never a 'close enough' listing.
-    Several may match (relistings reuse the address under new IDs), so they are
-    ordered by listing ID descending — the highest ID is the most recent listing,
-    which is the one whose price we want. Duplicates removed.
+    Only exact street+city matches are returned — never a 'close enough' listing
+    or the same address in another town. Several may match (relistings reuse the
+    address under new IDs), so they are ordered by listing ID descending — the
+    highest ID is the most recent listing, whose price we want. Duplicates removed.
     """
     matches, seen = [], set()
     for h in links:
-        if "/real-estate/" in h and address_matches(address, h) and h not in seen:
+        if "/real-estate/" in h and address_matches(address, h, city) and h not in seen:
             seen.add(h)
             matches.append(h)
     matches.sort(key=_listing_id, reverse=True)
@@ -435,7 +454,7 @@ class RealtorScraper:
             if any(m in body for m in SEARCH_BLOCK_MARKERS):
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
-            candidates = listing_candidates(page.evaluate(REALTOR_LINKS_JS) or [], address)
+            candidates = listing_candidates(page.evaluate(REALTOR_LINKS_JS) or [], address, city)
             if not candidates:
                 # No realtor.ca listing surfaced → not currently listed.
                 return FetchResult(outcome=OUTCOME_NOT_FOUND)
