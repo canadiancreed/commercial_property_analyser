@@ -33,6 +33,9 @@ def main(argv=None):
     print("  Launching browser (Ctrl-C to abort)...")
 
     with RealtorScraper(headless=args.headless) as scraper:
+        if scraper.open_home():
+            input("  realtor.ca is challenging the browser. Solve any CAPTCHA / "
+                  "'Access Denied'\n  page in the window, then press Enter: ")
         result = scraper.fetch_price(args.address, args.city, args.province)
 
     print(f"  Outcome   : {result.outcome}")
