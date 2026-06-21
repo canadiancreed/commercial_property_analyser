@@ -24,11 +24,15 @@ _STATUS_ORDER = ["dropped", "risen", "same", "not_found", "error"]
 
 
 def _money(v):
-    return "—" if v is None else f"${v:,.0f}"
+    if v is None:
+        return "—"
+    # Put the minus sign before the dollar sign: -$100, not $-100.
+    return f"{'-' if v < 0 else ''}${abs(v):,.0f}"
 
 
 def _pct(v):
-    return "—" if v is None else f"{v:+.1f}%"
+    # Two decimals so a small but real change (e.g. -0.01%) doesn't read as 0.0%.
+    return "—" if v is None else f"{v:+.2f}%"
 
 
 class PriceCheckReportGenerator:
