@@ -13,7 +13,7 @@ Optionally pass --stored PRICE to see the same/dropped/risen comparison.
 
 import argparse
 
-from scraping.realtor_scraper import RealtorScraper, city_url
+from scraping.realtor_scraper import RealtorScraper, build_query
 from scraping.price_comparator import compare
 
 
@@ -28,9 +28,8 @@ def main(argv=None):
                     help="Run the browser without a visible window")
     args = ap.parse_args(argv)
 
-    print(f"  Address   : {args.address}")
-    print(f"  City page : {city_url(args.province, args.city)}")
-    print("  Launching browser (Ctrl-C to abort)...")
+    print(f"  Search    : {build_query(args.address, args.city, args.province)}")
+    print("  Launching browser (Commercial tab, Ctrl-C to abort)...")
 
     with RealtorScraper(headless=args.headless) as scraper:
         if scraper.open_home():
