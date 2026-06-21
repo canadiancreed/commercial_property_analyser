@@ -174,44 +174,87 @@ def _parse_price(text: str) -> Optional[float]:
         return None
 
 
-def _slug_address(href: str):
-    """Parse (street_name, number) from a /real-estate/{id}/{address-slug} href."""
+# Street-word abbreviations expanded on both the stored address and the listing
+# slug so matching is consistent (St↔Street, W↔West, etc.). Directionals are
+# included because "King St W" must NOT match "King St E".
+_ADDR_ABBR = {
+    "st": "street", "str": "street", "ave": "avenue", "av": "avenue",
+    "rd": "road", "dr": "drive", "blvd": "boulevard", "cres": "crescent",
+    "crt": "court", "ct": "court", "pl": "place", "ln": "lane",
+    "pkwy": "parkway", "hwy": "highway", "ter": "terrace", "sq": "square",
+    "n": "north", "s": "south", "e": "east", "w": "west",
+    "ne": "northeast", "nw": "northwest", "se": "southeast", "sw": "southwest",
+}
+
+
+def _norm_tokens(text: str):
+    """Lowercase, strip punctuation, and expand street abbreviations to tokens."""
+    cleaned = re.sub(r"[^a-z0-9]+", " ", (text or "").lower())
+    return [_ADDR_ABBR.get(w, w) for w in cleaned.split()]
+
+
+def _listing_slug(href: str) -> str:
+    """The {address-slug} portion of a /real-estate/{id}/{slug} href, hyphens→spaces."""
     m = re.search(r"/real-estate/\d+/([^/?#]+)", href or "")
-    if not m:
-        return "", 0
-    return _parse_address_sort(m.group(1).replace("-", " "))
+    return m.group(1).replace("-", " ") if m else ""
+
+
+def _listing_id(href: str) -> int:
+    """The numeric {id} from a /real-estate/{id}/ href (higher = more recent)."""
+    m = re.search(r"/real-estate/(\d+)/", href or "")
+    return int(m.group(1)) if m else -1
+
+
+def _slug_address(href: str):
+    """Parse (street_name, number) from a listing href (kept for diagnostics)."""
+    slug = _listing_slug(href)
+    return _parse_address_sort(slug) if slug else ("", 0)
 
 
 def address_matches(address: str, href: str) -> bool:
-    """True if a stored address matches a listing-URL slug.
+    """True only if the listing slug is the SAME street address as ``address``.
 
-    Matches on exact street number plus the first significant street-name word,
-    used to prefer the right search result when several realtor.ca links appear.
+    Strict on purpose: requires the exact street number and every street-name
+    word — name, type, and directional — to appear in the slug (abbreviations
+    normalised on both sides). So 'King St W' won't match 'King St E', and
+    'Main St' won't match 'Main Ave'. City is not required (realtor.ca groups
+    some towns under regions), only the street.
     """
-    t_name, t_num = _parse_address_sort(address or "")
-    s_name, s_num = _slug_address(href)
-    if not t_name or t_num != s_num:
+    slug_tokens = _norm_tokens(_listing_slug(href))
+    if not slug_tokens:
         return False
-    t_tokens = t_name.split()
-    s_tokens = set(s_name.split())
-    return bool(t_tokens) and t_tokens[0] in s_tokens
+
+    # Street portion only (before the first comma), so the city doesn't dilute it.
+    a = _norm_tokens((address or "").split(",")[0])
+    num_idx = next((i for i, w in enumerate(a) if w.isdigit()), None)
+    if num_idx is None:
+        return False
+    number = a[num_idx]
+    street = [w for w in a[num_idx + 1:] if not w.isdigit()]   # name + direction
+    if not street:
+        return False
+
+    slug_set = set(slug_tokens)
+    if number not in slug_set:
+        return False
+    return all(w in slug_set for w in street)
 
 
 def listing_candidates(links, address: str):
-    """Ordered realtor.ca listing links to try for an address.
+    """realtor.ca listing links whose address matches, newest first.
 
-    Address-slug matches come first (most likely the right property), then the
-    remaining /real-estate/ links — relistings produce several IDs and the stale
-    ones 404, so the caller tries them in turn. Duplicates removed, order kept.
+    Only exact street matches are returned — never a 'close enough' listing.
+    Several may match (relistings reuse the address under new IDs), so they are
+    ordered by listing ID descending — the highest ID is the most recent listing,
+    which is the one whose price we want. Duplicates removed.
     """
-    real    = [h for h in links if "/real-estate/" in h]
-    matches = [h for h in real if address_matches(address, h)]
-    ordered, seen = [], set()
-    for h in matches + real:
-        if h not in seen:
+    matches, seen = [], set()
+    for h in links:
+        if "/real-estate/" in h and address_matches(address, h) and h not in seen:
             seen.add(h)
-            ordered.append(h)
-    return ordered
+            matches.append(h)
+    matches.sort(key=_listing_id, reverse=True)
+    return matches
 
 
 class RealtorScraper:

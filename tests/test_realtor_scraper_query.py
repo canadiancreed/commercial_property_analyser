@@ -35,18 +35,46 @@ def test_no_match_on_empty_address():
     assert not address_matches("", HREF)
 
 
+def test_no_match_on_wrong_direction():
+    # 'King St W' must not match a 'King St E' listing.
+    href_e = "/real-estate/5/100-king-street-east-belleville"
+    assert address_matches("100 King St E", href_e)
+    assert not address_matches("100 King St W", href_e)
+
+
+def test_no_match_on_wrong_street_type():
+    # 'Main St' must not match a 'Main Ave' listing.
+    href_ave = "/real-estate/6/100-main-avenue-ottawa"
+    assert not address_matches("100 Main St", href_ave)
+    assert address_matches("100 Main Ave", href_ave)
+
+
+def test_no_match_on_substring_number():
+    # '100' must not match a '1000 King' listing.
+    assert not address_matches("100 King St", "/real-estate/7/1000-king-street-toronto")
+
+
+def test_no_match_on_different_number_same_street_and_town():
+    # Reported case: 104 King St must not match 154 King St in the same town.
+    href = "/real-estate/8/154-king-street-belleville"
+    assert not address_matches("104 King St, Belleville", href)
+    assert address_matches("154 King St, Belleville", href)
+    # And it is not offered as a candidate at all.
+    assert listing_candidates(["https://www.realtor.ca" + href],
+                              "104 King St, Belleville") == []
+
+
 # ── listing_candidates ────────────────────────────────────────────────────────
 
-def test_candidates_put_address_match_first():
+def test_candidates_returns_only_matches():
     links = [
         "https://www.realtor.ca/on/belleville/commercial-real-estate",  # not a listing
         "https://www.realtor.ca/real-estate/999/9-other-rd-belleville",  # listing, no match
         "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville",  # match
     ]
     got = listing_candidates(links, "249-253 Front Street, Belleville")
-    assert got[0] == "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville"
-    # both /real-estate/ links are kept, the city page is dropped
-    assert len(got) == 2
+    # Only the matching listing — never the non-matching one.
+    assert got == ["https://www.realtor.ca/real-estate/111/249-253-front-street-belleville"]
 
 
 def test_candidates_empty_when_no_listing_links():
@@ -54,9 +82,16 @@ def test_candidates_empty_when_no_listing_links():
         ["https://www.realtor.ca/on/belleville/commercial-real-estate"], "1 Main St") == []
 
 
-def test_candidates_dedupe_preserves_order():
+def test_candidates_dedupe():
     dup = "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville"
     assert listing_candidates([dup, dup], "249-253 Front Street") == [dup]
+
+
+def test_candidates_ordered_by_highest_id_first():
+    # Relistings of the same address: newest (highest /real-estate/{id}) first.
+    old = "https://www.realtor.ca/real-estate/27097914/249-253-front-street-belleville"
+    new = "https://www.realtor.ca/real-estate/29924721/249-253-front-street-belleville"
+    assert listing_candidates([old, new], "249-253 Front Street, Belleville") == [new, old]
 
 
 def test_query_appends_province_when_missing():
