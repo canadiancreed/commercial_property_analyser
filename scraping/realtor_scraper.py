@@ -1,9 +1,11 @@
 """realtor.ca listing price scraper, driven by Playwright.
 
 realtor.ca's own search is unreliable (wrong matches, missing listings, heavy
-JS), so instead we **Google the address, open the first realtor.ca listing link,
-and read the price straight off that listing's detail page**. Google sends us
-directly to the right listing, which sidesteps realtor.ca's map/search entirely.
+JS), so instead we **web-search the address, open the first realtor.ca listing
+link, and read the price straight off that listing's detail page**. The search
+sends us directly to the right listing, sidestepping realtor.ca's map/search
+entirely. We search with Bing rather than Google, which hard-CAPTCHAs automated
+queries.
 
 To survive realtor.ca's Akamai bot defences this drives Firefox with a persistent
 on-disk profile, suppresses the automation fingerprint (Firefox prefs + an init
@@ -14,7 +16,7 @@ Memory: each lookup runs in its own page that is closed afterwards, and the whol
 browser context is recycled every ``recycle_every`` lookups, so a long sweep does
 not grow until it hangs.
 
-When realtor.ca (or Google) changes its markup, the selectors below are the single
+When realtor.ca (or the search engine) changes its markup, the selectors below are the single
 place to fix.
 """
 
@@ -29,7 +31,7 @@ from urllib.parse import quote_plus
 from core.address import _display_address, _parse_address_sort
 
 # Persistent browser profile — cookies and any solved challenge survive between
-# runs, which makes realtor.ca's Akamai bot manager (and Google consent) less
+# runs, which makes realtor.ca's Akamai bot manager (and search-engine consent) less
 # likely to re-challenge us. Lives outside the repo.
 USER_DATA_DIR = os.path.join(os.path.expanduser("~"),
                              ".commercial_property_analyser", "realtor_firefox_profile")
@@ -50,22 +52,27 @@ Object.defineProperty(navigator, 'languages', {get: () => ['en-CA', 'en']});
 Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
 """
 
-# ── realtor.ca / Google markup (the one place to fix on breakage) ──
+# ── realtor.ca / search-engine markup (the one place to fix on breakage) ──
 BASE_URL = "https://www.realtor.ca"
 HOME_URL = BASE_URL + "/"
-GOOGLE_SEARCH_URL = "https://www.google.com/search?q="
 
-# Google's cookie-consent buttons (first visible is clicked).
-GOOGLE_CONSENT_SELECTORS = [
-    "button#L2AGLb",
-    "button:has-text('Accept all')",
+# Web-search entry point. Google hard-CAPTCHAs automated queries no matter what,
+# so we use Bing — it returns the same site:realtor.ca links without the "unusual
+# traffic" wall.
+SEARCH_URL  = "https://www.bing.com/search?q="
+SEARCH_HOME = "https://www.bing.com/"
+
+# Search-engine cookie/consent buttons (first visible is clicked).
+CONSENT_SELECTORS = [
+    "button#bnp_btn_accept",         # Bing
+    "a#bnp_btn_accept",
+    "button:has-text('Accept')",
+    "button:has-text('Reject')",
     "button:has-text('I agree')",
-    "button:has-text('Reject all')",
-    "form[action*='consent'] button",
 ]
 
-# Collects every realtor.ca result link from a Google results page, unwrapping
-# Google's /url?q= redirect form when present.
+# Collects every realtor.ca result link from a search results page, unwrapping
+# a /url?q= redirect form if one is present.
 REALTOR_LINKS_JS = r"""
 () => {
   const out = [];
@@ -108,9 +115,10 @@ BLOCK_MARKERS = ("access denied", "you don't have permission to access",
                  "unusual traffic", "/cdn-cgi/challenge", "just a moment",
                  "verify you are a human")
 
-# Google's own "are you a robot" interstitial.
-GOOGLE_BLOCK_MARKERS = ("unusual traffic", "detected unusual",
-                        "/sorry/index", "before you continue to google")
+# Search-engine "are you a robot" interstitial.
+SEARCH_BLOCK_MARKERS = ("unusual traffic", "detected unusual",
+                        "/sorry/index", "verify you are a human",
+                        "are you a robot")
 
 # The listing detail page is no longer live (sold / expired / removed).
 NOT_FOUND_MARKERS = ("no longer available", "listing has expired",
@@ -133,7 +141,7 @@ class FetchResult:
 
 
 def build_query(address: str, city: str = "", province: str = "") -> str:
-    """Build the address text used in the Google query.
+    """Build the address text used in the search query.
 
     Stored addresses often omit the province (e.g. ``"24-26 Main St S,
     Alexandria"``); this appends city/province only when not already present.
@@ -148,8 +156,8 @@ def build_query(address: str, city: str = "", province: str = "") -> str:
     return ", ".join(p for p in parts if p)
 
 
-def google_query(address: str, city: str = "", province: str = "") -> str:
-    """Full Google query string, restricted to realtor.ca."""
+def search_query(address: str, city: str = "", province: str = "") -> str:
+    """Full web-search query string, restricted to realtor.ca."""
     return build_query(address, city, province) + " site:realtor.ca"
 
 
@@ -178,7 +186,7 @@ def address_matches(address: str, href: str) -> bool:
     """True if a stored address matches a listing-URL slug.
 
     Matches on exact street number plus the first significant street-name word,
-    used to prefer the right Google result when several realtor.ca links appear.
+    used to prefer the right search result when several realtor.ca links appear.
     """
     t_name, t_num = _parse_address_sort(address or "")
     s_name, s_num = _slug_address(href)
@@ -190,7 +198,7 @@ def address_matches(address: str, href: str) -> bool:
 
 
 def pick_listing(links, address: str):
-    """Choose the best realtor.ca listing link from Google results.
+    """Choose the best realtor.ca listing link from search results.
 
     Prefers a /real-estate/ link whose slug matches the address; otherwise the
     first /real-estate/ link. Returns None if no listing link is present.
@@ -278,16 +286,18 @@ class RealtorScraper:
         self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
 
     def open_home(self) -> bool:
-        """Open realtor.ca; return True if it shows a block.
+        """Open the search engine; return True if it shows a robot check.
 
-        Warm-up: with a headful, persistent-profile browser the user can solve the
-        Akamai/CAPTCHA challenge once by hand and the cookie carries the batch.
+        Warm-up: with a headful, persistent-profile browser the user can clear any
+        consent/CAPTCHA once by hand and the cookie carries the batch. We warm up
+        on the search engine (the lookup's entry point), not realtor.ca.
         """
         try:
-            self._page.goto(HOME_URL, wait_until="domcontentloaded")
+            self._page.goto(SEARCH_HOME, wait_until="domcontentloaded")
             time.sleep(random.uniform(1.0, 2.0))
-            self._dismiss_overlays()
-            return self._is_blocked()
+            self._dismiss_consent()
+            body = (self._page.content() or "").lower()
+            return any(m in body for m in SEARCH_BLOCK_MARKERS)
         except Exception:
             return True
 
@@ -326,8 +336,8 @@ class RealtorScraper:
             if not acted:
                 break
 
-    def _dismiss_google_consent(self):
-        btn = self._first_visible(GOOGLE_CONSENT_SELECTORS)
+    def _dismiss_consent(self):
+        btn = self._first_visible(CONSENT_SELECTORS)
         if btn is not None:
             try:
                 btn.click(timeout=3000)
@@ -356,7 +366,7 @@ class RealtorScraper:
 
     def fetch_price(self, address: str, city: str = "",
                     province: str = "") -> FetchResult:
-        """Google the address, open the first realtor.ca listing, read its price.
+        """Search the address, open the first realtor.ca listing, read its price.
 
         Runs in its own page (closed afterwards) and recycles the browser every
         ``recycle_every`` lookups to bound memory. Never raises: any failure maps
@@ -370,23 +380,24 @@ class RealtorScraper:
         page = self._context.new_page()
         self._page = page
         try:
-            # 1) Google the address (restricted to realtor.ca).
-            page.goto(GOOGLE_SEARCH_URL + quote_plus(google_query(address, city, province)),
+            # 1) Web-search the address (restricted to realtor.ca).
+            page.goto(SEARCH_URL + quote_plus(search_query(address, city, province)),
                       wait_until="domcontentloaded")
-            self._dismiss_google_consent()
+            self._dismiss_consent()
             time.sleep(random.uniform(1.0, 2.0))
 
             body = (page.content() or "").lower()
-            if any(m in body for m in GOOGLE_BLOCK_MARKERS):
+            if any(m in body for m in SEARCH_BLOCK_MARKERS):
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
             listing = pick_listing(page.evaluate(REALTOR_LINKS_JS) or [], address)
             if not listing:
-                # Google surfaced no realtor.ca listing → not currently listed.
+                # No realtor.ca listing surfaced → not currently listed.
                 return FetchResult(outcome=OUTCOME_NOT_FOUND)
 
-            # 2) Open the listing detail page and read the price.
-            page.goto(listing, wait_until="domcontentloaded")
+            # 2) Open the listing detail page and read the price (a search referer
+            #    makes the deep-link load look natural to realtor.ca).
+            page.goto(listing, wait_until="domcontentloaded", referer=SEARCH_HOME)
             time.sleep(random.uniform(1.5, 2.5))
             self._dismiss_overlays()
             if self._is_blocked():
