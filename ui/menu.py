@@ -606,7 +606,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
     def _price_check(self):
         """Look stored properties up on realtor.ca and report price changes.
 
-        Drives a real Chromium browser (slow, and realtor.ca may rate-limit a
+        Drives a real Firefox browser (slow, and realtor.ca may rate-limit a
         large sweep), so it confirms before starting and checkpoints every result
         to disk — an interrupted run can be resumed instead of restarted. Read-only
         on properties.json; results go to an HTML report, nothing is written back.
@@ -690,7 +690,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             except Exception as exc:
                 print(f"\n  Browser error: {exc}")
                 print("  Is Playwright installed?  pip install playwright && "
-                      "python -m playwright install chromium")
+                      "python -m playwright install firefox")
             else:
                 print(" done.")
         else:

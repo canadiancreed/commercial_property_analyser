@@ -2,10 +2,10 @@
 
 realtor.ca has no usable public API and aggressively blocks automated access
 (Akamai bot manager + reCAPTCHA), so prices are read by driving a browser with
-human-like pacing. To survive the bot defences this uses the system Chrome build
-with a persistent on-disk profile, strips the automation fingerprint (launch
-flags + an init script), and relies on a one-time human warm-up (``open_home``)
-to clear the initial challenge — the resulting cookie carries the batch. This is
+human-like pacing. To survive the bot defences this drives Firefox with a
+persistent on-disk profile, suppresses the automation fingerprint (Firefox prefs
++ an init script), and relies on a one-time human warm-up (``open_home``) to
+clear the initial challenge — the resulting cookie carries the batch. This is
 inherently brittle: when realtor.ca changes its markup, the selectors below are
 the single place to fix.
 
@@ -29,32 +29,22 @@ from core.address import _display_address
 # runs, which makes realtor.ca's Akamai bot manager less likely to re-block us.
 # Lives outside the repo.
 USER_DATA_DIR = os.path.join(os.path.expanduser("~"),
-                             ".commercial_property_analyser", "realtor_profile")
+                             ".commercial_property_analyser", "realtor_firefox_profile")
 
-# Chromium launch args that remove the tell-tale automation signals Akamai keys
-# on. ``--enable-automation`` is dropped via ignore_default_args in __enter__.
-STEALTH_ARGS = [
-    "--disable-blink-features=AutomationControlled",
-    "--disable-infobars",
-    "--start-maximized",
-]
+# Firefox prefs that suppress the automation fingerprint Akamai keys on.
+FIREFOX_PREFS = {
+    "dom.webdriver.enabled": False,      # hides navigator.webdriver at the engine level
+    "useAutomationExtension": False,
+    "media.peerconnection.enabled": False,
+    "intl.accept_languages": "en-CA, en",
+}
 
-# Injected before any page script runs to mask the headless/automation
-# fingerprint (navigator.webdriver, plugins, languages, window.chrome).
+# Injected before any page script runs as a belt-and-braces mask over the
+# automation fingerprint (navigator.webdriver / plugins / languages).
 STEALTH_INIT_JS = """
 Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
 Object.defineProperty(navigator, 'languages', {get: () => ['en-CA', 'en']});
 Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-window.chrome = window.chrome || {runtime: {}};
-const _origQuery = window.navigator.permissions &&
-                   window.navigator.permissions.query;
-if (_origQuery) {
-  window.navigator.permissions.query = (p) => (
-    p && p.name === 'notifications'
-      ? Promise.resolve({state: Notification.permission})
-      : _origQuery(p)
-  );
-}
 """
 
 # ── realtor.ca markup-dependent selectors (the one place to fix on breakage) ──
@@ -140,7 +130,7 @@ def _parse_price(text: str) -> Optional[float]:
 
 
 class RealtorScraper:
-    """Drives one persistent Chromium context across many lookups.
+    """Drives one persistent Firefox context across many lookups.
 
     Re-launching the browser per property is a fast route to getting blocked, so
     a single context is reused for the whole batch. Use as a context manager::
@@ -148,10 +138,6 @@ class RealtorScraper:
         with RealtorScraper() as scraper:
             result = scraper.fetch_price(address, city, province)
     """
-
-    USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/123.0.0.0 Safari/537.36")
 
     def __init__(self, headless: bool = False, min_delay: float = 3.0,
                  max_delay: float = 8.0, nav_timeout_ms: int = 30000,
@@ -168,28 +154,21 @@ class RealtorScraper:
 
     # ── lifecycle ─────────────────────────────────────────────────────────
     def _launch_context(self):
-        """Launch a stealthy persistent context, preferring real Chrome.
+        """Launch a stealthy persistent Firefox context.
 
-        A persistent context (real on-disk profile) plus the system Chrome build
-        looks far more human to Akamai than a fresh bundled-Chromium context.
-        Falls back to bundled Chromium if Chrome isn't installed.
+        A persistent context (real on-disk profile, so cookies and a solved
+        challenge survive) plus Firefox's native user-agent and webdriver pref
+        looks far more human to Akamai than a fresh automated Chromium context.
         """
         os.makedirs(self._user_data_dir, exist_ok=True)
-        common = dict(
+        return self._pw.firefox.launch_persistent_context(
             user_data_dir=self._user_data_dir,
             headless=self._headless,
-            args=STEALTH_ARGS,
-            ignore_default_args=["--enable-automation"],
-            user_agent=self.USER_AGENT,
+            firefox_user_prefs=FIREFOX_PREFS,
             locale="en-CA",
             timezone_id="America/Toronto",
             viewport={"width": 1366, "height": 900},
         )
-        try:
-            return self._pw.chromium.launch_persistent_context(channel="chrome", **common)
-        except Exception:
-            # No system Chrome — fall back to the bundled Chromium build.
-            return self._pw.chromium.launch_persistent_context(**common)
 
     def __enter__(self):
         from playwright.sync_api import sync_playwright
