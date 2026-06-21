@@ -124,12 +124,17 @@ PRICE_SELECTORS = [
 ]
 
 # Text fragments that signal an anti-bot challenge rather than a real result.
-BLOCK_MARKERS = ("just a moment", "checking your browser", "captcha",
-                 "cf-challenge", "access denied", "unusual traffic")
+# Kept specific on purpose: a bare "captcha" would match realtor.ca's site-wide
+# reCAPTCHA script and flag every good page as blocked.
+BLOCK_MARKERS = ("access denied", "you don't have permission to access",
+                 "pardon our interruption", "request unsuccessful",
+                 "unusual traffic", "/cdn-cgi/challenge", "just a moment",
+                 "verify you are a human")
 
 # Text fragments that signal a genuinely empty search (delisted / 404).
 NOT_FOUND_MARKERS = ("no results", "we couldn't find", "0 listings",
-                     "no properties found", "page not found")
+                     "results: 0", "no listings found", "no properties found",
+                     "page not found")
 
 # realtor.ca sometimes rejects a free-typed search and demands you pick from the
 # autocomplete dropdown. These fragments flag that prompt so we can retry.
@@ -373,6 +378,51 @@ class RealtorScraper:
             return False
         return any(m in body for m in SELECT_ADDRESS_MARKERS)
 
+    def _wait_for_results(self, polls: int = 6):
+        """Poll until result cards render or a 'no results' state appears.
+
+        The map + results list loads asynchronously after the page settles, so a
+        single early read can see zero cards on a perfectly good search and wrongly
+        flag it blocked.
+        """
+        cards = []
+        for _ in range(polls):
+            cards = self._page.evaluate(LISTINGS_JS) or []
+            if cards:
+                return cards
+            body = (self._page.content() or "").lower()
+            if any(m in body for m in NOT_FOUND_MARKERS):
+                return []
+            time.sleep(random.uniform(1.0, 1.8))
+        return cards
+
+    def _price_from_detail(self, url: str):
+        """Open a listing's detail page and read its price.
+
+        Used when a matched result card's price didn't parse — the listing exists,
+        so fetch the price from its own page rather than giving up (which would
+        wrongly report 'not checked').
+        """
+        try:
+            self._page.goto(url, wait_until="domcontentloaded")
+            time.sleep(random.uniform(1.5, 2.5))
+            self._dismiss_overlays()
+            return self._read_price()
+        except Exception:
+            return None
+
+    def save_debug(self, path_prefix: str):
+        """Write the current page's HTML and a screenshot for diagnosis."""
+        try:
+            with open(path_prefix + ".html", "w", encoding="utf-8") as f:
+                f.write(self._page.content() or "")
+        except Exception:
+            pass
+        try:
+            self._page.screenshot(path=path_prefix + ".png", full_page=True)
+        except Exception:
+            pass
+
     def fetch_price(self, address: str, city: str = "",
                     province: str = "") -> FetchResult:
         """Search realtor.ca (Commercial tab) for an address and return its price.
@@ -412,14 +462,18 @@ class RealtorScraper:
             if self._is_blocked():
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
-            # The search resolves to a map + results list. Match our address
-            # against the result cards and read that card's price.
-            cards = self._page.evaluate(LISTINGS_JS) or []
+            # The search resolves to a map + results list (loaded async). Match our
+            # address against the result cards and read that card's price.
+            cards = self._wait_for_results()
             for card in cards:
                 if address_matches(address, card.get("href", "")):
                     href  = card["href"]
                     url   = BASE_URL + href if href.startswith("/") else href
                     price = _parse_price(card.get("price") or "")
+                    if price is None:
+                        # Listing exists but the card price didn't parse — read it
+                        # from the detail page rather than reporting 'not checked'.
+                        price = self._price_from_detail(url)
                     return FetchResult(price=price, outcome=OUTCOME_FOUND,
                                        listing_url=url)
 

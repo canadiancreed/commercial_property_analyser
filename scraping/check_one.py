@@ -26,6 +26,9 @@ def main(argv=None):
                     help="Stored asking price to compare against (optional)")
     ap.add_argument("--headless", action="store_true",
                     help="Run the browser without a visible window")
+    ap.add_argument("--debug", metavar="PREFIX", default=None,
+                    help="Save the final page's HTML + screenshot to PREFIX.html/.png "
+                         "for diagnosing a wrong result")
     args = ap.parse_args(argv)
 
     print(f"  Search    : {build_query(args.address, args.city, args.province)}")
@@ -36,6 +39,9 @@ def main(argv=None):
             input("  realtor.ca is challenging the browser. Solve any CAPTCHA / "
                   "'Access Denied'\n  page in the window, then press Enter: ")
         result = scraper.fetch_price(args.address, args.city, args.province)
+        if args.debug:
+            scraper.save_debug(args.debug)
+            print(f"  Debug     : wrote {args.debug}.html and {args.debug}.png")
 
     print(f"  Outcome   : {result.outcome}")
     print(f"  Price     : {result.price}")
