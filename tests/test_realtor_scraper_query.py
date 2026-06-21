@@ -54,6 +54,21 @@ def test_no_match_on_substring_number():
     assert not address_matches("100 King St", "/real-estate/7/1000-king-street-toronto")
 
 
+def test_no_match_on_same_street_different_town():
+    # Reported case: 9 Main St, Athens must not match 9 Main St, Uxbridge.
+    uxbridge = "/real-estate/10/9-main-street-uxbridge"
+    athens   = "/real-estate/11/9-main-street-athens"
+    assert not address_matches("9 Main St, Athens", uxbridge)
+    assert address_matches("9 Main St, Athens", athens)
+    # City can also be supplied explicitly rather than in the address string.
+    assert not address_matches("9 Main St", uxbridge, city="Athens")
+    assert address_matches("9 Main St", athens, city="Athens")
+    # Only the right-town listing is offered.
+    assert listing_candidates(["https://www.realtor.ca" + uxbridge,
+                               "https://www.realtor.ca" + athens],
+                              "9 Main St, Athens") == ["https://www.realtor.ca" + athens]
+
+
 def test_no_match_on_different_number_same_street_and_town():
     # Reported case: 104 King St must not match 154 King St in the same town.
     href = "/real-estate/8/154-king-street-belleville"
