@@ -199,6 +199,12 @@ def _listing_slug(href: str) -> str:
     return m.group(1).replace("-", " ") if m else ""
 
 
+def _listing_id(href: str) -> int:
+    """The numeric {id} from a /real-estate/{id}/ href (higher = more recent)."""
+    m = re.search(r"/real-estate/(\d+)/", href or "")
+    return int(m.group(1)) if m else -1
+
+
 def _slug_address(href: str):
     """Parse (street_name, number) from a listing href (kept for diagnostics)."""
     slug = _listing_slug(href)
@@ -235,18 +241,20 @@ def address_matches(address: str, href: str) -> bool:
 
 
 def listing_candidates(links, address: str):
-    """realtor.ca listing links whose address matches, in result order.
+    """realtor.ca listing links whose address matches, newest first.
 
     Only exact street matches are returned — never a 'close enough' listing.
-    Several may match (relistings reuse the address under new IDs and the stale
-    ones 404), so the caller tries them in turn. Duplicates removed, order kept.
+    Several may match (relistings reuse the address under new IDs), so they are
+    ordered by listing ID descending — the highest ID is the most recent listing,
+    which is the one whose price we want. Duplicates removed.
     """
-    ordered, seen = [], set()
+    matches, seen = [], set()
     for h in links:
         if "/real-estate/" in h and address_matches(address, h) and h not in seen:
             seen.add(h)
-            ordered.append(h)
-    return ordered
+            matches.append(h)
+    matches.sort(key=_listing_id, reverse=True)
+    return matches
 
 
 class RealtorScraper:

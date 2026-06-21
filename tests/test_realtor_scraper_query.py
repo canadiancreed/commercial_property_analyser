@@ -82,9 +82,16 @@ def test_candidates_empty_when_no_listing_links():
         ["https://www.realtor.ca/on/belleville/commercial-real-estate"], "1 Main St") == []
 
 
-def test_candidates_dedupe_preserves_order():
+def test_candidates_dedupe():
     dup = "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville"
     assert listing_candidates([dup, dup], "249-253 Front Street") == [dup]
+
+
+def test_candidates_ordered_by_highest_id_first():
+    # Relistings of the same address: newest (highest /real-estate/{id}) first.
+    old = "https://www.realtor.ca/real-estate/27097914/249-253-front-street-belleville"
+    new = "https://www.realtor.ca/real-estate/29924721/249-253-front-street-belleville"
+    assert listing_candidates([old, new], "249-253 Front Street, Belleville") == [new, old]
 
 
 def test_query_appends_province_when_missing():
