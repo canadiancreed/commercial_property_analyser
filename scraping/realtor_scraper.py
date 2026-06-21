@@ -4,8 +4,8 @@ realtor.ca's own search is unreliable (wrong matches, missing listings, heavy
 JS), so instead we **web-search the address, open the first realtor.ca listing
 link, and read the price straight off that listing's detail page**. The search
 sends us directly to the right listing, sidestepping realtor.ca's map/search
-entirely. We search with Bing rather than Google, which hard-CAPTCHAs automated
-queries.
+entirely. We search with DuckDuckGo's HTML endpoint — Google and Bing both
+CAPTCHA automated queries, DuckDuckGo does not.
 
 To survive realtor.ca's Akamai bot defences this drives Firefox with a persistent
 on-disk profile, suppresses the automation fingerprint (Firefox prefs + an init
@@ -56,33 +56,33 @@ Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
 BASE_URL = "https://www.realtor.ca"
 HOME_URL = BASE_URL + "/"
 
-# Web-search entry point. Google hard-CAPTCHAs automated queries no matter what,
-# so we use Bing — it returns the same site:realtor.ca links without the "unusual
-# traffic" wall.
-SEARCH_URL  = "https://www.bing.com/search?q="
-SEARCH_HOME = "https://www.bing.com/"
+# Web-search entry point. Google and Bing both CAPTCHA automated queries;
+# DuckDuckGo's HTML endpoint serves plain results without a robot wall and returns
+# the current realtor.ca listing links (verified against live listings).
+SEARCH_URL  = "https://html.duckduckgo.com/html/?q="
+SEARCH_HOME = "https://duckduckgo.com/"
 
-# Search-engine cookie/consent buttons (first visible is clicked).
+# Search-engine cookie/consent buttons (first visible is clicked). DuckDuckGo's
+# HTML endpoint has none; kept harmless for other engines.
 CONSENT_SELECTORS = [
-    "button#bnp_btn_accept",         # Bing
-    "a#bnp_btn_accept",
     "button:has-text('Accept')",
-    "button:has-text('Reject')",
     "button:has-text('I agree')",
 ]
 
 # Collects every realtor.ca result link from a search results page, unwrapping
-# a /url?q= redirect form if one is present.
+# the redirect wrappers search engines use (DuckDuckGo's /l/?uddg= and Google's
+# /url?q=).
 REALTOR_LINKS_JS = r"""
 () => {
   const out = [];
+  const add = (u) => { if (u && u.indexOf('realtor.ca') !== -1) out.push(u); };
   document.querySelectorAll('a[href]').forEach(a => {
-    let h = a.getAttribute('href') || '';
-    if (h.startsWith('/url?')) {
-      const m = h.match(/[?&]q=([^&]+)/);
-      if (m) h = decodeURIComponent(m[1]);
-    }
-    if (h.indexOf('http') === 0 && h.indexOf('realtor.ca') !== -1) out.push(h);
+    const h = a.getAttribute('href') || '';
+    let m = h.match(/[?&]uddg=([^&]+)/);          // DuckDuckGo redirect
+    if (m) { add(decodeURIComponent(m[1])); return; }
+    m = h.match(/^\/url\?.*[?&]q=([^&]+)/);         // Google redirect
+    if (m) { add(decodeURIComponent(m[1])); return; }
+    if (h.indexOf('http') === 0) add(h);            // direct link
   });
   return out;
 }
@@ -197,19 +197,21 @@ def address_matches(address: str, href: str) -> bool:
     return bool(t_tokens) and t_tokens[0] in s_tokens
 
 
-def pick_listing(links, address: str):
-    """Choose the best realtor.ca listing link from search results.
+def listing_candidates(links, address: str):
+    """Ordered realtor.ca listing links to try for an address.
 
-    Prefers a /real-estate/ link whose slug matches the address; otherwise the
-    first /real-estate/ link. Returns None if no listing link is present.
+    Address-slug matches come first (most likely the right property), then the
+    remaining /real-estate/ links — relistings produce several IDs and the stale
+    ones 404, so the caller tries them in turn. Duplicates removed, order kept.
     """
-    real = [h for h in links if "/real-estate/" in h]
-    if not real:
-        return None
-    for h in real:
-        if address_matches(address, h):
-            return h
-    return real[0]
+    real    = [h for h in links if "/real-estate/" in h]
+    matches = [h for h in real if address_matches(address, h)]
+    ordered, seen = [], set()
+    for h in matches + real:
+        if h not in seen:
+            seen.add(h)
+            ordered.append(h)
+    return ordered
 
 
 class RealtorScraper:
@@ -221,8 +223,8 @@ class RealtorScraper:
             result = scraper.fetch_price(address, city, province)
     """
 
-    def __init__(self, headless: bool = False, min_delay: float = 3.0,
-                 max_delay: float = 8.0, nav_timeout_ms: int = 30000,
+    def __init__(self, headless: bool = False, min_delay: float = 6.0,
+                 max_delay: float = 14.0, nav_timeout_ms: int = 30000,
                  user_data_dir: str = USER_DATA_DIR, recycle_every: int = 40):
         self._headless       = headless
         self._min_delay      = min_delay
@@ -390,29 +392,38 @@ class RealtorScraper:
             if any(m in body for m in SEARCH_BLOCK_MARKERS):
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
-            listing = pick_listing(page.evaluate(REALTOR_LINKS_JS) or [], address)
-            if not listing:
+            candidates = listing_candidates(page.evaluate(REALTOR_LINKS_JS) or [], address)
+            if not candidates:
                 # No realtor.ca listing surfaced → not currently listed.
                 return FetchResult(outcome=OUTCOME_NOT_FOUND)
 
-            # 2) Open the listing detail page and read the price (a search referer
-            #    makes the deep-link load look natural to realtor.ca).
-            page.goto(listing, wait_until="domcontentloaded", referer=SEARCH_HOME)
-            time.sleep(random.uniform(1.5, 2.5))
-            self._dismiss_overlays()
-            if self._is_blocked():
-                return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=listing)
+            # 2) Try the candidate listings in turn. Relistings leave stale IDs
+            #    that 404, so fall through to the next until one yields a price.
+            #    A search referer makes the deep-link load look natural.
+            saw_live = False
+            for listing in candidates[:3]:
+                resp = page.goto(listing, wait_until="domcontentloaded", referer=SEARCH_HOME)
+                time.sleep(random.uniform(1.5, 2.5))
+                self._dismiss_overlays()
+                if self._is_blocked():
+                    return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=listing)
+                if resp is not None and resp.status >= 400:
+                    continue                      # stale relisting → next candidate
 
-            price = self._read_price()
-            if price is not None:
-                return FetchResult(price=price, outcome=OUTCOME_FOUND, listing_url=listing)
+                saw_live = True
+                price = self._read_price()
+                if price is not None:
+                    return FetchResult(price=price, outcome=OUTCOME_FOUND, listing_url=listing)
+                body = (page.content() or "").lower()
+                if any(m in body for m in NOT_FOUND_MARKERS):
+                    continue                      # delisted page → try next candidate
 
-            body = (page.content() or "").lower()
-            if any(m in body for m in NOT_FOUND_MARKERS):
-                return FetchResult(outcome=OUTCOME_NOT_FOUND, listing_url=listing)
-
-            # Loaded a listing page but found no price — unexpected layout/challenge.
-            return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=listing)
+            # Live listing page(s) loaded but no price parsed → unexpected layout
+            # (flag for a selector fix); if every candidate 404'd → not listed.
+            return FetchResult(
+                outcome=OUTCOME_BLOCKED if saw_live else OUTCOME_NOT_FOUND,
+                listing_url=candidates[0],
+            )
 
         except Exception:
             return FetchResult(outcome=OUTCOME_BLOCKED)

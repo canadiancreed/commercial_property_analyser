@@ -3,7 +3,7 @@
 All pure helpers — no network.
 """
 from scraping.realtor_scraper import (
-    build_query, _parse_price, address_matches, _slug_address,
+    build_query, _parse_price, address_matches, _slug_address, listing_candidates,
 )
 
 HREF = "/real-estate/29920973/129-principale-street-the-nation-605-the-nation-municipality"
@@ -33,6 +33,30 @@ def test_no_match_on_wrong_street():
 
 def test_no_match_on_empty_address():
     assert not address_matches("", HREF)
+
+
+# ── listing_candidates ────────────────────────────────────────────────────────
+
+def test_candidates_put_address_match_first():
+    links = [
+        "https://www.realtor.ca/on/belleville/commercial-real-estate",  # not a listing
+        "https://www.realtor.ca/real-estate/999/9-other-rd-belleville",  # listing, no match
+        "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville",  # match
+    ]
+    got = listing_candidates(links, "249-253 Front Street, Belleville")
+    assert got[0] == "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville"
+    # both /real-estate/ links are kept, the city page is dropped
+    assert len(got) == 2
+
+
+def test_candidates_empty_when_no_listing_links():
+    assert listing_candidates(
+        ["https://www.realtor.ca/on/belleville/commercial-real-estate"], "1 Main St") == []
+
+
+def test_candidates_dedupe_preserves_order():
+    dup = "https://www.realtor.ca/real-estate/111/249-253-front-street-belleville"
+    assert listing_candidates([dup, dup], "249-253 Front Street") == [dup]
 
 
 def test_query_appends_province_when_missing():
