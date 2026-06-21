@@ -1,9 +1,13 @@
 """realtor.ca listing price scraper, driven by Playwright.
 
 realtor.ca has no usable public API and aggressively blocks automated access
-(Cloudflare + reCAPTCHA), so prices are read by driving a real Chromium browser
-with human-like pacing. This is inherently brittle: when realtor.ca changes its
-markup, the selectors below are the single place to fix.
+(Akamai bot manager + reCAPTCHA), so prices are read by driving a browser with
+human-like pacing. To survive the bot defences this drives Firefox with a
+persistent on-disk profile, suppresses the automation fingerprint (Firefox prefs
++ an init script), and relies on a one-time human warm-up (``open_home``) to
+clear the initial challenge — the resulting cookie carries the batch. This is
+inherently brittle: when realtor.ca changes its markup, the selectors below are
+the single place to fix.
 
 Listings are looked up by **address** rather than MLS number — relisted
 properties get a new MLS number, so the address is the durable key.
@@ -12,6 +16,7 @@ Network/Playwright imports are lazy so this module (and ``build_query``) can be
 imported and unit-tested without Playwright installed.
 """
 
+import os
 import random
 import re
 import time
@@ -19,6 +24,28 @@ from dataclasses import dataclass
 from typing import Optional
 
 from core.address import _display_address
+
+# Persistent browser profile — cookies and any solved challenge survive between
+# runs, which makes realtor.ca's Akamai bot manager less likely to re-block us.
+# Lives outside the repo.
+USER_DATA_DIR = os.path.join(os.path.expanduser("~"),
+                             ".commercial_property_analyser", "realtor_firefox_profile")
+
+# Firefox prefs that suppress the automation fingerprint Akamai keys on.
+FIREFOX_PREFS = {
+    "dom.webdriver.enabled": False,      # hides navigator.webdriver at the engine level
+    "useAutomationExtension": False,
+    "media.peerconnection.enabled": False,
+    "intl.accept_languages": "en-CA, en",
+}
+
+# Injected before any page script runs as a belt-and-braces mask over the
+# automation fingerprint (navigator.webdriver / plugins / languages).
+STEALTH_INIT_JS = """
+Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+Object.defineProperty(navigator, 'languages', {get: () => ['en-CA', 'en']});
+Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+"""
 
 # ── realtor.ca markup-dependent selectors (the one place to fix on breakage) ──
 HOME_URL = "https://www.realtor.ca/"
@@ -103,7 +130,7 @@ def _parse_price(text: str) -> Optional[float]:
 
 
 class RealtorScraper:
-    """Drives one persistent Chromium context across many lookups.
+    """Drives one persistent Firefox context across many lookups.
 
     Re-launching the browser per property is a fast route to getting blocked, so
     a single context is reused for the whole batch. Use as a context manager::
@@ -112,49 +139,73 @@ class RealtorScraper:
             result = scraper.fetch_price(address, city, province)
     """
 
-    USER_AGENT = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                  "AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/123.0.0.0 Safari/537.36")
-
     def __init__(self, headless: bool = False, min_delay: float = 3.0,
-                 max_delay: float = 8.0, nav_timeout_ms: int = 30000):
+                 max_delay: float = 8.0, nav_timeout_ms: int = 30000,
+                 user_data_dir: str = USER_DATA_DIR):
         self._headless       = headless
         self._min_delay      = min_delay
         self._max_delay      = max_delay
         self._nav_timeout_ms = nav_timeout_ms
+        self._user_data_dir  = user_data_dir
         self._pw             = None
-        self._browser        = None
         self._context        = None
         self._page           = None
         self._first          = True
 
     # ── lifecycle ─────────────────────────────────────────────────────────
+    def _launch_context(self):
+        """Launch a stealthy persistent Firefox context.
+
+        A persistent context (real on-disk profile, so cookies and a solved
+        challenge survive) plus Firefox's native user-agent and webdriver pref
+        looks far more human to Akamai than a fresh automated Chromium context.
+        """
+        os.makedirs(self._user_data_dir, exist_ok=True)
+        return self._pw.firefox.launch_persistent_context(
+            user_data_dir=self._user_data_dir,
+            headless=self._headless,
+            firefox_user_prefs=FIREFOX_PREFS,
+            locale="en-CA",
+            timezone_id="America/Toronto",
+            viewport={"width": 1366, "height": 900},
+        )
+
     def __enter__(self):
         from playwright.sync_api import sync_playwright
         self._pw = sync_playwright().start()
-        self._browser = self._pw.chromium.launch(headless=self._headless)
-        self._context = self._browser.new_context(
-            user_agent=self.USER_AGENT,
-            viewport={"width": 1366, "height": 900},
-            locale="en-CA",
-        )
+        self._context = self._launch_context()
         self._context.set_default_timeout(self._nav_timeout_ms)
-        self._page = self._context.new_page()
+        self._context.add_init_script(STEALTH_INIT_JS)
+        # A persistent context opens with one blank page; reuse it.
+        self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
         return self
 
     def __exit__(self, exc_type, exc, tb):
-        for closer in (self._context, self._browser):
-            try:
-                if closer:
-                    closer.close()
-            except Exception:
-                pass
+        try:
+            if self._context:
+                self._context.close()
+        except Exception:
+            pass
         try:
             if self._pw:
                 self._pw.stop()
         except Exception:
             pass
         return False
+
+    def open_home(self) -> bool:
+        """Navigate to the realtor.ca homepage; return True if it shows a block.
+
+        Used as a warm-up: with a headful, persistent-profile browser the user can
+        solve the Akamai/CAPTCHA challenge once by hand and the cookie carries the
+        rest of the batch.
+        """
+        try:
+            self._page.goto(HOME_URL, wait_until="domcontentloaded")
+            time.sleep(random.uniform(1.0, 2.0))
+            return self._is_blocked()
+        except Exception:
+            return True
 
     # ── fetching ──────────────────────────────────────────────────────────
     def _throttle(self):
