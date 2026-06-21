@@ -1,5 +1,38 @@
-"""Tests for realtor.ca search-query building and price parsing (no network)."""
-from scraping.realtor_scraper import build_query, _parse_price
+"""Tests for realtor.ca query building, address matching, and price parsing.
+
+All pure helpers — no network.
+"""
+from scraping.realtor_scraper import (
+    build_query, _parse_price, address_matches, _slug_address,
+)
+
+HREF = "/real-estate/29920973/129-principale-street-the-nation-605-the-nation-municipality"
+
+
+def test_slug_address_parses_number_and_name():
+    name, num = _slug_address(HREF)
+    assert num == 129
+    assert "principale" in name.split()
+
+
+def test_match_on_number_and_street_word():
+    assert address_matches("129 Principale Street, The Nation", HREF)
+
+
+def test_match_normalizes_street_abbreviation():
+    assert address_matches("129 Principale St", HREF)
+
+
+def test_no_match_on_wrong_number():
+    assert not address_matches("131 Principale Street", HREF)
+
+
+def test_no_match_on_wrong_street():
+    assert not address_matches("129 Main Street", HREF)
+
+
+def test_no_match_on_empty_address():
+    assert not address_matches("", HREF)
 
 
 def test_query_appends_province_when_missing():

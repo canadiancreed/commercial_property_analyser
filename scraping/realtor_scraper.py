@@ -20,7 +20,7 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-from core.address import _display_address
+from core.address import _display_address, _parse_address_sort
 
 # Persistent browser profile — cookies and any solved challenge survive between
 # runs, which makes realtor.ca's Akamai bot manager less likely to re-block us.
@@ -45,7 +45,20 @@ Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
 """
 
 # ── realtor.ca markup-dependent selectors (the one place to fix on breakage) ──
-HOME_URL = "https://www.realtor.ca/"
+BASE_URL = "https://www.realtor.ca"
+HOME_URL = BASE_URL + "/"
+
+# Blocking overlays that appear on load — a feedback survey ("Would you be
+# willing to share your feedback…", answer No) and the cookie banner (Dismiss).
+# Each visible match is clicked to clear it; tried after every navigation.
+DISMISS_SELECTORS = [
+    "button:text-is('No')",        # feedback survey — answer No
+    "a:text-is('No')",
+    "button:has-text('Dismiss')",  # cookie banner
+    "a:has-text('Dismiss')",
+    "[aria-label='Close']",
+    "[aria-label='close']",
+]
 
 # The Commercial tab/toggle next to the search bar. Tried in order; first match
 # wins. Selecting it is what makes the search return commercial listings.
@@ -76,7 +89,32 @@ AUTOCOMPLETE_SELECTORS = [
     "ul[role='listbox'] li",
 ]
 
-# Price element on a listing detail page.
+# A search lands on a map + results-list page, not a single listing. Each result
+# card in the left sidebar links to /real-estate/{id}/{address-slug} and shows a
+# price, so we read {id, href, price} from every card and match our address.
+# Climbs from each listing link to the nearest ancestor containing a dollar
+# amount, so it does not depend on exact card class names.
+LISTINGS_JS = r"""
+() => {
+  const out = [], seen = new Set();
+  document.querySelectorAll("a[href*='/real-estate/']").forEach(a => {
+    const href = a.getAttribute('href') || '';
+    const m = href.match(/\/real-estate\/(\d+)\//);
+    if (!m || seen.has(m[1])) return;
+    let el = a, price = null;
+    for (let i = 0; i < 6 && el; i++) {
+      const pm = (el.textContent || '').match(/\$[\d,]{4,}/);
+      if (pm) { price = pm[0]; break; }
+      el = el.parentElement;
+    }
+    seen.add(m[1]);
+    out.push({id: m[1], href: href, price: price});
+  });
+  return out;
+}
+"""
+
+# Price element when a search resolves straight to a single listing detail page.
 PRICE_SELECTORS = [
     "#listingPriceValue",
     "[data-testid='listing-price']",
@@ -136,6 +174,30 @@ def _parse_price(text: str) -> Optional[float]:
         return float(m.group(1).replace(",", ""))
     except ValueError:
         return None
+
+
+def _slug_address(href: str):
+    """Parse (street_name, number) from a /real-estate/{id}/{address-slug} href."""
+    m = re.search(r"/real-estate/\d+/([^/?#]+)", href or "")
+    if not m:
+        return "", 0
+    return _parse_address_sort(m.group(1).replace("-", " "))
+
+
+def address_matches(address: str, href: str) -> bool:
+    """True if a stored address matches a result card's listing-URL slug.
+
+    Matches on exact street number plus the first significant street-name word
+    (as a whole word) — enough to pick the right card out of a results list
+    without tripping on shared house numbers or common tokens like directionals.
+    """
+    t_name, t_num = _parse_address_sort(address or "")
+    s_name, s_num = _slug_address(href)
+    if not t_name or t_num != s_num:
+        return False
+    t_tokens = t_name.split()
+    s_tokens = set(s_name.split())
+    return bool(t_tokens) and t_tokens[0] in s_tokens
 
 
 class RealtorScraper:
@@ -212,6 +274,7 @@ class RealtorScraper:
         try:
             self._page.goto(HOME_URL, wait_until="domcontentloaded")
             time.sleep(random.uniform(1.0, 2.0))
+            self._dismiss_overlays()
             self._select_commercial()
             return self._is_blocked()
         except Exception:
@@ -246,17 +309,35 @@ class RealtorScraper:
             except Exception:
                 pass
 
+    def _dismiss_overlays(self):
+        """Close blocking pop-ups (feedback survey 'No', cookie 'Dismiss')."""
+        for _ in range(2):
+            acted = False
+            for sel in DISMISS_SELECTORS:
+                loc = self._page.locator(sel).first
+                try:
+                    if loc.count() and loc.is_visible():
+                        loc.click(timeout=2000)
+                        acted = True
+                        time.sleep(random.uniform(0.3, 0.7))
+                except Exception:
+                    continue
+            if not acted:
+                break
+
     def fetch_price(self, address: str, city: str = "",
                     province: str = "") -> FetchResult:
         """Search realtor.ca (Commercial tab) for an address and return its price.
 
-        Never raises: any failure is mapped to OUTCOME_BLOCKED so a single bad
-        lookup cannot abort a batch sweep.
+        A search lands on a map + results-list page, so we match the address
+        against the result cards. Never raises: any failure maps to
+        OUTCOME_BLOCKED so a single bad lookup cannot abort a batch sweep.
         """
         self._throttle()
         query = build_query(address, city, province)
         try:
             self._page.goto(HOME_URL, wait_until="domcontentloaded")
+            self._dismiss_overlays()
             if self._is_blocked():
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
@@ -280,24 +361,38 @@ class RealtorScraper:
                 suggestion.click()
 
             self._page.wait_for_load_state("domcontentloaded")
-            time.sleep(random.uniform(1.0, 2.0))
+            time.sleep(random.uniform(2.0, 3.5))
+            self._dismiss_overlays()
             if self._is_blocked():
                 return FetchResult(outcome=OUTCOME_BLOCKED)
 
-            url  = self._page.url
-            body = (self._page.content() or "").lower()
+            # The search resolves to a map + results list. Match our address
+            # against the result cards and read that card's price.
+            cards = self._page.evaluate(LISTINGS_JS) or []
+            for card in cards:
+                if address_matches(address, card.get("href", "")):
+                    href  = card["href"]
+                    url   = BASE_URL + href if href.startswith("/") else href
+                    price = _parse_price(card.get("price") or "")
+                    return FetchResult(price=price, outcome=OUTCOME_FOUND,
+                                       listing_url=url)
 
+            # If the search jumped straight to a single listing detail page,
+            # there are no cards — read the detail price instead.
             price = self._read_price()
             if price is not None:
-                return FetchResult(price=price, outcome=OUTCOME_FOUND, listing_url=url)
+                return FetchResult(price=price, outcome=OUTCOME_FOUND,
+                                   listing_url=self._page.url)
 
-            if any(m in body for m in NOT_FOUND_MARKERS):
-                return FetchResult(outcome=OUTCOME_NOT_FOUND, listing_url=url)
+            # Results loaded but our address isn't among them (or an explicit
+            # "no results") → genuinely not listed.
+            body = (self._page.content() or "").lower()
+            if cards or any(m in body for m in NOT_FOUND_MARKERS):
+                return FetchResult(outcome=OUTCOME_NOT_FOUND, listing_url=self._page.url)
 
-            # Reached a page but found no price and no explicit "no results" —
-            # most likely a challenge or an unexpected layout: report as blocked
-            # so it is never miscounted as a genuine delisting.
-            return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=url)
+            # No cards, no price, no "no results" text → most likely a challenge
+            # or unexpected layout; never miscount it as a genuine delisting.
+            return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=self._page.url)
 
         except Exception:
             return FetchResult(outcome=OUTCOME_BLOCKED)
