@@ -1,16 +1,21 @@
 """realtor.ca listing price scraper, driven by Playwright.
 
-realtor.ca has no usable public API and aggressively blocks automated access
-(Akamai bot manager + reCAPTCHA), so prices are read by driving a browser with
-human-like pacing. To survive the bot defences this drives Firefox with a
-persistent on-disk profile, suppresses the automation fingerprint (Firefox prefs
-+ an init script), and relies on a one-time human warm-up (``open_home``) to
-clear the initial challenge — the resulting cookie carries the batch.
+realtor.ca's own search is unreliable (wrong matches, missing listings, heavy
+JS), so instead we **Google the address, open the first realtor.ca listing link,
+and read the price straight off that listing's detail page**. Google sends us
+directly to the right listing, which sidesteps realtor.ca's map/search entirely.
 
-Lookup flow: open realtor.ca, **select the Commercial tab**, type the address
-into the search bar, open the matching listing, and read its price. This is
-inherently brittle: when realtor.ca changes its markup, the selectors below are
-the single place to fix.
+To survive realtor.ca's Akamai bot defences this drives Firefox with a persistent
+on-disk profile, suppresses the automation fingerprint (Firefox prefs + an init
+script), and relies on a one-time human warm-up (``open_home``) to clear the
+initial challenge — the resulting cookie carries the batch.
+
+Memory: each lookup runs in its own page that is closed afterwards, and the whole
+browser context is recycled every ``recycle_every`` lookups, so a long sweep does
+not grow until it hangs.
+
+When realtor.ca (or Google) changes its markup, the selectors below are the single
+place to fix.
 """
 
 import os
@@ -19,12 +24,13 @@ import re
 import time
 from dataclasses import dataclass
 from typing import Optional
+from urllib.parse import quote_plus
 
 from core.address import _display_address, _parse_address_sort
 
 # Persistent browser profile — cookies and any solved challenge survive between
-# runs, which makes realtor.ca's Akamai bot manager less likely to re-block us.
-# Lives outside the repo.
+# runs, which makes realtor.ca's Akamai bot manager (and Google consent) less
+# likely to re-challenge us. Lives outside the repo.
 USER_DATA_DIR = os.path.join(os.path.expanduser("~"),
                              ".commercial_property_analyser", "realtor_firefox_profile")
 
@@ -44,77 +50,49 @@ Object.defineProperty(navigator, 'languages', {get: () => ['en-CA', 'en']});
 Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
 """
 
-# ── realtor.ca markup-dependent selectors (the one place to fix on breakage) ──
+# ── realtor.ca / Google markup (the one place to fix on breakage) ──
 BASE_URL = "https://www.realtor.ca"
 HOME_URL = BASE_URL + "/"
+GOOGLE_SEARCH_URL = "https://www.google.com/search?q="
 
-# Blocking overlays that appear on load — a feedback survey ("Would you be
-# willing to share your feedback…", answer No) and the cookie banner (Dismiss).
-# Each visible match is clicked to clear it; tried after every navigation.
-DISMISS_SELECTORS = [
-    "button:text-is('No')",        # feedback survey — answer No
-    "a:text-is('No')",
-    "button:has-text('Dismiss')",  # cookie banner
-    "a:has-text('Dismiss')",
-    "[aria-label='Close']",
-    "[aria-label='close']",
+# Google's cookie-consent buttons (first visible is clicked).
+GOOGLE_CONSENT_SELECTORS = [
+    "button#L2AGLb",
+    "button:has-text('Accept all')",
+    "button:has-text('I agree')",
+    "button:has-text('Reject all')",
+    "form[action*='consent'] button",
 ]
 
-# The Commercial tab/toggle next to the search bar. Tried in order; first match
-# wins. Selecting it is what makes the search return commercial listings.
-COMMERCIAL_TAB_SELECTORS = [
-    "a#commercialTab",
-    "button:has-text('Commercial')",
-    "a:has-text('Commercial')",
-    "label:has-text('Commercial')",
-    "[class*='commercial' i] a",
-    "img[src*='commercial']",
-]
-
-# The address search box.
-SEARCH_INPUT_SELECTORS = [
-    "#homeSearchInput",
-    "input#smallSearchBox",
-    "input[name='searchBox']",
-    "input[placeholder*='Address' i]",
-    "input[placeholder*='city' i]",
-    "input[type='search']",
-]
-
-# Autocomplete suggestion rows that appear as you type an address.
-AUTOCOMPLETE_SELECTORS = [
-    "#autoCompleteContainerNS .autocompleteResult",
-    ".autocompleteResult",
-    "[class*='autocomplete'] li",
-    "ul[role='listbox'] li",
-]
-
-# A search lands on a map + results-list page, not a single listing. Each result
-# card in the left sidebar links to /real-estate/{id}/{address-slug} and shows a
-# price, so we read {id, href, price} from every card and match our address.
-# Climbs from each listing link to the nearest ancestor containing a dollar
-# amount, so it does not depend on exact card class names.
-LISTINGS_JS = r"""
+# Collects every realtor.ca result link from a Google results page, unwrapping
+# Google's /url?q= redirect form when present.
+REALTOR_LINKS_JS = r"""
 () => {
-  const out = [], seen = new Set();
-  document.querySelectorAll("a[href*='/real-estate/']").forEach(a => {
-    const href = a.getAttribute('href') || '';
-    const m = href.match(/\/real-estate\/(\d+)\//);
-    if (!m || seen.has(m[1])) return;
-    let el = a, price = null;
-    for (let i = 0; i < 6 && el; i++) {
-      const pm = (el.textContent || '').match(/\$[\d,]{4,}/);
-      if (pm) { price = pm[0]; break; }
-      el = el.parentElement;
+  const out = [];
+  document.querySelectorAll('a[href]').forEach(a => {
+    let h = a.getAttribute('href') || '';
+    if (h.startsWith('/url?')) {
+      const m = h.match(/[?&]q=([^&]+)/);
+      if (m) h = decodeURIComponent(m[1]);
     }
-    seen.add(m[1]);
-    out.push({id: m[1], href: href, price: price});
+    if (h.indexOf('http') === 0 && h.indexOf('realtor.ca') !== -1) out.push(h);
   });
   return out;
 }
 """
 
-# Price element when a search resolves straight to a single listing detail page.
+# Blocking overlays on a realtor.ca listing page — feedback survey (answer No)
+# and the cookie banner (Dismiss). Each visible match is clicked.
+DISMISS_SELECTORS = [
+    "button:text-is('No')",
+    "a:text-is('No')",
+    "button:has-text('Dismiss')",
+    "a:has-text('Dismiss')",
+    "[aria-label='Close']",
+    "[aria-label='close']",
+]
+
+# Price element on a listing detail page.
 PRICE_SELECTORS = [
     "#listingPriceValue",
     "[data-testid='listing-price']",
@@ -123,24 +101,21 @@ PRICE_SELECTORS = [
     "h1 [class*='price']",
 ]
 
-# Text fragments that signal an anti-bot challenge rather than a real result.
-# Kept specific on purpose: a bare "captcha" would match realtor.ca's site-wide
-# reCAPTCHA script and flag every good page as blocked.
+# realtor.ca anti-bot challenge markers (kept specific so a bare 'captcha' in the
+# site-wide reCAPTCHA script can't flag a good page as blocked).
 BLOCK_MARKERS = ("access denied", "you don't have permission to access",
                  "pardon our interruption", "request unsuccessful",
                  "unusual traffic", "/cdn-cgi/challenge", "just a moment",
                  "verify you are a human")
 
-# Text fragments that signal a genuinely empty search (delisted / 404).
-NOT_FOUND_MARKERS = ("no results", "we couldn't find", "0 listings",
-                     "results: 0", "no listings found", "no properties found",
-                     "page not found")
+# Google's own "are you a robot" interstitial.
+GOOGLE_BLOCK_MARKERS = ("unusual traffic", "detected unusual",
+                        "/sorry/index", "before you continue to google")
 
-# realtor.ca sometimes rejects a free-typed search and demands you pick from the
-# autocomplete dropdown. These fragments flag that prompt so we can retry.
-SELECT_ADDRESS_MARKERS = ("select an address", "select a location",
-                          "choose an address", "select one of the",
-                          "from the list", "from those presented")
+# The listing detail page is no longer live (sold / expired / removed).
+NOT_FOUND_MARKERS = ("no longer available", "listing has expired",
+                     "listing not found", "page not found",
+                     "has been sold", "property not found")
 
 # Outcome values for FetchResult.outcome.
 OUTCOME_FOUND     = "found"
@@ -158,11 +133,10 @@ class FetchResult:
 
 
 def build_query(address: str, city: str = "", province: str = "") -> str:
-    """Build the search-bar text from a stored property's location.
+    """Build the address text used in the Google query.
 
     Stored addresses often omit the province (e.g. ``"24-26 Main St S,
-    Alexandria"``); this appends city/province only when not already present so
-    the query reads like a human would type it.
+    Alexandria"``); this appends city/province only when not already present.
     """
     addr = _display_address(address or "").strip().rstrip(",").strip()
     parts = [addr] if addr else []
@@ -172,6 +146,11 @@ def build_query(address: str, city: str = "", province: str = "") -> str:
     if prov and not re.search(rf"\b{prov}\b", addr.upper()):
         parts.append(prov)
     return ", ".join(p for p in parts if p)
+
+
+def google_query(address: str, city: str = "", province: str = "") -> str:
+    """Full Google query string, restricted to realtor.ca."""
+    return build_query(address, city, province) + " site:realtor.ca"
 
 
 def _parse_price(text: str) -> Optional[float]:
@@ -196,11 +175,10 @@ def _slug_address(href: str):
 
 
 def address_matches(address: str, href: str) -> bool:
-    """True if a stored address matches a result card's listing-URL slug.
+    """True if a stored address matches a listing-URL slug.
 
-    Matches on exact street number plus the first significant street-name word
-    (as a whole word) — enough to pick the right card out of a results list
-    without tripping on shared house numbers or common tokens like directionals.
+    Matches on exact street number plus the first significant street-name word,
+    used to prefer the right Google result when several realtor.ca links appear.
     """
     t_name, t_num = _parse_address_sort(address or "")
     s_name, s_num = _slug_address(href)
@@ -211,11 +189,25 @@ def address_matches(address: str, href: str) -> bool:
     return bool(t_tokens) and t_tokens[0] in s_tokens
 
 
-class RealtorScraper:
-    """Drives one persistent Firefox context across many lookups.
+def pick_listing(links, address: str):
+    """Choose the best realtor.ca listing link from Google results.
 
-    Re-launching the browser per property is a fast route to getting blocked, so
-    a single context is reused for the whole batch. Use as a context manager::
+    Prefers a /real-estate/ link whose slug matches the address; otherwise the
+    first /real-estate/ link. Returns None if no listing link is present.
+    """
+    real = [h for h in links if "/real-estate/" in h]
+    if not real:
+        return None
+    for h in real:
+        if address_matches(address, h):
+            return h
+    return real[0]
+
+
+class RealtorScraper:
+    """Drives a persistent Firefox context, one page per lookup.
+
+    Use as a context manager::
 
         with RealtorScraper() as scraper:
             result = scraper.fetch_price(address, city, province)
@@ -223,27 +215,24 @@ class RealtorScraper:
 
     def __init__(self, headless: bool = False, min_delay: float = 3.0,
                  max_delay: float = 8.0, nav_timeout_ms: int = 30000,
-                 user_data_dir: str = USER_DATA_DIR):
+                 user_data_dir: str = USER_DATA_DIR, recycle_every: int = 40):
         self._headless       = headless
         self._min_delay      = min_delay
         self._max_delay      = max_delay
         self._nav_timeout_ms = nav_timeout_ms
         self._user_data_dir  = user_data_dir
+        self._recycle_every  = recycle_every
         self._pw             = None
         self._context        = None
         self._page           = None
         self._first          = True
+        self._fetch_count    = 0
 
     # ── lifecycle ─────────────────────────────────────────────────────────
     def _launch_context(self):
-        """Launch a stealthy persistent Firefox context.
-
-        A persistent context (real on-disk profile, so cookies and a solved
-        challenge survive) plus Firefox's native user-agent and webdriver pref
-        looks far more human to Akamai than a fresh automated Chromium context.
-        """
+        """Launch a stealthy persistent Firefox context."""
         os.makedirs(self._user_data_dir, exist_ok=True)
-        return self._pw.firefox.launch_persistent_context(
+        ctx = self._pw.firefox.launch_persistent_context(
             user_data_dir=self._user_data_dir,
             headless=self._headless,
             firefox_user_prefs=FIREFOX_PREFS,
@@ -251,14 +240,14 @@ class RealtorScraper:
             timezone_id="America/Toronto",
             viewport={"width": 1366, "height": 900},
         )
+        ctx.set_default_timeout(self._nav_timeout_ms)
+        ctx.add_init_script(STEALTH_INIT_JS)
+        return ctx
 
     def __enter__(self):
         from playwright.sync_api import sync_playwright
         self._pw = sync_playwright().start()
         self._context = self._launch_context()
-        self._context.set_default_timeout(self._nav_timeout_ms)
-        self._context.add_init_script(STEALTH_INIT_JS)
-        # A persistent context opens with one blank page; reuse it.
         self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
         return self
 
@@ -275,18 +264,29 @@ class RealtorScraper:
             pass
         return False
 
-    def open_home(self) -> bool:
-        """Open realtor.ca, select the Commercial tab, return True if blocked.
+    def _recycle(self):
+        """Close and relaunch the browser context to release accumulated memory.
 
-        Used as a warm-up: with a headful, persistent-profile browser the user can
-        solve the Akamai/CAPTCHA challenge once by hand and the cookie carries the
-        rest of the batch. Leaves the Commercial tab selected.
+        Cookies persist via the on-disk profile, so no re-challenge is needed.
+        """
+        try:
+            if self._context:
+                self._context.close()
+        except Exception:
+            pass
+        self._context = self._launch_context()
+        self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
+
+    def open_home(self) -> bool:
+        """Open realtor.ca; return True if it shows a block.
+
+        Warm-up: with a headful, persistent-profile browser the user can solve the
+        Akamai/CAPTCHA challenge once by hand and the cookie carries the batch.
         """
         try:
             self._page.goto(HOME_URL, wait_until="domcontentloaded")
             time.sleep(random.uniform(1.0, 2.0))
             self._dismiss_overlays()
-            self._select_commercial()
             return self._is_blocked()
         except Exception:
             return True
@@ -310,16 +310,6 @@ class RealtorScraper:
                 continue
         return None
 
-    def _select_commercial(self):
-        """Click the Commercial tab so the search returns commercial listings."""
-        tab = self._first_visible(COMMERCIAL_TAB_SELECTORS)
-        if tab is not None:
-            try:
-                tab.click()
-                time.sleep(random.uniform(0.6, 1.4))
-            except Exception:
-                pass
-
     def _dismiss_overlays(self):
         """Close blocking pop-ups (feedback survey 'No', cookie 'Dismiss')."""
         for _ in range(2):
@@ -336,166 +326,14 @@ class RealtorScraper:
             if not acted:
                 break
 
-    def _autocomplete_pick(self, retries: int = 5) -> bool:
-        """Click the first autocomplete suggestion once it appears; True if clicked.
-
-        realtor.ca expects you to pick from the dropdown rather than submit raw
-        text, so this is preferred over pressing Enter.
-        """
-        for _ in range(retries):
-            time.sleep(random.uniform(0.6, 1.1))
-            s = self._first_visible(AUTOCOMPLETE_SELECTORS)
-            if s is not None:
-                try:
-                    s.click()
-                    return True
-                except Exception:
-                    return False
-        return False
-
-    def _run_search(self, box, query: str, force_pick: bool = False):
-        """Type the query and submit by picking an autocomplete suggestion.
-
-        Falls back to Enter only when no suggestion appears and ``force_pick`` is
-        not set. Waits for the results page to settle.
-        """
-        box.click()
-        box.fill("")
-        box.type(query, delay=random.randint(40, 110))
-        if not self._autocomplete_pick() and not force_pick:
-            box.press("Enter")
-        try:
-            self._page.wait_for_load_state("domcontentloaded")
-        except Exception:
-            pass
-        time.sleep(random.uniform(2.0, 3.5))
-
-    def _needs_address_selection(self) -> bool:
-        """True if realtor.ca is showing the 'pick an address from the list' prompt."""
-        try:
-            body = (self._page.content() or "").lower()
-        except Exception:
-            return False
-        return any(m in body for m in SELECT_ADDRESS_MARKERS)
-
-    def _wait_for_results(self, polls: int = 6):
-        """Poll until result cards render or a 'no results' state appears.
-
-        The map + results list loads asynchronously after the page settles, so a
-        single early read can see zero cards on a perfectly good search and wrongly
-        flag it blocked.
-        """
-        cards = []
-        for _ in range(polls):
-            cards = self._page.evaluate(LISTINGS_JS) or []
-            if cards:
-                return cards
-            body = (self._page.content() or "").lower()
-            if any(m in body for m in NOT_FOUND_MARKERS):
-                return []
-            time.sleep(random.uniform(1.0, 1.8))
-        return cards
-
-    def _price_from_detail(self, url: str):
-        """Open a listing's detail page and read its price.
-
-        Used when a matched result card's price didn't parse — the listing exists,
-        so fetch the price from its own page rather than giving up (which would
-        wrongly report 'not checked').
-        """
-        try:
-            self._page.goto(url, wait_until="domcontentloaded")
-            time.sleep(random.uniform(1.5, 2.5))
-            self._dismiss_overlays()
-            return self._read_price()
-        except Exception:
-            return None
-
-    def save_debug(self, path_prefix: str):
-        """Write the current page's HTML and a screenshot for diagnosis."""
-        try:
-            with open(path_prefix + ".html", "w", encoding="utf-8") as f:
-                f.write(self._page.content() or "")
-        except Exception:
-            pass
-        try:
-            self._page.screenshot(path=path_prefix + ".png", full_page=True)
-        except Exception:
-            pass
-
-    def fetch_price(self, address: str, city: str = "",
-                    province: str = "") -> FetchResult:
-        """Search realtor.ca (Commercial tab) for an address and return its price.
-
-        A search lands on a map + results-list page, so we match the address
-        against the result cards. Never raises: any failure maps to
-        OUTCOME_BLOCKED so a single bad lookup cannot abort a batch sweep.
-        """
-        self._throttle()
-        query = build_query(address, city, province)
-        try:
-            self._page.goto(HOME_URL, wait_until="domcontentloaded")
-            self._dismiss_overlays()
-            if self._is_blocked():
-                return FetchResult(outcome=OUTCOME_BLOCKED)
-
-            # Switch to Commercial before searching.
-            self._select_commercial()
-
-            box = self._first_visible(SEARCH_INPUT_SELECTORS)
-            if box is None:
-                # Couldn't find the search box → treat as a block, not a 404.
-                return FetchResult(outcome=OUTCOME_BLOCKED)
-
-            self._run_search(box, query)
-            self._dismiss_overlays()
-
-            # realtor.ca sometimes rejects a free-typed search with a "select an
-            # address from those presented" prompt. Satisfy it by retyping and
-            # picking from the autocomplete dropdown; if it still insists, move on.
-            if self._needs_address_selection():
-                box = self._first_visible(SEARCH_INPUT_SELECTORS)
-                if box is not None:
-                    self._run_search(box, query, force_pick=True)
-                    self._dismiss_overlays()
-
-            if self._is_blocked():
-                return FetchResult(outcome=OUTCOME_BLOCKED)
-
-            # The search resolves to a map + results list (loaded async). Match our
-            # address against the result cards and read that card's price.
-            cards = self._wait_for_results()
-            for card in cards:
-                if address_matches(address, card.get("href", "")):
-                    href  = card["href"]
-                    url   = BASE_URL + href if href.startswith("/") else href
-                    price = _parse_price(card.get("price") or "")
-                    if price is None:
-                        # Listing exists but the card price didn't parse — read it
-                        # from the detail page rather than reporting 'not checked'.
-                        price = self._price_from_detail(url)
-                    return FetchResult(price=price, outcome=OUTCOME_FOUND,
-                                       listing_url=url)
-
-            # If the search jumped straight to a single listing detail page,
-            # there are no cards — read the detail price instead.
-            price = self._read_price()
-            if price is not None:
-                return FetchResult(price=price, outcome=OUTCOME_FOUND,
-                                   listing_url=self._page.url)
-
-            # Results loaded but our address isn't among them (or an explicit
-            # "no results") → genuinely not listed.
-            body = (self._page.content() or "").lower()
-            if cards or any(m in body for m in NOT_FOUND_MARKERS):
-                return FetchResult(outcome=OUTCOME_NOT_FOUND, listing_url=self._page.url)
-
-            # No cards, no price, no "no results" text → most likely a challenge
-            # or unexpected layout; never miscount it as a genuine delisting.
-            return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=self._page.url)
-
-        except Exception:
-            return FetchResult(outcome=OUTCOME_BLOCKED)
+    def _dismiss_google_consent(self):
+        btn = self._first_visible(GOOGLE_CONSENT_SELECTORS)
+        if btn is not None:
+            try:
+                btn.click(timeout=3000)
+                time.sleep(random.uniform(0.6, 1.2))
+            except Exception:
+                pass
 
     def _is_blocked(self) -> bool:
         try:
@@ -515,3 +353,72 @@ class RealtorScraper:
             except Exception:
                 pass
         return None
+
+    def fetch_price(self, address: str, city: str = "",
+                    province: str = "") -> FetchResult:
+        """Google the address, open the first realtor.ca listing, read its price.
+
+        Runs in its own page (closed afterwards) and recycles the browser every
+        ``recycle_every`` lookups to bound memory. Never raises: any failure maps
+        to OUTCOME_BLOCKED so a single bad lookup cannot abort a batch sweep.
+        """
+        self._throttle()
+        self._fetch_count += 1
+        if self._recycle_every and self._fetch_count % self._recycle_every == 0:
+            self._recycle()
+
+        page = self._context.new_page()
+        self._page = page
+        try:
+            # 1) Google the address (restricted to realtor.ca).
+            page.goto(GOOGLE_SEARCH_URL + quote_plus(google_query(address, city, province)),
+                      wait_until="domcontentloaded")
+            self._dismiss_google_consent()
+            time.sleep(random.uniform(1.0, 2.0))
+
+            body = (page.content() or "").lower()
+            if any(m in body for m in GOOGLE_BLOCK_MARKERS):
+                return FetchResult(outcome=OUTCOME_BLOCKED)
+
+            listing = pick_listing(page.evaluate(REALTOR_LINKS_JS) or [], address)
+            if not listing:
+                # Google surfaced no realtor.ca listing → not currently listed.
+                return FetchResult(outcome=OUTCOME_NOT_FOUND)
+
+            # 2) Open the listing detail page and read the price.
+            page.goto(listing, wait_until="domcontentloaded")
+            time.sleep(random.uniform(1.5, 2.5))
+            self._dismiss_overlays()
+            if self._is_blocked():
+                return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=listing)
+
+            price = self._read_price()
+            if price is not None:
+                return FetchResult(price=price, outcome=OUTCOME_FOUND, listing_url=listing)
+
+            body = (page.content() or "").lower()
+            if any(m in body for m in NOT_FOUND_MARKERS):
+                return FetchResult(outcome=OUTCOME_NOT_FOUND, listing_url=listing)
+
+            # Loaded a listing page but found no price — unexpected layout/challenge.
+            return FetchResult(outcome=OUTCOME_BLOCKED, listing_url=listing)
+
+        except Exception:
+            return FetchResult(outcome=OUTCOME_BLOCKED)
+        finally:
+            try:
+                page.close()
+            except Exception:
+                pass
+
+    def save_debug(self, path_prefix: str):
+        """Write the current page's HTML and a screenshot for diagnosis."""
+        try:
+            with open(path_prefix + ".html", "w", encoding="utf-8") as f:
+                f.write(self._page.content() or "")
+        except Exception:
+            pass
+        try:
+            self._page.screenshot(path=path_prefix + ".png", full_page=True)
+        except Exception:
+            pass
