@@ -11,7 +11,7 @@ from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
 from reporting.city_report import CityReportGenerator
 from reporting.price_check_report import PriceCheckReportGenerator
-from scraping.realtor_scraper import RealtorScraper
+from scraping.realtor_scraper import RealtorScraper, OUTCOME_FOUND
 from scraping.price_comparator import compare
 from scoring.scorer import PropertyScorer
 from scoring.city_ranker import CityRanker
@@ -89,6 +89,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             print("  1  List all properties")
             print("  2  View analysis for a property")
             print("  3  Add a new property")
+            print("  u  Add a property from a realtor.ca URL")
             print("  4  Edit a property")
             print("  5  Delete a property")
             print("  6  Open investment report in browser")
@@ -107,6 +108,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             if   choice == "1": self._list()
             elif choice == "2": self._view()
             elif choice == "3": self._add()
+            elif choice == "u": self._add_from_url()
             elif choice == "4": self._edit()
             elif choice == "5": self._delete()
             elif choice == "6": self._open_report()
@@ -208,6 +210,81 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         if prop.city and prop.province:
             self._store.ensure_city_in_rates(prop.city, prop.province)
         print(f"  Saved: {_display_address(prop.address)}")
+
+    def _add_from_url(self):
+        """Import a property from a pasted realtor.ca listing URL.
+
+        Parses the basic data realtor.ca reliably exposes (address, price, MLS,
+        storeys, taxes, sq ft, listing date) and saves it as an incomplete,
+        un-analyzed record. Units, unit type, and property type can't be read
+        reliably, so they're left blank for the user to complete via Edit (4).
+        """
+        print(f"\n  ADD PROPERTY FROM REALTOR.CA URL")
+        print(self.THIN_DIVIDER)
+        url = input("  Paste the realtor.ca listing URL (Enter to cancel): ").strip()
+        if not url:
+            print("  Cancelled.")
+            return
+        if "realtor.ca" not in url.lower():
+            print("  That doesn't look like a realtor.ca URL — cancelled.")
+            return
+
+        try:
+            with RealtorScraper() as scraper:
+                # Warm-up: let the user clear any Akamai/CAPTCHA challenge by hand
+                # once; the persistent profile carries it (same as the price check).
+                print("\n  Opening the browser window...")
+                if scraper.open_home():
+                    input("  The browser is being challenged. In the window, solve any\n"
+                          "  CAPTCHA and accept cookies, then press Enter to continue\n"
+                          "  (or Enter anyway to try): ")
+                print("  Reading the listing...")
+                data = scraper.fetch_listing(url)
+        except Exception as exc:
+            print(f"\n  Browser error: {exc}")
+            print("  Is Playwright installed?  pip install playwright && "
+                  "python -m playwright install firefox")
+            return
+
+        if data.outcome != OUTCOME_FOUND:
+            print(f"\n  Could not read that listing ({data.outcome}). Nothing saved.")
+            return
+        if not data.address:
+            print("\n  Couldn't parse an address from that listing. Nothing saved.")
+            return
+        if data.asking_price is None:
+            print("  ⚠  No price found on the listing — saving with price 0; "
+                  "edit it in later.")
+
+        city, province = _parse_city_province(data.address)
+        price          = data.asking_price or 0
+        unit_mix       = UnitMix(floors=data.floors or 1)
+        prop = PropertyInput(
+            address=data.address, mls_number=data.mls_number, status="active",
+            original_price=price, asking_price=price,
+            total_sq_ft=data.total_sq_ft, property_taxes=data.property_taxes or 0,
+            down_payment_pct=0.20, interest_rate=0.045, term_years=25, hold_years=30,
+            expense_ratio=None, lease_type="Normal", property_type=None,
+            listing_date=data.listing_date or date.today().isoformat(),
+            city=city, province=province, unit_mix=unit_mix,
+        )
+
+        record = build_partial_record(prop)
+        record["notes"] = (
+            f"⚠ Imported from realtor.ca on {date.today().isoformat()}: {data.listing_url}. "
+            f"Auto-filled price, MLS, storeys, taxes, sq ft, listing date. "
+            f"VERIFY/ADD: property type, unit count & type, lease type."
+        )
+        self._store.save_property(record)
+        if city and province:
+            self._store.ensure_city_in_rates(city, province)
+
+        print(f"\n  Saved (incomplete): {_display_address(prop.address)}")
+        print(f"    Price ${price:,.0f} | MLS {data.mls_number or '—'} | "
+              f"{data.floors or '—'} storeys | {data.total_sq_ft:,.0f} sq ft | "
+              f"taxes ${data.property_taxes or 0:,.0f} | listed {prop.listing_date}")
+        print("  Complete it with Edit (option 4): add property type and unit mix, "
+              "then analysis runs automatically.")
 
     def _edit(self):
         props = self._sorted_props()

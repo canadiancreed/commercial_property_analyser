@@ -2,8 +2,12 @@
 
 All pure helpers — no network.
 """
+from datetime import date
+
 from scraping.realtor_scraper import (
     build_query, _parse_price, address_matches, _slug_address, listing_candidates,
+    _parse_mls, _parse_storeys, _parse_taxes, _parse_sqft, _parse_time_on_realtor,
+    _clean_listing_address, DEFAULT_SQFT,
 )
 
 HREF = "/real-estate/29920973/129-principale-street-the-nation-605-the-nation-municipality"
@@ -146,3 +150,73 @@ def test_parse_price_none_when_absent():
     assert _parse_price("Contact for price") is None
     assert _parse_price("") is None
     assert _parse_price(None) is None
+
+
+# ── Listing-detail parsers (used by fetch_listing) ──────────────────────────────
+
+def test_parse_mls():
+    assert _parse_mls("MLS® Number  X1234567") == "X1234567"
+    assert _parse_mls("MLS®Number: 40612345") == "40612345"
+    assert _parse_mls("no listing id here") == ""
+
+
+def test_parse_storeys_both_orders():
+    assert _parse_storeys("Storeys 2") == 2
+    assert _parse_storeys("3\nStoreys") == 3
+    assert _parse_storeys("no storey info") is None
+
+
+def test_parse_taxes():
+    assert _parse_taxes("Annual Property Taxes $12,450") == 12450.0
+    assert _parse_taxes("Annual Property Tax: 8000") == 8000.0
+    assert _parse_taxes("taxes unknown") is None
+
+
+def test_parse_sqft_single_value():
+    assert _parse_sqft("Floor Space 3,200 sqft") == 3200.0
+
+
+def test_parse_sqft_range_takes_midpoint():
+    assert _parse_sqft("Building Area 1,000 - 2,000 sqft") == 1500.0
+
+
+def test_parse_sqft_defaults_when_absent():
+    assert _parse_sqft("no area posted") == DEFAULT_SQFT
+
+
+def test_parse_time_on_realtor_hours_is_today():
+    today = date(2026, 6, 24)
+    assert _parse_time_on_realtor("Time on REALTOR.ca: 3 hours", today) == "2026-06-24"
+
+
+def test_parse_time_on_realtor_counts_back_days():
+    today = date(2026, 6, 24)
+    assert _parse_time_on_realtor("Time on REALTOR.ca 45 days", today) == "2026-05-10"
+
+
+def test_parse_time_on_realtor_weeks_and_months():
+    today = date(2026, 6, 24)
+    assert _parse_time_on_realtor("Time on REALTOR.ca 2 weeks", today) == "2026-06-10"
+    assert _parse_time_on_realtor("Time on REALTOR.ca 1 month", today) == "2026-05-25"
+
+
+def test_parse_time_on_realtor_defaults_to_today_when_absent():
+    today = date(2026, 6, 24)
+    assert _parse_time_on_realtor("no time field", today) == "2026-06-24"
+
+
+def test_clean_address_strips_postal_and_expands_province():
+    assert _clean_listing_address("129 Principale Street, The Nation, Ontario K0A 2M0") == \
+        "129 Principale Street, The Nation, ON"
+
+
+def test_clean_address_keeps_existing_code():
+    assert _clean_listing_address("5 King St, Toronto, ON M5H 2N2") == "5 King St, Toronto, ON"
+
+
+def test_clean_address_output_parses_into_city_province():
+    from ui.menu import _parse_city_province
+    cleaned = _clean_listing_address("100 Main St, Belleville, Ontario K8N 1A1")
+    city, province = _parse_city_province(cleaned)
+    assert city == "Belleville"
+    assert province == "ON"
