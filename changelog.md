@@ -6,6 +6,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.3.0] — 2026-06-24
+
+### Added
+
+- **Import a property from a realtor.ca URL** (`ui/menu.py`, `scraping/realtor_scraper.py`,
+  `models/constants.py`): new menu option `u` — paste a realtor.ca listing URL and the app
+  parses the basic data realtor.ca reliably exposes and saves it as an **incomplete,
+  un-analyzed record** (empty `results`, `analyzed_on: None`, shown as `—` in the list).
+  Units, unit type, and property type can't be read reliably, so they're deliberately left
+  blank for the user to complete via Edit (option 4), which then triggers analysis. An
+  auto-note records the source URL and lists what to verify.
+- **`RealtorScraper.fetch_listing(url)` + `ListingData`** — opens a pasted listing URL
+  (reusing the existing persistent-Firefox context, overlay-dismissal, and block/not-found
+  detection) and parses: address, asking price, MLS #, storeys → floors, annual property
+  taxes, square footage, and listing date. Uses the same manual-CAPTCHA warm-up flow as the
+  price check.
+- **Listing-detail parsers** (pure, unit-tested, label-based for durability against layout
+  changes): `_parse_mls`, `_parse_storeys`, `_parse_taxes`, `_parse_sqft`,
+  `_parse_time_on_realtor`, `_clean_listing_address`. Notable rules:
+  - **Square footage** — midpoint when given as a range (`A - B`); falls back to
+    `DEFAULT_SQFT` (5000) when no area is posted.
+  - **Listing date** — derived from "Time on REALTOR.ca": hours → today; days/weeks/months
+    counted backwards from today (weeks×7, months×30).
+  - **Address** — postal code stripped; spelled-out province normalised to its 2-letter code
+    so the result parses cleanly through `_parse_city_province`.
+- **`PROVINCE_NAME_TO_CODE`** in `models/constants.py` — maps spelled-out province/territory
+  names (as realtor.ca shows them, e.g. "Ontario") to the 2-letter codes the app stores.
+
+### Tests
+
+- Added cases to `tests/test_realtor_scraper_query.py` covering every new pure parser,
+  including one that confirms a cleaned address flows correctly through
+  `_parse_city_province` (city + province).
+
 ## [3.2.1] — 2026-06-16
 
 ### Fixed

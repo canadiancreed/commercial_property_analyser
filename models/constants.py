@@ -36,6 +36,27 @@ CANADIAN_PROVINCES = frozenset({
     "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
 })
 
+# Spelled-out province/territory names → 2-letter code. realtor.ca addresses
+# show the full name (e.g. "Ontario"); the rest of the app stores the short
+# form, so imported addresses are normalised through this map.
+PROVINCE_NAME_TO_CODE = {
+    "alberta":                   "AB",
+    "british columbia":          "BC",
+    "manitoba":                  "MB",
+    "new brunswick":             "NB",
+    "newfoundland and labrador": "NL",
+    "newfoundland":              "NL",
+    "nova scotia":               "NS",
+    "northwest territories":     "NT",
+    "nunavut":                   "NU",
+    "ontario":                   "ON",
+    "prince edward island":      "PE",
+    "quebec":                    "QC",
+    "québec":                    "QC",
+    "saskatchewan":              "SK",
+    "yukon":                     "YT",
+}
+
 PROP_SHORTCUTS = {
     "o":  "Office",
     "r":  "Retail",

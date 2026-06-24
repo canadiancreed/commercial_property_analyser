@@ -25,11 +25,12 @@ import random
 import re
 import time
 from dataclasses import dataclass
+from datetime import date, timedelta
 from typing import Optional
 from urllib.parse import quote_plus
 
 from core.address import _display_address, _parse_address_sort
-from models.constants import CANADIAN_PROVINCES
+from models.constants import CANADIAN_PROVINCES, PROVINCE_NAME_TO_CODE
 
 _PROVINCE_TOKENS = {p.lower() for p in CANADIAN_PROVINCES}
 
@@ -111,6 +112,14 @@ PRICE_SELECTORS = [
     "h1 [class*='price']",
 ]
 
+# Address element on a listing detail page.
+ADDRESS_SELECTORS = [
+    "#listingAddress",
+    "[data-testid='listing-address']",
+    "[class*='listingAddress']",
+    "h1[class*='address']",
+]
+
 # realtor.ca anti-bot challenge markers (kept specific so a bare 'captcha' in the
 # site-wide reCAPTCHA script can't flag a good page as blocked).
 BLOCK_MARKERS = ("access denied", "you don't have permission to access",
@@ -141,6 +150,30 @@ class FetchResult:
     price:       Optional[float] = None
     outcome:     str             = OUTCOME_BLOCKED
     listing_url: str             = ""
+
+
+# Square footage used when a listing does not post a floor/building area.
+DEFAULT_SQFT = 5000.0
+
+
+@dataclass
+class ListingData:
+    """Basic data parsed from a single realtor.ca listing detail page.
+
+    Populated by ``RealtorScraper.fetch_listing``. Fields that aren't posted on
+    the listing stay None (except ``total_sq_ft``, which defaults to DEFAULT_SQFT).
+    Units, unit type, and property type are deliberately absent — they can't be
+    read reliably, so the imported record is saved incomplete for manual entry.
+    """
+    outcome:        str             = OUTCOME_BLOCKED
+    address:        str             = ""
+    asking_price:   Optional[float] = None
+    mls_number:     str             = ""
+    floors:         Optional[int]   = None
+    property_taxes: Optional[float] = None
+    total_sq_ft:    float           = DEFAULT_SQFT
+    listing_date:   str             = ""
+    listing_url:    str             = ""
 
 
 def build_query(address: str, city: str = "", province: str = "") -> str:
@@ -175,6 +208,115 @@ def _parse_price(text: str) -> Optional[float]:
         return float(m.group(1).replace(",", ""))
     except ValueError:
         return None
+
+
+# ── Listing-detail parsers (pure, no network — used by fetch_listing) ──────────
+# realtor.ca renders detail fields as a label followed by its value. These read
+# the page's body text (not brittle CSS paths), so a layout reshuffle that keeps
+# the same labels keeps working. Each returns None/absent when the label is gone.
+
+_MLS_RE     = re.compile(r"MLS\s*®?\s*(?:Number|No\.?|#)?\s*[:#]?\s*([A-Za-z]?\d[\dA-Za-z\-]{4,})",
+                         re.IGNORECASE)
+_STOREYS_RE = re.compile(r"(\d+(?:\.\d+)?)\s*\n?\s*Storeys?|Storeys?\s*[:#]?\s*(\d+(?:\.\d+)?)",
+                         re.IGNORECASE)
+_TAXES_RE   = re.compile(r"Annual\s+Property\s+Tax(?:es)?\s*[:#]?\s*\$?\s*([\d][\d,]*)",
+                         re.IGNORECASE)
+# Floor/building area, optionally a range "1,000 - 2,000 sqft". The label may be
+# followed by "(approx)", a colon, etc. — [^\d\n]* skips that up to the first digit.
+_SQFT_RE    = re.compile(
+    r"(?:Floor\s+Space|Building\s+Area|Size|Square\s+Footage)[^\d\n]*"
+    r"([\d][\d,]*)(?:\s*-\s*([\d][\d,]*))?\s*(?:sq|ft)",
+    re.IGNORECASE)
+# "Time on REALTOR.ca" — a number plus a unit (hour/day/week/month).
+_TIME_ON_RE = re.compile(
+    r"Time\s+on\s+REALTOR\.?ca\s*[:#]?\s*(\d+)\s*(hour|day|week|month)s?",
+    re.IGNORECASE)
+# Canadian postal code, e.g. "K0A 2M0" / "K0A2M0".
+_POSTAL_RE  = re.compile(r"\b[A-Za-z]\d[A-Za-z]\s*\d[A-Za-z]\d\b")
+
+
+def _to_float(s: str) -> Optional[float]:
+    try:
+        return float((s or "").replace(",", ""))
+    except (ValueError, AttributeError):
+        return None
+
+
+def _parse_mls(text: str) -> str:
+    """The listing's MLS® number, or '' if not present."""
+    m = _MLS_RE.search(text or "")
+    return m.group(1).strip() if m else ""
+
+
+def _parse_storeys(text: str) -> Optional[int]:
+    """Number of storeys (→ floors), rounded down, or None if not present."""
+    m = _STOREYS_RE.search(text or "")
+    if not m:
+        return None
+    raw = m.group(1) or m.group(2)
+    val = _to_float(raw)
+    return int(val) if val else None
+
+
+def _parse_taxes(text: str) -> Optional[float]:
+    """Annual property taxes in dollars, or None if not present."""
+    m = _TAXES_RE.search(text or "")
+    return _to_float(m.group(1)) if m else None
+
+
+def _parse_sqft(text: str) -> float:
+    """Floor/building area in sq ft.
+
+    Returns the midpoint when given as a range ('A - B'); falls back to
+    DEFAULT_SQFT when no area is posted.
+    """
+    m = _SQFT_RE.search(text or "")
+    if not m:
+        return DEFAULT_SQFT
+    lo = _to_float(m.group(1))
+    if lo is None:
+        return DEFAULT_SQFT
+    hi = _to_float(m.group(2)) if m.group(2) else None
+    return (lo + hi) / 2 if hi is not None else lo
+
+
+def _parse_time_on_realtor(text: str, today: date = None) -> str:
+    """Derive the listing date from realtor.ca's 'Time on REALTOR.ca' field.
+
+    Hours → today (listed today); days/weeks/months → counted backwards from
+    today (weeks×7, months×30). Falls back to today when the field is absent or
+    unparseable. Returns an ISO date string.
+    """
+    today = today or date.today()
+    m = _TIME_ON_RE.search(text or "")
+    if not m:
+        return today.isoformat()
+    n    = int(m.group(1))
+    unit = m.group(2).lower()
+    if unit == "hour":
+        return today.isoformat()
+    days = {"day": 1, "week": 7, "month": 30}.get(unit, 1) * n
+    return (today - timedelta(days=days)).isoformat()
+
+
+def _clean_listing_address(raw: str) -> str:
+    """Normalise a realtor.ca address to '<street>, <city>, <CODE>'.
+
+    Strips the postal code and converts a spelled-out province name to its
+    2-letter code, so the result parses cleanly through menu._parse_city_province.
+    A province already in code form is left as-is.
+    """
+    addr = _POSTAL_RE.sub("", raw or "").strip()
+    addr = re.sub(r"\s+,", ",", addr).strip().strip(",").strip()
+    parts = [p.strip() for p in addr.split(",") if p.strip()]
+    if parts:
+        last = parts[-1]
+        code = PROVINCE_NAME_TO_CODE.get(last.lower())
+        if code:
+            parts[-1] = code
+        elif last.upper() in CANADIAN_PROVINCES:
+            parts[-1] = last.upper()
+    return ", ".join(parts)
 
 
 # Street-word abbreviations expanded on both the stored address and the listing
@@ -427,6 +569,68 @@ class RealtorScraper:
             except Exception:
                 pass
         return None
+
+    def _read_address(self) -> str:
+        """Read the listing's address element, or '' if not found."""
+        loc = self._first_visible(ADDRESS_SELECTORS)
+        if loc is not None:
+            try:
+                return (loc.inner_text() or "").strip()
+            except Exception:
+                pass
+        return ""
+
+    def fetch_listing(self, url: str) -> ListingData:
+        """Open a pasted realtor.ca listing URL and parse its basic data.
+
+        Reuses the same overlay/block plumbing as ``fetch_price`` and reads the
+        page's body text once, running the pure parsers over it. Never raises:
+        any failure maps to OUTCOME_BLOCKED. Units, unit type, and property type
+        are NOT parsed (they can't be read reliably) — the caller saves an
+        incomplete record for manual completion.
+        """
+        page = self._context.new_page()
+        self._page = page
+        try:
+            resp = page.goto(url, wait_until="domcontentloaded", referer=SEARCH_HOME)
+            time.sleep(random.uniform(1.5, 2.5))
+            self._dismiss_overlays()
+            if self._is_blocked():
+                return ListingData(outcome=OUTCOME_BLOCKED, listing_url=url)
+            if resp is not None and resp.status >= 400:
+                return ListingData(outcome=OUTCOME_NOT_FOUND, listing_url=url)
+
+            body = ""
+            try:
+                body = page.inner_text("body") or ""
+            except Exception:
+                body = (page.content() or "")
+            if any(m in body.lower() for m in NOT_FOUND_MARKERS):
+                return ListingData(outcome=OUTCOME_NOT_FOUND, listing_url=url)
+
+            address = _clean_listing_address(self._read_address())
+            if not address:
+                # Fall back to the URL slug (street + locality words).
+                address = _clean_listing_address(_listing_slug(url))
+
+            return ListingData(
+                outcome        = OUTCOME_FOUND,
+                address        = address,
+                asking_price   = self._read_price(),
+                mls_number     = _parse_mls(body),
+                floors         = _parse_storeys(body),
+                property_taxes = _parse_taxes(body),
+                total_sq_ft    = _parse_sqft(body),
+                listing_date   = _parse_time_on_realtor(body),
+                listing_url    = url,
+            )
+        except Exception:
+            return ListingData(outcome=OUTCOME_BLOCKED, listing_url=url)
+        finally:
+            try:
+                page.close()
+            except Exception:
+                pass
 
     def fetch_price(self, address: str, city: str = "",
                     province: str = "") -> FetchResult:
