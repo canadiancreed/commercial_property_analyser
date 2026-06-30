@@ -31,6 +31,13 @@ class CityRanker:
         cfg          = self._scorer.load_config()
         demographics = self._scorer.load_city_demographics()
 
+        # Plausibility screen: an estimated rent can imply an impossible cap rate
+        # or cash-on-cash (e.g. a 27% cap or 100%+ CoCR). Those figures are not
+        # real deals — exclude them from the city averages (like LOW-confidence
+        # income) so they can't inflate a city, but keep the listing in inventory.
+        max_cap = cfg.get("outlier_max_cap_rate", 12.0)
+        max_coc = cfg.get("outlier_max_coc",      25.0)
+
         city_data: dict = defaultdict(list)
         for p in properties:
             scored = self._scorer.score_property(p)
@@ -38,16 +45,21 @@ class CityRanker:
             prov   = (p.get("province") or "").strip()
             key    = f"{city}, {prov}" if prov else city
             # LOW-confidence income (undetailed industrial on an estimated rate)
-            # is a fabricated figure — keep the property in inventory (n_total)
-            # but exclude its income-derived metrics from the city averages.
-            low = (p.get("income_confidence") or "").upper() == "LOW"
+            # is a fabricated figure; an implausible cap/CoCR is a bad estimate.
+            # Keep the property in inventory (n_total) but drop its income-derived
+            # metrics from the city averages.
+            low         = (p.get("income_confidence") or "").upper() == "LOW"
+            _cap, _coc  = scored.get("cap_rate"), scored.get("coc")
+            implausible = ((_cap is not None and _cap > max_cap) or
+                           (_coc is not None and _coc > max_coc))
+            drop_income = low or implausible
             city_data[key].append({
-                "score":      None if low else scored.get("score"),
-                "cap_rate":   None if low else scored.get("cap_rate"),  # None = not computed
-                "coc":        None if low else scored.get("coc"),
-                "irr":        None if low else scored.get("irr"),
-                "dscr":       None if low else scored.get("dscr"),
-                "cf_annual":  None if low else scored.get("cf_annual"),
+                "score":      None if drop_income else scored.get("score"),
+                "cap_rate":   None if drop_income else scored.get("cap_rate"),  # None = not computed
+                "coc":        None if drop_income else scored.get("coc"),
+                "irr":        None if drop_income else scored.get("irr"),
+                "dscr":       None if drop_income else scored.get("dscr"),
+                "cf_annual":  None if drop_income else scored.get("cf_annual"),
                 "price_drop": scored.get("price_drop"),  # 0 = no reduction (valid)
                 "dom":        scored.get("dom"),          # 0 = listed today (valid)
                 "asking":     p.get("asking_price") or None,
@@ -56,17 +68,17 @@ class CityRanker:
                 "type":       p.get("property_type", ""),
             })
 
-        # Opportunity = quality (deal/market metrics) + a market-depth premium:
-        #   opportunity = quality_share·quality + depth_share·depth
-        # Quality counts in full regardless of city size, so a great listing
-        # buoys a small market and a large one alike. The depth premium grows
-        # (log-scaled) with active inventory, so all else equal a larger market
-        # outranks a smaller one — and a single standout listing, earning little
-        # depth, cannot crown a thin market. `confidence_k` is now display-only
-        # (a "how much data" indicator); it no longer scales the score.
-        k           = cfg.get("confidence_k", 5)
-        depth_share = cfg.get("opportunity_depth_share", 0.0)
-        depth_ref   = cfg.get("opportunity_depth_ref", 50)
+        # Opportunity rewards being good on BOTH axes at once: profitable deals
+        # (quality) AND enough of them to concentrate on (depth). It is the
+        # weighted geometric mean of the two, each 0..1:
+        #   opportunity = 100 · quality**quality_exp · depth**depth_exp
+        # Because it is multiplicative, neither axis can carry the other: a huge
+        # market full of weak deals scores low (quality≈0), and a single great
+        # listing scores low (depth≈0). `confidence_k` is display-only now.
+        k          = cfg.get("confidence_k", 5)
+        depth_ref  = cfg.get("opportunity_depth_ref", 50)
+        depth_exp  = cfg.get("opportunity_depth_exp", 0.4)
+        quality_exp = 1.0 - depth_exp
         cities = []
 
         for key, entries in city_data.items():
@@ -166,17 +178,16 @@ class CityRanker:
                 ("growth_score",    "Pop. Growth Rate",     "demo", growth_norm),
             ]
 
-            # Quality weights are relative — renormalised to the quality share of
-            # the 100-point scale (the rest is the depth premium). points sum to
-            # quality_share·100; with the depth factor they sum to opportunity,
-            # so the report renders the real breakdown (weights total 100%).
-            quality_share = 1.0 - depth_share
+            # Quality (0..1): renormalised weighted blend of the deal/market
+            # factors, independent of city size. The factor "points" sum to the
+            # quality sub-score (0..100), so the report renders the real
+            # breakdown of what makes a market's deals good.
             qw_sum = sum(_w(name, 0) for name, *_rest in factor_specs) or 1.0
 
             factors = []
             quality_score = 0.0
             for name, label, source, normalised in factor_specs:
-                share  = (_w(name, 0) / qw_sum) * quality_share
+                share  = _w(name, 0) / qw_sum          # weights total 1.0
                 points = normalised * share * 100
                 quality_score += points
                 factors.append({
@@ -186,21 +197,21 @@ class CityRanker:
                     "weight": round(share, 4),
                     "points": round(points, 2),
                 })
+            quality_score = round(quality_score, 1)
+            quality_norm  = quality_score / 100.0
 
-            # Market-depth premium: log-scaled active inventory, worth up to
-            # depth_share·100 points. depth_ref is the active count that earns
-            # (about) the full premium.
+            # Depth (0..1): log-scaled active inventory. depth_ref is the active
+            # count that earns (about) full depth.
             depth_norm = (math.log10(n_active + 1) / math.log10(depth_ref + 1)
                           if depth_ref and depth_ref > 0 else 0)
             depth_norm = max(0.0, min(1.0, depth_norm))
-            depth_points = depth_norm * depth_share * 100
-            factors.append({
-                "key": "depth", "label": "Market Depth", "source": "structure",
-                "weight": round(depth_share, 4), "points": round(depth_points, 2),
-            })
+            depth_score = round(depth_norm * 100, 1)
 
-            raw_score         = round(quality_score + depth_points, 1)
-            opportunity_score = round(max(0.0, min(100.0, raw_score)), 1)
+            # Geometric mean: a city must be good on BOTH axes — neither a big
+            # weak market nor a tiny strong one can score high alone.
+            opportunity_score = round(
+                100 * (quality_norm ** quality_exp) * (depth_norm ** depth_exp), 1
+            )
 
             type_counts: dict = defaultdict(int)
             for e in entries:
@@ -240,6 +251,10 @@ class CityRanker:
                 pop_growth=round(pop_growth, 2) if pop_growth is not None else None,
                 has_demo=has_demo,
                 opportunity=opportunity_score,
+                # The two geometric inputs (each 0–100): deal quality and market
+                # depth. factors[] is the breakdown of the quality sub-score.
+                quality_score=quality_score,
+                depth_score=depth_score,
                 factors=factors,
                 type_counts=dict(type_counts),
             ))

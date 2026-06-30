@@ -313,3 +313,36 @@ class TestOutputShape:
     def test_confidence_in_range(self, ranker):
         result = ranker.rank([_prop()] * 3)
         assert 0 < result[0]["confidence"] < 1
+
+
+# ── Outlier screen (implausible estimated rents) ───────────────────────────────
+
+class TestOutlierScreen:
+    """Active listings with an impossible cap/CoCR (bad estimated rent) must be
+    kept in inventory but dropped from the city's income averages."""
+
+    def test_implausible_cap_excluded_from_average(self, ranker):
+        props = [
+            _prop(status="active", cap=7.0),
+            _prop(status="active", cap=27.0),   # impossible — estimated-rent artifact
+        ]
+        city = ranker.rank(props)[0]
+        assert city["active"] == 2                      # still counted in inventory
+        assert city["active_cap_rate"] == pytest.approx(7.0, abs=0.1)  # outlier dropped
+
+    def test_implausible_coc_excluded_from_average(self, ranker):
+        props = [
+            _prop(status="active", coc=9.0),
+            _prop(status="active", coc=80.0),   # impossible CoCR
+        ]
+        city = ranker.rank(props)[0]
+        assert city["active_cash_on_cash"] == pytest.approx(9.0, abs=0.1)
+
+    def test_outlier_does_not_inflate_quality(self, ranker):
+        clean    = ranker.rank([_prop(status="active", cap=7.0)] * 3)[0]
+        with_bad = ranker.rank([_prop(status="active", cap=7.0)] * 3
+                               + [_prop(status="active", cap=27.0)])[0]
+        # the 27% cap listing is still inventory (so depth/quality count rises is
+        # fine), but it must NOT raise the deal-quality sub-score
+        assert with_bad["quality_score"] == pytest.approx(clean["quality_score"], abs=0.5)
+        assert with_bad["active_cap_rate"] == pytest.approx(7.0, abs=0.1)

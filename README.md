@@ -166,7 +166,7 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 |---|---|
 | `printer.py` | **`ReportPrinter`** — terminal-only output. `print_report(analyzer)` prints a formatted metric table to stdout. `list_properties(store)` prints a numbered property list sorted by city then street name/number. |
 | `property_report.py` | **`PropertyReportGenerator`** — renders a self-contained HTML file with a sortable, filterable table of all properties. Each row shows the investment score, per-component breakdown, financial metrics, and the target asking price / rent / interest rate / down payment that would achieve a near-perfect score. Opens in the default browser. |
-| `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (quality + market-depth premium). Shows volume, avg/best scores, key financial signals, sold/off-market comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
+| `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (geometric mean of deal quality × market depth). Shows volume, avg/best scores, key financial signals, sold/off-market comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
 
 ---
 
@@ -231,19 +231,20 @@ Type `template` at the path prompt to save a pre-filled example CSV. Populate it
 **Scoring & weights (option `s`)**
 Adjust the weight (0–100%) of each of the nine **property** scoring components and set the floor (score = 0) and ceiling (score = 10) values. Weights are normalised automatically, so disabling a component (set weight to 0) redistributes its share across the rest. Sub-options `d` and `m` manage city distances and demographic data.
 
-A separate sub-editor tunes the **city opportunity** formula. The score is **quality + a market-depth premium**: `opportunity = quality_share · quality + depth_share · depth` (default split 50% / 50%).
+A separate sub-editor tunes the **city opportunity** formula. A city must be good on **both** axes — profitable deals *and* enough of them — so the score is the weighted **geometric mean** of quality and depth: `opportunity = 100 · quality^quality_exp · depth^depth_exp`. Because it's multiplicative, neither axis can carry the other: a huge market full of weak deals scores low, and a single great listing scores low.
 
-- **Quality** is the renormalised weighted blend of deal/market metrics (independent of city size), feeding the report's "Score contributions" breakdown:
+- **Quality** (0–1) is the renormalised weighted blend of deal/market metrics (independent of city size), feeding the report's "Deal-quality contributions" breakdown:
   - *Active listings* (still for sale): cap rate, cash-on-cash, IRR, DSCR, annual cash flow, price drop from original list, days on market.
   - *Sold listings* (inactive — treated as sold): cap rate, absorption (sold share = demand signal), price trend (active asking vs sold = appreciation signal).
   - *Cross / structural*: active-vs-sold cap-rate trend and the single best deal score.
   - *Demographics* (where available): population (log-scaled) and annual population growth.
-- **Depth premium** grows (log-scaled) with active listing count, controlled by `opportunity_depth_share` (default 0.5) and `opportunity_depth_ref` (active count earning ~the full premium, default 50).
+- **Depth** (0–1) grows log-scaled with active listing count (`opportunity_depth_ref`, the count earning ~full depth, default 50). Its weight is `opportunity_depth_exp` (default 0.4; quality gets the rest).
+- **Outlier screen**: active listings whose estimated rent implies an implausible cap rate (`outlier_max_cap_rate`, default 12%) or cash-on-cash (`outlier_max_coc`, default 25%) are kept in the inventory count but dropped from the income averages, so a bad estimate can't inflate a city.
 
-This makes quality count in full for any size of market (a good listing buoys small and large alike) while, all else equal, a **larger market outranks a smaller one** — so a single standout listing can't crown a thin market. `confidence_k` now only drives the displayed "Data Confidence" (a how-much-data indicator); it no longer scales the score. All knobs live in `json/score_weights.json`.
+`confidence_k` now only drives the displayed "Data Confidence" indicator; it no longer scales the score. All knobs live in `json/score_weights.json`.
 
 **HTML reports (options 6 / c)**
-Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (quality + market-depth premium), with an accurate per-factor score breakdown and sold/off-market comparables (inactive listings are treated as sold).
+Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (geometric mean of deal quality and market depth), with an accurate per-factor quality breakdown and sold/off-market comparables (inactive listings are treated as sold).
 
 ---
 

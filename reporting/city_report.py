@@ -551,12 +551,25 @@ function renderCity(c, i) {{
       </div>`;
     }}).join('') + `
     <div class="factor-bar-row" style="margin-top:0.5rem;border-top:1px dashed var(--rule);padding-top:0.5rem">
-      <span class="factor-bar-label" style="color:var(--ink);font-weight:500">
-        Data Confidence
-        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (how much data — context only, not a multiplier)</span>
+      <span class="factor-bar-label" style="color:var(--ink);font-weight:500">Deal Quality
+        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (sum of the above)</span>
       </span>
-      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{confPct}}%;background:var(--ink)"></div></div>
-      <span class="factor-bar-right" style="color:var(--ink)">${{confPct}}% · ${{c.total}} prop${{c.total===1?'':'s'}}</span>
+      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{(c.quality_score||0)}}%;background:var(--green)"></div></div>
+      <span class="factor-bar-right" style="color:var(--ink)">${{(c.quality_score||0).toFixed(0)}} / 100</span>
+    </div>
+    <div class="factor-bar-row">
+      <span class="factor-bar-label" style="color:var(--ink);font-weight:500">Market Depth
+        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (${{c.active}} active listings)</span>
+      </span>
+      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{(c.depth_score||0)}}%;background:var(--gold)"></div></div>
+      <span class="factor-bar-right" style="color:var(--ink)">${{(c.depth_score||0).toFixed(0)}} / 100</span>
+    </div>
+    <div class="factor-bar-row" style="margin-top:0.3rem;border-top:1px solid var(--rule);padding-top:0.4rem">
+      <span class="factor-bar-label" style="color:var(--ink);font-weight:600">Opportunity
+        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (quality × depth, geometric — needs both)</span>
+      </span>
+      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{c.opportunity}}%;background:${{barColor}}"></div></div>
+      <span class="factor-bar-right" style="color:var(--ink)">${{c.opportunity.toFixed(0)}} / 100</span>
     </div>`;
   return `<div class="city-row ${{rankClass}}" id="city-${{i}}">
     <div class="city-row-main" onclick="toggleCity(${{i}})">
@@ -590,7 +603,7 @@ function renderCity(c, i) {{
       </div>
       <div class="detail-grid">${{cardHtml(contextCards)}}</div>
       <div class="factor-section-title" style="margin-top:1.2rem">
-        Score contributions &nbsp;
+        Deal-quality contributions &nbsp;
         <span style="color:var(--green)">[active]</span>
         <span style="color:var(--amber)"> [sold]</span>
         <span style="color:var(--gold)"> [structure]</span>

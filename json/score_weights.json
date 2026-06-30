@@ -49,8 +49,10 @@
     ]
   },
   "confidence_k": 12,
-  "opportunity_depth_share": 0.5,
+  "opportunity_depth_exp": 0.4,
   "opportunity_depth_ref": 50,
+  "outlier_max_cap_rate": 12.0,
+  "outlier_max_coc": 25.0,
   "city_score_weights": {
     "act_cap": 0.144,
     "act_coc": 0.112,
