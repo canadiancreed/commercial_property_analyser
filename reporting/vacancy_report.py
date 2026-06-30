@@ -6,11 +6,13 @@ doesn't move with occupancy); only NOI — and therefore cash flow and cap rate 
 falls as vacancy rises. This surfaces how much vacancy a deal can absorb before
 it bleeds.
 
-Uses the project's province-aware MortgageCalculator for debt service, and
-renders server-side, sorted best-score first.
+The grid is computed server-side (with the project's province-aware
+MortgageCalculator for debt service) and embedded as JSON; the page renders
+client-side so every column is click-to-sort and the list can be filtered to a
+minimum score and to deals that stay cash-flow positive at a chosen occupancy.
 """
 
-import html
+import json as _json
 import tempfile
 import webbrowser
 from datetime import datetime
@@ -26,30 +28,6 @@ _DEF_EXPENSE_RATIO = 0.40
 _DEF_DOWN_PCT      = 0.20
 _DEF_RATE          = 0.065
 _DEF_TERM          = 25
-
-
-def _money(v):
-    if not v and v != 0:
-        return "—"
-    return f"${v:,.0f}"
-
-
-def _money_signed(v):
-    if v is None:
-        return "—"
-    return f"{'-' if v < 0 else ''}${abs(v):,.0f}"
-
-
-def _cap_grade(v) -> str:
-    if v is None:
-        return "info"
-    return "good" if v >= 7 else "fair" if v >= 5 else "poor"
-
-
-def _score_grade(v) -> str:
-    if v is None:
-        return "info"
-    return "good" if v >= 55 else "fair" if v >= 35 else "poor"
 
 
 def vacancy_grid(row: dict):
@@ -82,24 +60,26 @@ def vacancy_grid(row: dict):
 
 
 class VacancyReportGenerator:
-    """Renders the vacancy-sensitivity report as a standalone HTML file."""
+    """Renders the vacancy-sensitivity report as a standalone, interactive file."""
 
     def render(self, rows: list) -> str:
-        modelled = []
+        deals = []
         for r in rows:
             grid = vacancy_grid(r)
-            if grid is not None:
-                modelled.append((r, grid))
+            if grid is None:
+                continue
+            deal = {
+                "address": r.get("address"), "city": r.get("city"),
+                "type": r.get("type"), "asking": r.get("asking"),
+                "score": r.get("score"),
+            }
+            for (occ, cap, cf) in grid:
+                tag = f"{int(round(occ * 100))}"
+                deal[f"cap{tag}"] = round(cap, 2)
+                deal[f"cf{tag}"]  = round(cf)
+            deals.append(deal)
 
-        # Best score first; unscored sink to the bottom.
-        modelled.sort(key=lambda rg: rg[0].get("score") if rg[0].get("score") is not None else -1,
-                      reverse=True)
-
-        body_rows = "".join(self._row_html(r, grid) for r, grid in modelled) or (
-            '<tr><td colspan="13" class="empty">'
-            'No properties with rent data to model.</td></tr>'
-        )
-
+        data_json = _json.dumps(deals)
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
 
         return f"""<!DOCTYPE html>
@@ -124,60 +104,30 @@ class VacancyReportGenerator:
     --mono:  'DM Mono', monospace;
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{
-    background: var(--paper);
-    color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-  }}
-  header {{
-    background: var(--cream);
-    border-bottom: 3px double var(--rule);
-    padding: 2rem 2.5rem 1.5rem;
-  }}
-  header h1 {{
-    font-family: 'DM Serif Display', serif;
-    font-size: 2.4rem;
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }}
+  body {{ background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.5; }}
+  header {{ background: var(--cream); border-bottom: 3px double var(--rule); padding: 2rem 2.5rem 1.5rem; }}
+  header h1 {{ font-family: 'DM Serif Display', serif; font-size: 2.4rem; letter-spacing: -0.02em; line-height: 1; }}
   header h1 em {{ font-style: italic; color: var(--gold); }}
-  .header-meta {{
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 0.4rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }}
-  .note {{
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--muted);
-    margin-top: 0.8rem;
-    line-height: 1.6;
-    max-width: 80ch;
-    border-left: 3px solid var(--gold);
-    padding-left: 0.7rem;
-  }}
+  .header-meta {{ font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; }}
+  .note {{ font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 0.8rem; line-height: 1.6; max-width: 82ch; border-left: 3px solid var(--gold); padding-left: 0.7rem; }}
+  .filters {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-top: 1rem; }}
+  .filter-group {{ display: flex; flex-direction: column; gap: 0.25rem; }}
+  .filter-group label {{ font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }}
+  .filter-group input, .filter-group select {{ font-family: var(--mono); font-size: 13px; width: 150px; padding: 0.35rem 0.55rem; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); color: var(--ink); }}
+  .filter-group input:focus, .filter-group select:focus {{ outline: none; border-color: var(--gold); }}
+  .filters button {{ font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; padding: 0.4rem 1rem; cursor: pointer; border: none; border-radius: 2px; background: var(--ink); color: var(--paper); }}
+  .filters button:hover {{ background: #333; }}
+  .filters button.reset-btn {{ background: transparent; color: var(--muted); border: 1px solid var(--rule); }}
+  .filters button.reset-btn:hover {{ color: var(--ink); border-color: var(--ink); }}
   .page-wrap {{ max-width: 1300px; margin: 0 auto; padding: 2rem 2.5rem; }}
+  .count {{ font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 0.8rem; letter-spacing: 0.04em; }}
   table {{ width: 100%; border-collapse: collapse; background: var(--cream); font-size: 13px; }}
-  th, td {{
-    padding: 0.55rem 0.6rem;
-    border-bottom: 1px solid var(--rule);
-    text-align: right;
-    white-space: nowrap;
-    vertical-align: middle;
-  }}
-  th {{
-    font-family: var(--mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-  }}
-  th.grp {{ border-bottom: 2px solid var(--gold); color: var(--ink); }}
+  th, td {{ padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; vertical-align: middle; }}
+  th {{ font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; user-select: none; }}
+  th:hover {{ color: var(--ink); }}
+  th.grp {{ color: var(--ink); border-bottom: 2px solid var(--gold); }}
+  th.sort-asc::after  {{ content: ' \\25B2'; font-size: 9px; }}
+  th.sort-desc::after {{ content: ' \\25BC'; font-size: 9px; }}
   th:first-child, td:first-child {{ text-align: left; white-space: normal; }}
   td.num {{ font-family: var(--mono); }}
   td.addr {{ font-weight: 500; }}
@@ -185,67 +135,141 @@ class VacancyReportGenerator:
   td.fair {{ color: var(--amber); }}
   td.poor {{ color: var(--red); }}
   td.occ-sep {{ border-left: 1px solid var(--rule); }}
+  tr:hover td {{ background: #fffdf5; }}
   .empty {{ text-align: center; color: var(--muted); padding: 2rem; }}
 </style>
 </head>
 <body>
 <header>
   <h1>Vacancy <em>Sensitivity</em></h1>
-  <div class="header-meta">{len(modelled)} income properties · {stamp}</div>
+  <div class="header-meta">Income properties · {len(deals)} modelled · {stamp}</div>
   <div class="note">Cap rate and annual cash flow at 100%, 85%, 75%, and 60% occupancy. Debt
   service is held constant — only NOI falls with vacancy. Red cash flow = the deal bleeds at that
   occupancy; amber cap rate = below the 7% target.</div>
+  <div class="filters">
+    <div class="filter-group">
+      <label>Min Score</label>
+      <input type="number" id="f-score" min="0" max="100" placeholder="any">
+    </div>
+    <div class="filter-group">
+      <label>Cash-flow positive at</label>
+      <select id="f-occ">
+        <option value="">Any occupancy</option>
+        <option value="100">100% occupancy</option>
+        <option value="85">85% occupancy</option>
+        <option value="75">75% occupancy</option>
+        <option value="60">60% occupancy</option>
+      </select>
+    </div>
+    <button onclick="applyFilters()">Apply</button>
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+  </div>
 </header>
 <div class="page-wrap">
-  <table>
+  <div class="count" id="count"></div>
+  <table id="tbl">
     <thead>
       <tr>
-        <th>Address</th>
-        <th>City</th>
-        <th>Type</th>
-        <th>Price</th>
-        <th>Score</th>
-        <th class="grp">Cap @100%</th>
-        <th class="grp">CF @100%</th>
-        <th class="grp">Cap @85%</th>
-        <th class="grp">CF @85%</th>
-        <th class="grp">Cap @75%</th>
-        <th class="grp">CF @75%</th>
-        <th class="grp">Cap @60%</th>
-        <th class="grp">CF @60%</th>
+        <th data-col="address" onclick="sortBy('address',this)">Address</th>
+        <th data-col="city"    onclick="sortBy('city',this)">City</th>
+        <th data-col="type"    onclick="sortBy('type',this)">Type</th>
+        <th data-col="asking"  onclick="sortBy('asking',this)">Price</th>
+        <th data-col="score"   onclick="sortBy('score',this)" class="sort-desc">Score</th>
+        <th class="grp" data-col="cap100" onclick="sortBy('cap100',this)">Cap @100%</th>
+        <th class="grp" data-col="cf100"  onclick="sortBy('cf100',this)">CF @100%</th>
+        <th class="grp" data-col="cap85"  onclick="sortBy('cap85',this)">Cap @85%</th>
+        <th class="grp" data-col="cf85"   onclick="sortBy('cf85',this)">CF @85%</th>
+        <th class="grp" data-col="cap75"  onclick="sortBy('cap75',this)">Cap @75%</th>
+        <th class="grp" data-col="cf75"   onclick="sortBy('cf75',this)">CF @75%</th>
+        <th class="grp" data-col="cap60"  onclick="sortBy('cap60',this)">Cap @60%</th>
+        <th class="grp" data-col="cf60"   onclick="sortBy('cf60',this)">CF @60%</th>
       </tr>
     </thead>
-    <tbody>
-{body_rows}
-    </tbody>
+    <tbody id="tbody"></tbody>
   </table>
 </div>
+
+<script>
+const DATA = {data_json};
+let sortCol = 'score';
+let sortDir = -1;
+let fScore = null, fOcc = null;
+
+function esc(s) {{
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+    ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
+}}
+function fmtMoney(n) {{ return (n == null || isNaN(n)) ? '\\u2014' : '$' + Math.round(n).toLocaleString('en-CA'); }}
+function fmtCf(n) {{ return (n == null || isNaN(n)) ? '\\u2014' : (n < 0 ? '-' : '') + '$' + Math.abs(Math.round(n)).toLocaleString('en-CA'); }}
+function capCls(v) {{ return v == null ? '' : v >= 7 ? 'good' : v >= 5 ? 'fair' : 'poor'; }}
+function scoreCls(v) {{ return v == null ? '' : v >= 55 ? 'good' : v >= 35 ? 'fair' : 'poor'; }}
+
+function applyFilters() {{
+  const s = document.getElementById('f-score').value.trim();
+  const o = document.getElementById('f-occ').value;
+  fScore = s !== '' ? parseFloat(s) : null;
+  fOcc   = o !== '' ? o : null;
+  render();
+}}
+function resetFilters() {{
+  fScore = null; fOcc = null;
+  document.getElementById('f-score').value = '';
+  document.getElementById('f-occ').value = '';
+  render();
+}}
+function passes(r) {{
+  if (fScore != null && (r.score == null || r.score < fScore)) return false;
+  if (fOcc != null && !(r['cf' + fOcc] >= 0)) return false;
+  return true;
+}}
+
+function sortBy(col, th) {{
+  if (sortCol === col) {{ sortDir *= -1; }}
+  else {{ sortCol = col; sortDir = (col === 'asking') ? 1 : -1; }}
+  document.querySelectorAll('#tbl th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+  th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  render();
+}}
+
+function capTd(v, sep) {{
+  return `<td class="num ${{capCls(v)}}${{sep ? ' occ-sep' : ''}}">${{v != null ? v.toFixed(1) + '%' : '\\u2014'}}</td>`;
+}}
+function cfTd(v) {{
+  return `<td class="num ${{v != null ? (v >= 0 ? 'good' : 'poor') : ''}}">${{fmtCf(v)}}</td>`;
+}}
+
+function render() {{
+  let rows = DATA.filter(passes);
+  rows.sort((a, b) => {{
+    let av = a[sortCol], bv = b[sortCol];
+    if (av == null) av = sortDir < 0 ? -Infinity : Infinity;
+    if (bv == null) bv = sortDir < 0 ? -Infinity : Infinity;
+    if (typeof av === 'string' || typeof bv === 'string')
+      return String(av).localeCompare(String(bv)) * sortDir;
+    return (av - bv) * sortDir;
+  }});
+
+  document.getElementById('tbody').innerHTML = rows.length ? rows.map(r => `
+    <tr>
+      <td class="addr">${{esc(r.address)}}</td>
+      <td>${{esc(r.city)}}</td>
+      <td>${{esc(r.type)}}</td>
+      <td class="num">${{fmtMoney(r.asking)}}</td>
+      <td class="num ${{scoreCls(r.score)}}">${{r.score != null ? r.score.toFixed(0) + '/100' : '\\u2014'}}</td>
+      ${{capTd(r.cap100, false)}}${{cfTd(r.cf100)}}
+      ${{capTd(r.cap85, true)}}${{cfTd(r.cf85)}}
+      ${{capTd(r.cap75, true)}}${{cfTd(r.cf75)}}
+      ${{capTd(r.cap60, true)}}${{cfTd(r.cf60)}}
+    </tr>`).join('') : '<tr><td colspan="13" class="empty">No properties match the filters.</td></tr>';
+
+  document.getElementById('count').textContent =
+    rows.length + ' of ' + DATA.length + ' income properties';
+}}
+
+render();
+</script>
 </body>
 </html>"""
-
-    def _row_html(self, r: dict, grid) -> str:
-        addr  = html.escape(r.get("address") or "—")
-        city  = html.escape(r.get("city") or "—")
-        ptype = html.escape(r.get("type") or "—")
-        score = r.get("score")
-
-        cells = ""
-        for i, (_occ, cap, cf) in enumerate(grid):
-            sep = " occ-sep" if i > 0 else ""
-            cf_cls = "good" if cf >= 0 else "poor"
-            cells += (
-                f'<td class="num {_cap_grade(cap)}{sep}">{cap:.1f}%</td>'
-                f'<td class="num {cf_cls}">{_money_signed(round(cf))}</td>'
-            )
-
-        return f"""      <tr>
-        <td class="addr">{addr}</td>
-        <td>{city}</td>
-        <td>{ptype}</td>
-        <td class="num">{_money(r.get('asking'))}</td>
-        <td class="num {_score_grade(score)}">{f'{score:.0f}/100' if score is not None else '—'}</td>
-        {cells}
-      </tr>"""
 
     def open_in_browser(self, rows: list):
         """Build the report and open it in the default browser."""

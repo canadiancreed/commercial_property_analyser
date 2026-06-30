@@ -180,10 +180,10 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 | `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (geometric mean of deal quality × market depth). Shows volume, avg/best scores, key financial signals, inactive-listing comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
 | `price_check_report.py` | **`PriceCheckReportGenerator`** — renders the results of a realtor.ca price sweep: each stored property classified as price dropped / risen / unchanged / not found / not checked, with the stored vs found price and delta. |
 | `deal_watchlist_report.py` | **`DealWatchlistReportGenerator`** — an interactive table of **active**, scored deals. Embeds the deals as JSON and renders client-side: every column is click-to-sort and the list filters live by minimum score, cap rate, and price drop. Surfaces cap rate, cash-on-cash, IRR, annual cash flow, DSCR, days-on-market and price drop. |
-| `negotiation_report.py` | **`NegotiationReportGenerator`** — for each active, scored property, the single lever value (price / rent / interest rate / down payment) that would alone lift the deal to a perfect score, with the gap from today's asking. Uses the scorer's `solve_targets`. |
-| `vacancy_report.py` | **`VacancyReportGenerator`** — stress-tests each income property by recomputing cap rate and annual cash flow at 100 / 85 / 75 / 60% occupancy, holding debt service constant. Debt service comes from the province-aware `MortgageCalculator`. |
-| `price_drop_report.py` | **`PriceDropReportGenerator`** — listings whose current asking has fallen below their original list price, ranked by the largest percentage drop. |
-| `benchmark_report.py` | **`BenchmarkReportGenerator`** — compares each property's $/sqft and cap rate against the average of comparable listings, preferring the tightest comp set available (city+type → province+type → type-wide) and excluding the property from its own average. Flags each as underpriced / at market / overpriced. |
+| `negotiation_report.py` | **`NegotiationReportGenerator`** — for each active, scored property, the single lever value (price / rent / interest rate / down payment) that would alone lift the deal to a perfect score, with the gap from today's asking. Uses the scorer's `solve_targets`. Interactive: click-to-sort columns and live filters for minimum score, cap rate, and negotiation room. |
+| `vacancy_report.py` | **`VacancyReportGenerator`** — stress-tests each income property by recomputing cap rate and annual cash flow at 100 / 85 / 75 / 60% occupancy, holding debt service constant. Debt service comes from the province-aware `MortgageCalculator`. Interactive: click-to-sort columns and filters for minimum score and "stays cash-flow positive at a chosen occupancy". |
+| `price_drop_report.py` | **`PriceDropReportGenerator`** — listings whose current asking has fallen below their original list price. Interactive: click-to-sort columns (default largest drop first) and filters for minimum drop % and status. |
+| `benchmark_report.py` | **`BenchmarkReportGenerator`** — compares each property's $/sqft and cap rate against the average of comparable listings, preferring the tightest comp set available (city+type → province+type → type-wide) and excluding the property from its own average. Flags each as underpriced / at market / overpriced. Interactive: click-to-sort columns and filters for verdict and minimum comp count. |
 
 ---
 
@@ -271,13 +271,13 @@ The displayed score is the **honest raw value** (geometric mean, realistic top ~
 Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (geometric mean of deal quality and market depth), with an accurate per-factor quality breakdown and inactive-listing comparables. The price-range filter shows a city only if it has active listings in range, and the shown count/avg price reflect that in-range subset.
 
 **Focused reports (options w / n / v / d / b)**
-Each opens a single-purpose HTML report in the browser, built from the same scored property set:
+Each opens a single-purpose HTML report in the browser, built from the same scored property set. All five are interactive: **click any column header to sort** (click again to reverse), plus the report-specific filters noted below.
 
-- **`w` Deal Watchlist** — active, scored deals with the key return metrics. Interactive in the browser: click any column to sort, and filter live by minimum score (starts at 55), cap rate, and price drop.
-- **`n` Negotiation Targets** — for each active, scored deal, the one lever (price / rent / rate / down payment) that alone would make it a perfect score, plus the gap from today's asking.
-- **`v` Vacancy Sensitivity** — cap rate and annual cash flow for every income property at 100 / 85 / 75 / 60% occupancy, with debt service held constant, to show how much vacancy each deal can absorb.
-- **`d` Price Drop Alerts** — listings now priced below their original list price, ranked by the size of the cut.
-- **`b` Cap-Rate & $/sqft Benchmarking** — every property's price-per-sqft and cap rate against the average of comparable listings (city+type, then province+type, then type-wide), flagged underpriced / at market / overpriced.
+- **`w` Deal Watchlist** — active, scored deals with the key return metrics. Filters: minimum score (starts at 55), cap rate, and price drop.
+- **`n` Negotiation Targets** — for each active, scored deal, the one lever (price / rent / rate / down payment) that alone would make it a perfect score, plus the gap from today's asking. Filters: minimum score, cap rate, and negotiation room.
+- **`v` Vacancy Sensitivity** — cap rate and annual cash flow for every income property at 100 / 85 / 75 / 60% occupancy, with debt service held constant, to show how much vacancy each deal can absorb. Filters: minimum score, and "stays cash-flow positive at a chosen occupancy".
+- **`d` Price Drop Alerts** — listings now priced below their original list price, largest cut first. Filters: minimum drop % and status.
+- **`b` Cap-Rate & $/sqft Benchmarking** — every property's price-per-sqft and cap rate against the average of comparable listings (city+type, then province+type, then type-wide), flagged underpriced / at market / overpriced. Filters: verdict and minimum comp count.
 
 **Price check (option p)**
 Drives a real browser to look each stored property up on realtor.ca and reports which prices have dropped, risen, or been delisted since you saved them. Progress is checkpointed so a long sweep can be resumed.

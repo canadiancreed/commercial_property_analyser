@@ -129,6 +129,13 @@ class TestBenchmarkRows:
         assert len(out) == 2
 
 
+def _embedded_data(html):
+    import json, re
+    m = re.search(r"const DATA = (\[.*?\]);", html, re.DOTALL)
+    assert m, "embedded DATA array not found"
+    return json.loads(m.group(1))
+
+
 class TestBenchmarkReportGenerator:
     def test_render_html_skeleton(self):
         html = BenchmarkReportGenerator().render([_row()])
@@ -136,27 +143,46 @@ class TestBenchmarkReportGenerator:
         assert "</html>" in html
         assert "Benchmarking" in html
 
-    def test_includes_property(self):
-        html = BenchmarkReportGenerator().render([_row("Bench Plaza"), _row("Comp St")])
-        assert "Bench Plaza" in html
+    def test_embeds_property_with_comparison_fields(self):
+        data = _embedded_data(BenchmarkReportGenerator().render(
+            [_row("Bench Plaza", asking=100_000, sqft=1000),
+             _row("Comp St", asking=120_000, sqft=1000)]))
+        d = next(x for x in data if x["address"] == "Bench Plaza")
+        for key in ("ppsf", "peer_ppsf", "ppsf_delta", "verdict", "basis", "comps"):
+            assert key in d
 
-    def test_underpriced_verdict_rendered(self):
-        rows = [
+    def test_verdicts_embedded(self):
+        data = _embedded_data(BenchmarkReportGenerator().render([
             _row("Cheap", asking=100_000, sqft=1000),
             _row("Dear",  asking=200_000, sqft=1000),
-        ]
-        html = BenchmarkReportGenerator().render(rows)
-        assert "Underpriced" in html
-        assert "Overpriced" in html
+        ]))
+        byaddr = {d["address"]: d for d in data}
+        assert byaddr["Cheap"]["verdict"] == "under"
+        assert byaddr["Dear"]["verdict"] == "over"
+
+    def test_has_verdict_and_comps_filters(self):
+        html = BenchmarkReportGenerator().render([_row()])
+        assert 'id="f-verdict"' in html
+        assert 'id="f-comps"' in html
+
+    def test_columns_are_click_sortable(self):
+        html = BenchmarkReportGenerator().render([_row()])
+        assert "function sortBy(" in html
+        for col in ("ppsf_delta", "ppsf", "cap", "cap_delta", "comps"):
+            assert f"sortBy('{col}'" in html
+
+    def test_default_sort_is_ppsf_delta_ascending(self):
+        html = BenchmarkReportGenerator().render([_row()])
+        assert "let sortCol = 'ppsf_delta';" in html
+        assert "let sortDir = 1;" in html
 
     def test_empty_input(self):
-        html = BenchmarkReportGenerator().render([])
-        assert "No priced properties" in html
+        data = _embedded_data(BenchmarkReportGenerator().render([]))
+        assert data == []
 
-    def test_html_escapes_address(self):
+    def test_address_escaped_in_browser(self):
         html = BenchmarkReportGenerator().render([_row("<x> St"), _row("Comp")])
-        assert "<x> St" not in html
-        assert "&lt;x&gt;" in html
+        assert "function esc(" in html
 
     def test_open_in_browser_writes_and_opens(self):
         gen = BenchmarkReportGenerator()
