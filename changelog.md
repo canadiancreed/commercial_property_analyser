@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.0] — 2026-06-30
+
+### Added
+
+- **Five focused HTML reports, each as its own standalone generator + menu option**
+  (`reporting/deal_watchlist_report.py`, `reporting/negotiation_report.py`,
+  `reporting/vacancy_report.py`, `reporting/price_drop_report.py`,
+  `reporting/benchmark_report.py`, `ui/menu.py`). Each is built from the same scored property
+  set (`PropertyMenu._build_report_row`), renders a server-side table in the shared palette (the
+  `price_check_report.py` pattern), and opens in the browser. The existing Investment Report
+  (option 6) and City Rankings (option `c`) are unchanged and reused, not duplicated.
+  - **Deal Watchlist** (menu `w`): scored deals at or above a score threshold (prompted, default
+    55), sorted best-score first, showing cap rate, cash-on-cash, IRR, annual cash flow, DSCR,
+    days-on-market and price drop.
+  - **Negotiation Targets** (menu `n`): for each active, scored deal, the single lever
+    (price / rent / interest rate / down payment) that alone would lift it to a perfect score,
+    with the gap from today's asking. Uses the scorer's `solve_targets`.
+  - **Vacancy Sensitivity** (menu `v`): cap rate and annual cash flow for every income property
+    at 100 / 85 / 75 / 60% occupancy, holding debt service constant. Debt service is taken from
+    the province-aware `MortgageCalculator` (semi-annual Canadian compounding), not a
+    reimplemented formula. The per-occupancy grid is a pure `vacancy_grid(row)` helper.
+  - **Price Drop Alerts** (menu `d`): listings whose current asking has fallen below their
+    original list price (`original_price`), ranked by the largest percentage cut. A 0.1% epsilon
+    screens out rounding noise; inactive listings are included.
+  - **Cap-Rate & $/sqft Benchmarking** (menu `b`): each property's price-per-sqft and cap rate
+    against the average of comparable listings, preferring the tightest comp set available
+    (city+type → province+type → type-wide) and excluding the property from its own average. The
+    basis used is shown so comp strength is visible; each row is flagged underpriced / at market /
+    overpriced (±10% from peers). Comparison logic is a pure `benchmark_rows(rows)` helper.
+- **70 tests** across the five new report modules
+  (`tests/test_deal_watchlist_report.py`, `tests/test_negotiation_report.py`,
+  `tests/test_vacancy_report.py`, `tests/test_price_drop_report.py`,
+  `tests/test_benchmark_report.py`), covering filtering, sorting, metric/verdict thresholds, the
+  vacancy occupancy math, the benchmark peer-group fallback and self-exclusion, and HTML escaping.
+
 ## [3.4.0] — 2026-06-30
 
 ### Changed
