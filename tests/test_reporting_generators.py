@@ -148,12 +148,11 @@ class TestCityReportGenerator:
         assert "n ? n.toFixed(1) + '%' : '—'" not in html
 
     def test_opportunity_color_bands_match_grades(self):
-        """oppColor must turn green at the same 72 boundary as the 'Good' grade
-        (on the rescaled 0–100 score)."""
+        """oppColor must turn green at the same 55 boundary as the 'Good' grade."""
         html = CityReportGenerator().render([_city()])
-        assert "if (opp >= 72) return 'var(--green)'" in html   # oppColor
-        assert "if (opp >= 72) return ['good',      'Good']" in html  # gradeOf
-        assert "if (opp >= 88) return ['excellent', 'Excellent']" in html
+        assert "if (opp >= 55) return 'var(--green)'" in html       # oppColor
+        assert "if (opp >= 55) return ['good',      'Good']" in html  # gradeOf
+        assert "if (opp >= 75) return ['excellent', 'Excellent']" in html
 
     def test_price_filter_matches_individual_listings(self):
         """The price filter must key off individual active prices, not the city
@@ -163,12 +162,12 @@ class TestCityReportGenerator:
         # must not regress to filtering on the average
         assert "c.active_avg_price < _priceMin" not in html
 
-    def test_opportunity_display_is_rescaled(self):
-        """The headline number is the rescaled (top-city = 100) value, graded on
-        the same shown value so number and label never disagree."""
+    def test_opportunity_shown_is_raw_not_rescaled(self):
+        """The headline number is the honest raw score (rounded), graded on the
+        same shown value — not rescaled to make the top city look like 100."""
         html = CityReportGenerator().render([_city()])
-        assert "oppShown" in html
-        assert "c.opportunity / _maxOpp * 100" in html
+        assert "const oppShown   = Math.round(c.opportunity);" in html
+        assert "_maxOpp" not in html   # no rescale-to-top normalisation
 
     def test_factors_embedded_in_cities_json(self):
         """The ranker-supplied factor breakdown must round-trip into the embedded JSON."""

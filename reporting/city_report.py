@@ -433,19 +433,20 @@ function gc(metric, v) {{
   return 'info';
 }}
 
-// Bands are on the rescaled 0–100 score (top city = 100). Tuned so "Excellent"
-// is the genuine top tier rather than the whole upper cluster.
+// Bands on the raw geometric score (not rescaled). With two sub-1 axes the
+// realistic top is ~60, so "Excellent" is rare by design — a weak field of
+// markets honestly reads as mostly Fair/Weak.
 function gradeOf(opp) {{
-  if (opp >= 88) return ['excellent', 'Excellent'];
-  if (opp >= 72) return ['good',      'Good'];
-  if (opp >= 50) return ['fair',      'Fair'];
+  if (opp >= 75) return ['excellent', 'Excellent'];
+  if (opp >= 55) return ['good',      'Good'];
+  if (opp >= 35) return ['fair',      'Fair'];
   return ['poor', 'Weak'];
 }}
 
 // Bands must match gradeOf(): Excellent/Good → green, Fair → amber, Weak → red.
 function oppColor(opp) {{
-  if (opp >= 72) return 'var(--green)';
-  if (opp >= 50) return 'var(--amber)';
+  if (opp >= 55) return 'var(--green)';
+  if (opp >= 35) return 'var(--amber)';
   return 'var(--red)';
 }}
 
@@ -486,12 +487,10 @@ function buildVerdict(c, rank) {{
 
 function renderCity(c, i) {{
   const rank       = i + 1;
-  // Raw opportunity is a geometric mean of two 0–1 axes, so its realistic range
-  // is compressed (top ~58). Rescale for display so the best city = 100 and the
-  // 0–100 scale / grade bands are meaningful. Grade on the shown value so the
-  // number and label never disagree.
-  const _maxOpp    = Math.max(...CITIES.map(x => x.opportunity), 1);
-  const oppShown   = Math.round(c.opportunity / _maxOpp * 100);
+  // Show the honest raw opportunity (geometric mean of two 0–1 axes). It is not
+  // rescaled — if few cities are strong, the scores and grades say so. Grade on
+  // the rounded shown value so the number and label never disagree.
+  const oppShown   = Math.round(c.opportunity);
   const [grade, gradeLabel] = gradeOf(oppShown);
   const barColor   = oppColor(oppShown);
   const barW       = Math.min(100, oppShown);
@@ -577,7 +576,7 @@ function renderCity(c, i) {{
     </div>
     <div class="factor-bar-row" style="margin-top:0.3rem;border-top:1px solid var(--rule);padding-top:0.4rem">
       <span class="factor-bar-label" style="color:var(--ink);font-weight:600">Opportunity
-        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (quality × depth, geometric — scaled to the top city)</span>
+        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (quality × depth, geometric — needs both)</span>
       </span>
       <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{oppShown}}%;background:${{barColor}}"></div></div>
       <span class="factor-bar-right" style="color:var(--ink)">${{oppShown}} / 100</span>
