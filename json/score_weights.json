@@ -49,14 +49,14 @@
     ]
   },
   "confidence_k": 12,
-  "opportunity_prior": 40,
+  "opportunity_depth_share": 0.5,
+  "opportunity_depth_ref": 50,
   "city_score_weights": {
     "act_cap": 0.144,
     "act_coc": 0.112,
     "act_irr": 0.08,
     "act_dscr": 0.07,
     "act_cf": 0.05,
-    "n_active": 0.104,
     "act_drop": 0.08,
     "act_dom": 0.08,
     "inact_cap": 0.04,
@@ -75,10 +75,6 @@
     "act_coc": [
       0.0,
       15.0
-    ],
-    "n_active": [
-      1.0,
-      10.0
     ],
     "act_drop": [
       0.0,

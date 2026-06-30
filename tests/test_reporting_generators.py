@@ -25,11 +25,11 @@ def _city(name="Ottawa, ON", opp=72.5, active=3, inactive=1):
         "pop_growth": 1.8, "has_demo": True,
         "factors": [
             {"key": "act_cap", "label": "Cap Rate (Active)", "source": "active",
-             "weight": 0.144, "points": 10.3},
-            {"key": "n_active", "label": "Active Volume", "source": "structure",
-             "weight": 0.104, "points": 2.3},
+             "weight": 0.1286, "points": 10.3},
             {"key": "pop_score", "label": "Population Size", "source": "demo",
-             "weight": 0.04, "points": 4.0},
+             "weight": 0.0357, "points": 4.0},
+            {"key": "depth", "label": "Market Depth", "source": "structure",
+             "weight": 0.2, "points": 11.7},
         ],
         "type_counts": {"Retail": 2, "Office": 1, "Industrial": 1},
     }

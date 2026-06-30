@@ -166,7 +166,7 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 |---|---|
 | `printer.py` | **`ReportPrinter`** — terminal-only output. `print_report(analyzer)` prints a formatted metric table to stdout. `list_properties(store)` prints a numbered property list sorted by city then street name/number. |
 | `property_report.py` | **`PropertyReportGenerator`** — renders a self-contained HTML file with a sortable, filterable table of all properties. Each row shows the investment score, per-component breakdown, financial metrics, and the target asking price / rent / interest rate / down payment that would achieve a near-perfect score. Opens in the default browser. |
-| `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by confidence-adjusted opportunity score. Shows volume, avg/best scores, key financial signals, sold/off-market comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
+| `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (quality + market-depth premium). Shows volume, avg/best scores, key financial signals, sold/off-market comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
 
 ---
 
@@ -231,17 +231,19 @@ Type `template` at the path prompt to save a pre-filled example CSV. Populate it
 **Scoring & weights (option `s`)**
 Adjust the weight (0–100%) of each of the nine **property** scoring components and set the floor (score = 0) and ceiling (score = 10) values. Weights are normalised automatically, so disabling a component (set weight to 0) redistributes its share across the rest. Sub-options `d` and `m` manage city distances and demographic data.
 
-A separate sub-editor tunes the **city opportunity** formula, whose 15 factors (weights must sum to 1.0) feed the city report's "Score contributions" breakdown:
+A separate sub-editor tunes the **city opportunity** formula. The score is **quality + a market-depth premium**: `opportunity = quality_share · quality + depth_share · depth` (default split 50% / 50%).
 
-- **Active listings** (still for sale): cap rate, cash-on-cash, IRR, DSCR, annual cash flow, price drop from original list, days on market, and active volume (deal-flow count).
-- **Sold listings** (inactive — treated as sold): cap rate, absorption (sold share = demand signal), and price trend (active asking vs sold = appreciation signal).
-- **Cross / structural**: active-vs-sold cap-rate trend and the single best deal score in the city.
-- **Demographics** (where available): population (log-scaled) and annual population growth.
+- **Quality** is the renormalised weighted blend of deal/market metrics (independent of city size), feeding the report's "Score contributions" breakdown:
+  - *Active listings* (still for sale): cap rate, cash-on-cash, IRR, DSCR, annual cash flow, price drop from original list, days on market.
+  - *Sold listings* (inactive — treated as sold): cap rate, absorption (sold share = demand signal), price trend (active asking vs sold = appreciation signal).
+  - *Cross / structural*: active-vs-sold cap-rate trend and the single best deal score.
+  - *Demographics* (where available): population (log-scaled) and annual population growth.
+- **Depth premium** grows (log-scaled) with active listing count, controlled by `opportunity_depth_share` (default 0.5) and `opportunity_depth_ref` (active count earning ~the full premium, default 50).
 
-The final score is the weighted raw sum (0–100) blended with a prior by a confidence factor `n / (n + k)`: `opportunity = raw · conf + prior · (1 − conf)`. The model is **market-depth focused** — `confidence_k` (default 12) demands real listing volume before a city's own metrics are trusted, and `opportunity_prior` (default 40, just below the typical-city score) anchors thin, unproven markets so a single great listing can't outrank a deep, consistent market. Both are tunable in `json/score_weights.json`.
+This makes quality count in full for any size of market (a good listing buoys small and large alike) while, all else equal, a **larger market outranks a smaller one** — so a single standout listing can't crown a thin market. `confidence_k` now only drives the displayed "Data Confidence" (a how-much-data indicator); it no longer scales the score. All knobs live in `json/score_weights.json`.
 
 **HTML reports (options 6 / c)**
-Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking ordered by confidence-adjusted opportunity score, with an accurate per-factor score breakdown and sold/off-market comparables (inactive listings are treated as sold).
+Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (quality + market-depth premium), with an accurate per-factor score breakdown and sold/off-market comparables (inactive listings are treated as sold).
 
 ---
 

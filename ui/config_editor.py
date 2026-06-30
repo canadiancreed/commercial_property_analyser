@@ -98,7 +98,6 @@ class ConfigEditorMixin:
             "act_irr":         "Avg IRR of active listings  (projected return)",
             "act_dscr":        "Avg debt-service coverage of active listings  (financing safety)",
             "act_cf":          "Avg annual cash flow of active listings  (income level)",
-            "n_active":        "Number of active listings  (more = more deal flow)",
             "act_drop":        "Avg % price reduction from original list  (seller motivation)",
             "act_dom":         "Avg days on market  (higher = softer market = more leverage)",
             "inact_cap":       "Avg cap rate of inactive (≈ sold) listings  (achieved yield)",
@@ -115,9 +114,13 @@ class ConfigEditorMixin:
             ct    = cfg.get("city_score_thresholds", {})
             total = sum(cw.values())
             keys  = list(cw.keys())
+            depth_share = cfg.get("opportunity_depth_share", 0.0)
             print(f"\n{'CITY OPPORTUNITY SCORE FORMULA':^75}")
             print(self.DIVIDER)
-            print(f"  Weights must sum to 1.0.  Currently: {total:.2f}")
+            print(f"  These are relative QUALITY weights (auto-normalised), worth "
+                  f"{(1-depth_share)*100:.0f}% of the score.")
+            print(f"  The other {depth_share*100:.0f}% is a separate market-depth premium "
+                  f"(opportunity_depth_share in json).")
             print(self.DIVIDER)
             print(f"  {'#':<3} {'SIGNAL':<16} {'WEIGHT':>7}  {'FLOOR':>9}  {'CEILING':>9}  DESCRIPTION")
             print(self.DIVIDER)
