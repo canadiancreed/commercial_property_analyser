@@ -229,7 +229,16 @@ Enter commercial rates in $/sqft/year, broken down by type (Office, Retail, Indu
 Type `template` at the path prompt to save a pre-filled example CSV. Populate it and re-import. Rows missing an address, MLS number, original price, or square footage are skipped with a logged error; all others are saved even if a full analysis cannot be run.
 
 **Scoring & weights (option `s`)**
-Adjust the weight (0–100%) of each of the nine scoring components and set the floor (score = 0) and ceiling (score = 10) values. Weights are normalised automatically, so disabling a component (set weight to 0) redistributes its share across the rest. Sub-options `d` and `m` manage city distances and demographic data.
+Adjust the weight (0–100%) of each of the nine **property** scoring components and set the floor (score = 0) and ceiling (score = 10) values. Weights are normalised automatically, so disabling a component (set weight to 0) redistributes its share across the rest. Sub-options `d` and `m` manage city distances and demographic data.
+
+A separate sub-editor tunes the **city opportunity** formula, whose 15 factors (weights must sum to 1.0) feed the city report's "Score contributions" breakdown:
+
+- **Active listings** (still for sale): cap rate, cash-on-cash, IRR, DSCR, annual cash flow, price drop from original list, days on market, and active volume (deal-flow count).
+- **Sold listings** (inactive — treated as sold): cap rate, absorption (sold share = demand signal), and price trend (active asking vs sold = appreciation signal).
+- **Cross / structural**: active-vs-sold cap-rate trend and the single best deal score in the city.
+- **Demographics** (where available): population (log-scaled) and annual population growth.
+
+The final score is the weighted sum (0–100) scaled by a confidence factor `n / (n + k)` so cities with thin data are pulled toward a neutral 50.
 
 **HTML reports (options 6 / c)**
 Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking ordered by confidence-adjusted opportunity score, with an accurate per-factor score breakdown and sold/off-market comparables (inactive listings are treated as sold).
