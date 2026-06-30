@@ -90,7 +90,7 @@ class TestZeroSentinelFix:
         result = ranker.rank(props)
         city = result[0]
         # mean([0, 90, 180]) = 90 — if 0 were excluded it would be 135
-        assert city["act_dom"] == pytest.approx(90, abs=1)
+        assert city["active_days_on_market"] == pytest.approx(90, abs=1)
 
     def test_price_drop_zero_included_in_average(self, ranker):
         """A property with no price reduction (drop=0) must count in the average."""
@@ -102,26 +102,26 @@ class TestZeroSentinelFix:
         result = ranker.rank(props)
         city = result[0]
         # mean([0, 0, 15]) = 5.0 — if zeros were excluded it would be 15.0
-        assert city["act_drop"] == pytest.approx(5.0, abs=0.1)
+        assert city["active_price_drop"] == pytest.approx(5.0, abs=0.1)
 
     def test_all_dom_zero_produces_zero_average(self, ranker):
         """City where every listing is fresh (DOM=0 each) must have avg_dom=0."""
         props = [_prop(dom=0), _prop(dom=0), _prop(dom=0)]
         result = ranker.rank(props)
-        assert result[0]["act_dom"] == 0
+        assert result[0]["active_days_on_market"] == 0
 
     def test_all_price_drop_zero_produces_zero_average(self, ranker):
         """City where no listing has dropped price must have avg_drop=0."""
         props = [_prop(drop=0.0), _prop(drop=0.0)]
         result = ranker.rank(props)
-        assert result[0]["act_drop"] == pytest.approx(0.0)
+        assert result[0]["active_price_drop"] == pytest.approx(0.0)
 
     def test_cf_zero_included_in_average(self, ranker):
         """A break-even property (cf=0) must be counted in avg cash flow."""
         props = [_prop(cf=0), _prop(cf=30_000)]
         result = ranker.rank(props)
         # mean([0, 30000]) = 15000; if 0 excluded → 30000
-        assert result[0]["act_cf"] == pytest.approx(15_000, abs=100)
+        assert result[0]["active_cash_flow"] == pytest.approx(15_000, abs=100)
 
 
 # ── Unanalysed properties ─────────────────────────────────────────────────────
@@ -134,9 +134,11 @@ class TestUnanalysedProperties:
         result = ranker.rank([_unanalysed_prop(), _unanalysed_prop()])
         assert len(result) == 1
         city = result[0]
-        assert city["act_score"] == 0          # no data → rounds to 0, not crash
-        assert city["act_dom"]   == 0
-        assert city["act_drop"]  is None or city["act_drop"] == 0
+        assert city["active_deal_score"] == 0          # no data → rounds to 0, not crash
+        # No scorable active listing → DOM average is undefined (None), so the
+        # report renders "—" rather than a misleading "0d".
+        assert city["active_days_on_market"] is None
+        assert city["active_price_drop"]  is None or city["active_price_drop"] == 0
 
     def test_mixed_analysed_and_unanalysed(self, ranker):
         """Unanalysed properties in a city must not dilute the averages."""
@@ -147,9 +149,9 @@ class TestUnanalysedProperties:
         result = ranker.rank(props)
         city = result[0]
         # Only 1 analysed property — averages come from that property alone
-        assert city["act_dom"]  == 60
-        assert city["act_drop"] == pytest.approx(5.0, abs=0.1)
-        assert city["act_cap"]  == pytest.approx(7.0, abs=0.1)
+        assert city["active_days_on_market"]  == 60
+        assert city["active_price_drop"] == pytest.approx(5.0, abs=0.1)
+        assert city["active_cap_rate"]  == pytest.approx(7.0, abs=0.1)
 
     def test_unanalysed_property_best_score_zero(self, ranker):
         """best_score must be 0 (not crash) when no property has a score."""
@@ -165,27 +167,27 @@ class TestAverageCorrectness:
     def test_cap_rate_average(self, ranker):
         props = [_prop(cap=6.0), _prop(cap=8.0), _prop(cap=10.0)]
         city = ranker.rank(props)[0]
-        assert city["act_cap"] == pytest.approx(8.0, abs=0.05)
+        assert city["active_cap_rate"] == pytest.approx(8.0, abs=0.05)
 
     def test_coc_average(self, ranker):
         props = [_prop(coc=5.0), _prop(coc=10.0), _prop(coc=15.0)]
         city = ranker.rank(props)[0]
-        assert city["act_coc"] == pytest.approx(10.0, abs=0.05)
+        assert city["active_cash_on_cash"] == pytest.approx(10.0, abs=0.05)
 
     def test_dom_average(self, ranker):
         props = [_prop(dom=30), _prop(dom=60), _prop(dom=90)]
         city = ranker.rank(props)[0]
-        assert city["act_dom"] == pytest.approx(60, abs=1)
+        assert city["active_days_on_market"] == pytest.approx(60, abs=1)
 
     def test_asking_price_average(self, ranker):
         props = [_prop(asking=400_000), _prop(asking=600_000)]
         city = ranker.rank(props)[0]
-        assert city["act_price"] == pytest.approx(500_000, abs=500)
+        assert city["active_avg_price"] == pytest.approx(500_000, abs=500)
 
     def test_best_score_is_max_not_average(self, ranker):
         props = [_prop(cap=4.0, coc=4.0), _prop(cap=9.0, coc=12.0)]
         city = ranker.rank(props)[0]
-        assert city["best_score"] >= city["act_score"]
+        assert city["best_score"] >= city["active_deal_score"]
 
 
 # ── Active / inactive split ───────────────────────────────────────────────────
@@ -210,7 +212,7 @@ class TestActiveInactiveSplit:
             _prop(status="inactive", cap=99.0),  # must not pollute act_cap
         ]
         city = ranker.rank(props)[0]
-        assert city["act_cap"] == pytest.approx(7.0, abs=0.1)
+        assert city["active_cap_rate"] == pytest.approx(7.0, abs=0.1)
 
     def test_inact_cap_is_average_of_inactive_only(self, ranker):
         props = [
@@ -219,7 +221,7 @@ class TestActiveInactiveSplit:
             _prop(status="inactive", cap=11.0),
         ]
         city = ranker.rank(props)[0]
-        assert city["inact_cap"] == pytest.approx(10.0, abs=0.1)
+        assert city["inactive_cap_rate"] == pytest.approx(10.0, abs=0.1)
 
 
 # ── Multi-city output ─────────────────────────────────────────────────────────
@@ -241,8 +243,8 @@ class TestMultiCity:
         ]
         result = ranker.rank(props)
         by_city = {r["city"]: r for r in result}
-        assert by_city["Ottawa, ON"]["act_cap"]   == pytest.approx(9.0, abs=0.1)
-        assert by_city["Kingston, ON"]["act_cap"]  == pytest.approx(4.0, abs=0.1)
+        assert by_city["Ottawa, ON"]["active_cap_rate"]   == pytest.approx(9.0, abs=0.1)
+        assert by_city["Kingston, ON"]["active_cap_rate"]  == pytest.approx(4.0, abs=0.1)
 
     def test_sorted_by_opportunity(self, ranker):
         """City with better fundamentals must rank above city with poor ones."""
@@ -263,16 +265,21 @@ class TestMultiCity:
 class TestOutputShape:
     """Result dicts must have the expected keys and types — no None in int fields."""
 
-    INT_FIELDS   = ("act_cf", "act_dom", "act_price", "inact_price")
-    FLOAT_FIELDS = ("act_cap", "act_coc", "act_irr", "act_dscr",
-                    "act_drop", "confidence", "opportunity")
+    # Price/cash-flow fields still collapse "no data" to 0 (a $0 average is not a
+    # meaningful value anyway, so 0 == missing is acceptable for these).
+    INT_FIELDS   = ("active_cash_flow", "active_avg_price", "inactive_avg_price")
+    # These distinguish a real 0 from "no data" (None) so the report can render
+    # "—" instead of a misleading zero.
+    NULLABLE_NUM_FIELDS = ("active_days_on_market", "cap_trend")
+    FLOAT_FIELDS = ("active_cap_rate", "active_cash_on_cash", "active_irr", "active_dscr",
+                    "active_price_drop", "confidence", "opportunity")
 
     def test_required_keys_present(self, ranker):
         result = ranker.rank([_prop()])
         city = result[0]
         for key in ("city", "total", "active", "inactive", "confidence",
-                    "act_score", "act_cap", "act_coc", "act_dom", "act_drop",
-                    "act_price", "inact_cap", "best_score", "opportunity",
+                    "active_deal_score", "active_cap_rate", "active_cash_on_cash", "active_days_on_market", "active_price_drop",
+                    "active_avg_price", "inactive_cap_rate", "best_score", "opportunity",
                     "type_counts", "absorption_rate"):
             assert key in city, f"Missing key: {key}"
 
@@ -283,6 +290,21 @@ class TestOutputShape:
         for field in self.INT_FIELDS:
             assert isinstance(city[field], int), \
                 f"{field}={city[field]!r} is not int"
+
+    def test_nullable_num_fields_are_none_when_no_data(self, ranker):
+        """Fields where 0 is a real value must be None (not 0) when undefined."""
+        city = ranker.rank([_unanalysed_prop()])[0]   # no scorable data, no inactive
+        for field in self.NULLABLE_NUM_FIELDS:
+            assert city[field] is None, \
+                f"{field}={city[field]!r} should be None when undefined"
+
+    def test_nullable_num_fields_are_numeric_when_present(self, ranker):
+        """When the data supports them, the nullable fields carry real numbers."""
+        props = [_prop(status="active", dom=0, cap=7.0),
+                 _prop(status="inactive", cap=6.0)]
+        city = ranker.rank(props)[0]
+        assert city["active_days_on_market"] == 0      # listed today, a real 0
+        assert isinstance(city["cap_trend"], (int, float))
 
     def test_opportunity_in_range(self, ranker):
         result = ranker.rank([_prop()] * 5)

@@ -93,15 +93,21 @@ class ConfigEditorMixin:
 
     def _edit_city_weights(self):
         DESCRIPTIONS = {
-            "act_cap":      "Avg cap rate of active listings  (higher yield environment)",
-            "act_coc":      "Avg cash-on-cash return of active listings  (income quality)",
-            "n_active":     "Number of active listings  (more = more deal flow)",
-            "act_drop":     "Avg % price reduction from original list  (seller motivation)",
-            "act_dom":      "Avg days on market  (higher = softer market = more leverage)",
-            "inact_cap":    "Avg cap rate of sold/inactive listings  (historical yield)",
-            "cap_trend":    "Active minus inactive cap rate  (market direction)",
-            "pop_score":    "City population (log-scaled)  (market size)",
-            "growth_score": "Annual population growth %  (demand trajectory)",
+            "act_cap":         "Avg cap rate of active listings  (higher yield environment)",
+            "act_coc":         "Avg cash-on-cash return of active listings  (income quality)",
+            "act_irr":         "Avg IRR of active listings  (projected return)",
+            "act_dscr":        "Avg debt-service coverage of active listings  (financing safety)",
+            "act_cf":          "Avg annual cash flow of active listings  (income level)",
+            "n_active":        "Number of active listings  (more = more deal flow)",
+            "act_drop":        "Avg % price reduction from original list  (seller motivation)",
+            "act_dom":         "Avg days on market  (higher = softer market = more leverage)",
+            "inact_cap":       "Avg cap rate of inactive (≈ sold) listings  (achieved yield)",
+            "cap_trend":       "Active minus inactive cap rate  (market direction)",
+            "absorption_rate": "Share of listings gone off-market (≈ sold)  (demand — higher = clearing)",
+            "price_trend":     "Active asking vs inactive (≈ sold) price  (appreciation signal)",
+            "best_score":      "Single best deal score in the city  (upside ceiling)",
+            "pop_score":       "City population (log-scaled)  (market size)",
+            "growth_score":    "Annual population growth %  (demand trajectory)",
         }
         while True:
             cfg   = self._scorer.load_config()

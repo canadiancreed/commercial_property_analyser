@@ -140,4 +140,4 @@ class TestCityRankerExclusion:
         # the MED property (LOW excluded).
         assert perth["total"] == 2
         med_cap = scorer.score_property(med)["cap_rate"]
-        assert perth["act_cap"] == pytest.approx(med_cap, rel=1e-3)
+        assert perth["active_cap_rate"] == pytest.approx(med_cap, rel=1e-3)

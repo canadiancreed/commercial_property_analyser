@@ -1,17 +1,6 @@
 import json as _json
-import os
 import tempfile
 import webbrowser
-
-_SCORE_WEIGHTS_PATH = os.path.join(os.path.dirname(__file__), "..", "json", "score_weights.json")
-
-
-def _load_city_thresholds() -> dict:
-    try:
-        with open(_SCORE_WEIGHTS_PATH, encoding="utf-8") as fh:
-            return _json.load(fh).get("city_score_thresholds", {})
-    except (OSError, _json.JSONDecodeError):
-        return {}
 
 
 class CityReportGenerator:
@@ -20,8 +9,6 @@ class CityReportGenerator:
     def render(self, cities: list) -> str:
         """Build and return the full HTML string for the city report."""
         cities_json = _json.dumps(cities, indent=2)
-        thresholds = _load_city_thresholds()
-        thresholds_json = _json.dumps(thresholds)
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -385,9 +372,9 @@ function resetPriceFilter() {{
 
 function cityMatchesFilter(c) {{
   if (_priceMin === null && _priceMax === null) return true;
-  if (!c.act_price) return true;
-  if (_priceMin !== null && c.act_price < _priceMin) return false;
-  if (_priceMax !== null && c.act_price > _priceMax) return false;
+  if (!c.active_avg_price) return true;
+  if (_priceMin !== null && c.active_avg_price < _priceMin) return false;
+  if (_priceMax !== null && c.active_avg_price > _priceMax) return false;
   return true;
 }}
 
@@ -421,8 +408,10 @@ document.addEventListener('DOMContentLoaded', () => {{
   }});
 }});
 
-function fp(n)  {{ return n ? n.toFixed(1) + '%' : '—'; }}
-function fi(n)  {{ return (n !== null && n !== undefined && n !== 0) ? n.toFixed(0) : '—'; }}
+// null/undefined = "not computed" → em dash. A genuine 0 (e.g. no price
+// reductions, listed today) is a real value and must render as 0, not "—".
+function fp(n)  {{ return (n === null || n === undefined) ? '—' : n.toFixed(1) + '%'; }}
+function fi(n)  {{ return (n === null || n === undefined) ? '—' : n.toFixed(0); }}
 function fm(n)  {{
   if (!n) return '—';
   if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
@@ -448,29 +437,30 @@ function gradeOf(opp) {{
   return ['poor', 'Weak'];
 }}
 
+// Bands must match gradeOf(): Excellent/Good → green, Fair → amber, Weak → red.
 function oppColor(opp) {{
-  if (opp >= 65) return 'var(--green)';
+  if (opp >= 55) return 'var(--green)';
   if (opp >= 35) return 'var(--amber)';
   return 'var(--red)';
 }}
 
 function buildVerdict(c, rank) {{
   const strengths = [], weaknesses = [], context = [];
-  if (c.act_score >= 60)  strengths.push(`active deal quality averaging ${{fi(c.act_score)}}/100`);
-  else if (c.act_score > 0 && c.act_score < 40) weaknesses.push(`weak active deal quality (${{fi(c.act_score)}}/100)`);
-  if (c.act_cap >= 7)     strengths.push(`strong live cap rate of ${{fp(c.act_cap)}}`);
-  else if (c.act_cap > 0 && c.act_cap < 5) weaknesses.push(`below-target live cap rate (${{fp(c.act_cap)}})`);
-  if (c.act_coc >= 10)    strengths.push(`solid active cash-on-cash (${{fp(c.act_coc)}})`);
-  else if (c.act_coc > 0 && c.act_coc < 5) weaknesses.push(`low active cash-on-cash (${{fp(c.act_coc)}})`);
-  if (c.act_drop > 3)     strengths.push(`avg price reduction of ${{fp(c.act_drop)}} on active listings`);
-  if (c.act_dom >= 90)    strengths.push(`active properties averaging ${{c.act_dom}} days listed`);
-  else if (c.act_dom > 0 && c.act_dom < 30) weaknesses.push(`fast-moving market (${{c.act_dom}}d avg DOM)`);
+  if (c.active_deal_score >= 60)  strengths.push(`active deal quality averaging ${{fi(c.active_deal_score)}}/100`);
+  else if (c.active_deal_score > 0 && c.active_deal_score < 40) weaknesses.push(`weak active deal quality (${{fi(c.active_deal_score)}}/100)`);
+  if (c.active_cap_rate >= 7)     strengths.push(`strong live cap rate of ${{fp(c.active_cap_rate)}}`);
+  else if (c.active_cap_rate > 0 && c.active_cap_rate < 5) weaknesses.push(`below-target live cap rate (${{fp(c.active_cap_rate)}})`);
+  if (c.active_cash_on_cash >= 10)    strengths.push(`solid active cash-on-cash (${{fp(c.active_cash_on_cash)}})`);
+  else if (c.active_cash_on_cash > 0 && c.active_cash_on_cash < 5) weaknesses.push(`low active cash-on-cash (${{fp(c.active_cash_on_cash)}})`);
+  if (c.active_price_drop > 3)     strengths.push(`avg price reduction of ${{fp(c.active_price_drop)}} on active listings`);
+  if (c.active_days_on_market >= 90)    strengths.push(`active properties averaging ${{c.active_days_on_market}} days listed`);
+  else if (c.active_days_on_market > 0 && c.active_days_on_market < 30) weaknesses.push(`fast-moving market (${{c.active_days_on_market}}d avg DOM)`);
   if (c.active === 0)     weaknesses.push(`no active listings — no actionable deals`);
   if (c.confidence < 0.5) weaknesses.push(`limited data (${{c.total}} propert${{c.total===1?'y':'ies'}} — score discounted)`);
-  if (c.inact_score >= 60) context.push(`historical deals averaged ${{fi(c.inact_score)}}/100 — market has produced quality`);
-  else if (c.inactive > 0 && c.inact_score < 40) context.push(`historical deals were weak (${{fi(c.inact_score)}}/100)`);
-  if (c.cap_trend > 0.5)       context.push(`cap rates trending up vs historical (${{c.cap_trend > 0 ? '+' : ''}}${{fp(c.cap_trend)}} vs inactive)`);
-  else if (c.cap_trend < -0.5) context.push(`cap rates trending down vs historical (${{fp(c.cap_trend)}} vs inactive)`);
+  if (c.inactive_deal_score >= 60) context.push(`sold deals averaged ${{fi(c.inactive_deal_score)}}/100 — market has produced quality`);
+  else if (c.inactive > 0 && c.inactive_deal_score < 40) context.push(`sold deals were weak (${{fi(c.inactive_deal_score)}}/100)`);
+  if (c.cap_trend > 0.5)       context.push(`cap rates trending up vs sold (${{c.cap_trend > 0 ? '+' : ''}}${{fp(c.cap_trend)}})`);
+  else if (c.cap_trend < -0.5) context.push(`cap rates trending down vs sold (${{fp(c.cap_trend)}})`);
   if (c.has_demo) {{
     const popFmtV = p => p >= 1000000 ? (p/1000000).toFixed(1)+'M' : p >= 1000 ? Math.round(p/1000)+'K' : p;
     if (c.pop_growth >= 2.0)       strengths.push(`strong pop. growth (${{c.pop_growth.toFixed(2)}}%/yr) — expanding tenant base`);
@@ -496,10 +486,10 @@ function renderCity(c, i) {{
   const barW       = Math.min(100, c.opportunity);
   const rankClass  = rank <= 3 ? `rank-${{rank}}` : grade;
   const miniStats = [
-    c.act_cap   ? `Cap <span class="${{gc('cap',   c.act_cap)}}">${{fp(c.act_cap)}}</span>`   : '',
-    c.act_coc   ? `CoCR <span class="${{gc('coc',  c.act_coc)}}">${{fp(c.act_coc)}}</span>`  : '',
-    c.act_irr   ? `IRR <span class="${{gc('irr',   c.act_irr)}}">${{fp(c.act_irr)}}</span>`  : '',
-    c.act_score ? `Score <span style="color:${{barColor}}">${{fi(c.act_score)}}</span>` : '',
+    c.active_cap_rate   ? `Cap <span class="${{gc('cap',   c.active_cap_rate)}}">${{fp(c.active_cap_rate)}}</span>`   : '',
+    c.active_cash_on_cash   ? `CoCR <span class="${{gc('coc',  c.active_cash_on_cash)}}">${{fp(c.active_cash_on_cash)}}</span>`  : '',
+    c.active_irr   ? `IRR <span class="${{gc('irr',   c.active_irr)}}">${{fp(c.active_irr)}}</span>`  : '',
+    c.active_deal_score ? `Score <span style="color:${{barColor}}">${{fi(c.active_deal_score)}}</span>` : '',
   ].filter(Boolean).map(s => `<span class="mini-stat">${{s}}</span>`).join('');
   const typeStr = Object.entries(c.type_counts || {{}})
     .sort((a,b) => b[1]-a[1])
@@ -509,22 +499,22 @@ function renderCity(c, i) {{
   const confPctStr = c.confidence ? (c.confidence * 100).toFixed(0) + '%' : '—';
   const confCls    = c.confidence >= 0.8 ? 'good' : c.confidence >= 0.5 ? 'fair' : 'poor';
   const activeCards = [
-    {{ label:'Deal Score (Active)',  val: c.act_score  ? fi(c.act_score)+'/100':'—',  cls: gc('score',c.act_score),  sub:'avg across active listings' }},
-    {{ label:'Cap Rate (Active)',    val: fp(c.act_cap),   cls: gc('cap',c.act_cap),   sub:'≥7% strong · live deals' }},
-    {{ label:'CoCR (Active)',        val: fp(c.act_coc),   cls: gc('coc',c.act_coc),   sub:'≥10% strong · live deals' }},
-    {{ label:'IRR (Active)',         val: fp(c.act_irr),   cls: gc('irr',c.act_irr),   sub:'≥15% strong · live deals' }},
-    {{ label:'DSCR (Active)',        val: c.act_dscr ? c.act_dscr.toFixed(2):'—', cls: gc('dscr',c.act_dscr), sub:'≥1.5 strong' }},
-    {{ label:'Price Drop (Active)',  val: fp(c.act_drop),  cls: gc('drop',c.act_drop), sub:'from original list' }},
-    {{ label:'Days Listed (Active)', val: c.act_dom ? c.act_dom+'d':'—', cls: gc('dom',c.act_dom), sub:'seller motivation' }},
-    {{ label:'Avg Price (Active)',   val: fm(c.act_price), cls:'info', sub:'active listings' }},
+    {{ label:'Deal Score (Active)',  val: c.active_deal_score_na ? 'n/a' : (c.active_deal_score ? fi(c.active_deal_score)+'/100':'—'),  cls: gc('score',c.active_deal_score),  sub:'avg across active listings' }},
+    {{ label:'Cap Rate (Active)',    val: fp(c.active_cap_rate),   cls: gc('cap',c.active_cap_rate),   sub:'≥7% strong · live deals' }},
+    {{ label:'CoCR (Active)',        val: fp(c.active_cash_on_cash),   cls: gc('coc',c.active_cash_on_cash),   sub:'≥10% strong · live deals' }},
+    {{ label:'IRR (Active)',         val: fp(c.active_irr),   cls: gc('irr',c.active_irr),   sub:'≥15% strong · live deals' }},
+    {{ label:'DSCR (Active)',        val: c.active_dscr ? c.active_dscr.toFixed(2):'—', cls: gc('dscr',c.active_dscr), sub:'≥1.5 strong' }},
+    {{ label:'Price Drop (Active)',  val: fp(c.active_price_drop),  cls: gc('drop',c.active_price_drop), sub:'from original list' }},
+    {{ label:'Days Listed (Active)', val: c.active_days_on_market != null ? c.active_days_on_market+'d':'—', cls: gc('dom',c.active_days_on_market), sub:'seller motivation' }},
+    {{ label:'Avg Price (Active)',   val: fm(c.active_avg_price), cls:'info', sub:'active listings' }},
   ];
   const popFmt = p => p >= 1000000 ? (p/1000000).toFixed(1)+'M' : p >= 1000 ? Math.round(p/1000)+'K' : (p||'—');
   const growthCls = g => g == null ? 'info' : g >= 2 ? 'good' : g >= 0.5 ? 'fair' : g >= 0 ? 'info' : 'poor';
   const contextCards = [
-    {{ label:'Deal Score (Hist.)',   val: c.inact_score ? fi(c.inact_score)+'/100':'—', cls: gc('score',c.inact_score), sub:'avg across inactive listings' }},
-    {{ label:'Cap Rate (Hist.)',     val: fp(c.inact_cap), cls: gc('cap',c.inact_cap),  sub:'historical market rate' }},
-    {{ label:'CoCR (Hist.)',         val: fp(c.inact_coc), cls: gc('coc',c.inact_coc),  sub:'historical returns' }},
-    {{ label:'Cap Rate Trend',       val: trendArrow + ' ' + (c.cap_trend > 0 ? '+':'') + fp(c.cap_trend), cls: trendCls, sub:'active vs historical' }},
+    {{ label:'Deal Score (Sold)',    val: c.inactive_deal_score ? fi(c.inactive_deal_score)+'/100':'—', cls: gc('score',c.inactive_deal_score), sub:'avg across sold listings' }},
+    {{ label:'Cap Rate (Sold)',      val: fp(c.inactive_cap_rate), cls: gc('cap',c.inactive_cap_rate),  sub:'achieved market rate' }},
+    {{ label:'CoCR (Sold)',          val: fp(c.inactive_cash_on_cash), cls: gc('coc',c.inactive_cash_on_cash),  sub:'achieved returns' }},
+    {{ label:'Cap Rate Trend',       val: c.cap_trend == null ? '—' : trendArrow + ' ' + (c.cap_trend > 0 ? '+':'') + fp(c.cap_trend), cls: trendCls, sub:'active vs sold' }},
     {{ label:'Data Confidence',      val: confPctStr,      cls: confCls, sub:`n/(n+k) · ${{c.total}} total props` }},
     {{ label:'Best Deal Score',      val: c.best_score ? fi(c.best_score)+'/100':'—', cls: gc('score',c.best_score), sub:'ceiling — any property' }},
     {{ label:'Population (2021)',    val: c.population ? popFmt(c.population) : '—', cls: c.population >= 50000 ? 'good' : c.population >= 10000 ? 'fair' : c.population ? 'info' : 'poor', sub:'Stats Canada 2021 Census' }},
@@ -538,37 +528,26 @@ function renderCity(c, i) {{
         <div class="detail-card-sub">${{cd.sub}}</div>
       </div>`).join('');
   }}
-  function norm(v, lo, hi) {{ return hi===lo ? 0 : Math.max(0, Math.min(1, (v-lo)/(hi-lo))); }}
-  const T = {thresholds_json};
-  function t(key, lo, hi) {{ return T[key] || [lo, hi]; }}
-  function tn(v, key, lo, hi) {{ const [l,h] = t(key,lo,hi); return norm(v,l,h); }}
-  function log10PopScore(pop) {{ const [l,h] = t('pop_score',3.0,5.7); return pop > 0 ? norm(Math.log10(pop),l,h) : 0; }}
-  const factors = [
-    {{ label:'Cap Rate (Active)',    w:0.25, raw: tn(c.act_cap,   'act_cap',   3,  10) * 0.25 * 100, src:'active' }},
-    {{ label:'CoCR (Active)',        w:0.20, raw: tn(c.act_coc,   'act_coc',   0,  15) * 0.20 * 100, src:'active' }},
-    {{ label:'Active Volume',        w:0.20, raw: tn(c.active,    'n_active',  1,  10) * 0.20 * 100, src:'active' }},
-    {{ label:'Price Drop (Active)',  w:0.10, raw: tn(c.act_drop,  'act_drop',  0,  15) * 0.10 * 100, src:'active' }},
-    {{ label:'Days Listed (Active)', w:0.10, raw: tn(c.act_dom,   'act_dom',  30, 180) * 0.10 * 100, src:'active' }},
-    {{ label:'Hist. Cap Rate',       w:0.05, raw: tn(c.inact_cap, 'inact_cap', 3,  10) * 0.05 * 100, src:'inactive' }},
-    {{ label:'Cap Rate Trend',       w:0.05, raw: tn(c.cap_trend, 'cap_trend',-3,   3) * 0.05 * 100, src:'cross' }},
-    {{ label:'Population Size',      w:0.05, raw: log10PopScore(c.population||0)        * 0.05 * 100, src:'demo' }},
-    {{ label:'Pop. Growth Rate',     w:0.10, raw: (c.pop_growth != null ? tn(c.pop_growth,'growth_score',-1.0,3.0) : 0) * 0.10 * 100, src:'demo' }},
-  ];
-  const srcColor = {{ active:'var(--green)', inactive:'var(--amber)', cross:'var(--muted)', demo:'#7c9fbf' }};
-  const maxRaw = Math.max(...factors.map(f => f.raw), 1);
-  const confPct = ((c.confidence || 1) * 100).toFixed(0);
+  // The factor breakdown is the *actual* contribution emitted by CityRanker
+  // (points = normalised × weight × 100), so it always matches the scoring
+  // model and config weights — no recomputation here.
+  const srcColor = {{ active:'var(--green)', sold:'var(--amber)', structure:'var(--gold)', cross:'var(--muted)', demo:'#7c9fbf' }};
+  const factors  = (c.factors || []).slice();
+  const maxRaw   = Math.max(...factors.map(f => f.points), 1);
+  const confPct  = ((c.confidence || 1) * 100).toFixed(0);
   const factorBars = factors
-    .sort((a,b) => b.raw - a.raw)
+    .sort((a,b) => b.points - a.points)
     .map(f => {{
-      const pct = (f.raw / maxRaw * 100).toFixed(0);
+      const pct   = (f.points / maxRaw * 100).toFixed(0);
+      const color = srcColor[f.source] || 'var(--muted)';
       return `<div class="factor-bar-row">
         <span class="factor-bar-label">
           ${{f.label}}
-          <span style="color:${{srcColor[f.src]}};font-size:9px;margin-left:3px">[${{f.src}}]</span>
-          <span style="color:var(--gold);font-size:9px">(${{(f.w*100).toFixed(0)}}%)</span>
+          <span style="color:${{color}};font-size:9px;margin-left:3px">[${{f.source}}]</span>
+          <span style="color:var(--gold);font-size:9px">(${{(f.weight*100).toFixed(1)}}%)</span>
         </span>
-        <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{pct}}%;background:${{srcColor[f.src]}}"></div></div>
-        <span class="factor-bar-right">${{f.raw.toFixed(1)}} pts</span>
+        <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{pct}}%;background:${{color}}"></div></div>
+        <span class="factor-bar-right">${{f.points.toFixed(1)}} pts</span>
       </div>`;
     }}).join('') + `
     <div class="factor-bar-row" style="margin-top:0.5rem;border-top:1px dashed var(--rule);padding-top:0.5rem">
@@ -586,7 +565,7 @@ function renderCity(c, i) {{
         <div class="city-name">${{c.city}} <span class="chevron">▼</span></div>
         <div class="city-pills">
           <span class="pill active">${{c.active}} active</span>
-          ${{c.inactive ? `<span class="pill inactive">${{c.inactive}} inactive</span>` : ''}}
+          ${{c.inactive ? `<span class="pill inactive">${{c.inactive}} sold</span>` : ''}}
           ${{typeStr ? `<span class="pill">${{typeStr}}</span>` : ''}}
         </div>
       </div>
@@ -605,14 +584,18 @@ function renderCity(c, i) {{
       <div class="detail-verdict">${{buildVerdict(c, rank)}}</div>
       <div class="detail-section-title">Active Listings — Actionable Now</div>
       <div class="detail-grid">${{cardHtml(activeCards)}}</div>
-      <div class="detail-section-title" style="margin-top:1rem">Historical Context — Inactive Listings</div>
+      <div class="detail-section-title" style="margin-top:1rem">
+        Sold &amp; Off-Market — Historical Context
+        <span style="text-transform:none;letter-spacing:0;color:var(--muted);font-weight:normal"> · inactive listings treated as sold (off-market ≈ transacted)</span>
+      </div>
       <div class="detail-grid">${{cardHtml(contextCards)}}</div>
       <div class="factor-section-title" style="margin-top:1.2rem">
         Score contributions &nbsp;
         <span style="color:var(--green)">[active]</span>
-        <span style="color:var(--amber)"> [inactive]</span>
+        <span style="color:var(--amber)"> [sold]</span>
         <span style="color:var(--gold)"> [structure]</span>
         <span style="color:var(--muted)"> [cross]</span>
+        <span style="color:#7c9fbf"> [demo]</span>
       </div>
       ${{factorBars}}
     </div>

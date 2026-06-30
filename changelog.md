@@ -6,6 +6,56 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.4.0] — 2026-06-29
+
+### Fixed
+
+- **City report "Score contributions" no longer misrepresents the model**
+  (`reporting/city_report.py`, `scoring/city_ranker.py`): the breakdown was a hardcoded
+  JavaScript copy of the weights that had drifted out of sync — it used the wrong weights
+  (summing to 110%), silently omitted 6 of the 15 scoring factors (IRR, DSCR, Cash Flow,
+  absorption, price trend, best score — ~35% of the score), and carried a mislabeled legend.
+  `CityRanker` now emits each factor's actual contribution (`points = normalised × weight ×
+  100`, summing to the raw score) and the report renders those directly. The breakdown always
+  matches `json/score_weights.json`, and editing the weights now moves the bars.
+- **Genuine zeros no longer render as "missing"** (`reporting/city_report.py`,
+  `scoring/city_ranker.py`): `fp()`/`fi()` treated `0` as falsy and printed `—`, conflating
+  "no price reductions" / "listed today" with absent data. They now show `—` only for
+  `null`/`undefined`. `CityRanker` emits `None` (not `0`) for `active_days_on_market` and
+  `cap_trend` when there is nothing to average/compare, so the report shows `—` there and
+  `0.0%` / `0d` for real zeros. Scoring inputs are unchanged (the missing case still scores
+  as a neutral 0).
+- **City opportunity colour now matches its grade** (`reporting/city_report.py`): a city
+  scoring 55–64 was labelled "Good" but coloured amber. `oppColor` now turns green at the
+  same 55 boundary as the "Good" grade.
+
+### Changed
+
+- **Descriptive names for the city result fields** (`scoring/city_ranker.py`,
+  `reporting/city_report.py`): the cryptic `act_*` / `inact_*` output keys are now
+  self-describing — e.g. `act_cap` → `active_cap_rate`, `act_dom` → `active_days_on_market`,
+  `inact_cap` → `inactive_cap_rate`. The `json/score_weights.json` weight/threshold keys are a
+  separate persisted config namespace and were intentionally left unchanged.
+- **Inactive listings are framed as sold** (`scoring/city_ranker.py`,
+  `reporting/city_report.py`, `ui/config_editor.py`): status is binary (active vs inactive)
+  and an off-market listing is modelled as sold (off-market ≈ transacted). The report's
+  historical section is now "Sold & Off-Market", its cards read "(Sold)", the count pill reads
+  "N sold", and the two cross-cohort factors are "Absorption (Sold Share)" (demand signal) and
+  "Price Trend (Ask vs Sold)" (appreciation signal). The config-editor descriptions match and
+  now cover all 15 factors (previously 9).
+- `CityReportGenerator` no longer reads `json/score_weights.json` for thresholds — the
+  breakdown comes entirely from the emitted factor data.
+
+### Tests
+
+- Updated `tests/test_reporting_generators.py`, `tests/test_integration_city_report.py`, and
+  `tests/test_integration_industrial.py` for the renamed fields and the real-factor contract;
+  replaced the obsolete threshold-injection tests with ones asserting the report consumes
+  `c.factors`. Added regression guards for the zero-vs-missing rendering, the grade/colour band
+  alignment, and the `None`-vs-`0` field semantics.
+
+---
+
 ## [3.3.0] — 2026-06-24
 
 ### Added
