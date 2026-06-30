@@ -56,15 +56,17 @@ class CityRanker:
                 "type":       p.get("property_type", ""),
             })
 
-        # Shrinkage toward a prior anchor: a city's raw score is trusted in
-        # proportion to its sample size (confidence = n/(n+k)); the rest pulls
-        # toward `prior`. A higher k demands more listings before a city's own
-        # numbers are believed (market-depth focus — thin markets stay near the
-        # prior no matter how good a single listing is). `prior` set below the
-        # typical-city score makes an unproven market rank below a deep, known
-        # one rather than being assumed average.
-        k     = cfg.get("confidence_k", 5)
-        prior = cfg.get("opportunity_prior", 50)
+        # Opportunity = quality (deal/market metrics) + a market-depth premium:
+        #   opportunity = quality_share·quality + depth_share·depth
+        # Quality counts in full regardless of city size, so a great listing
+        # buoys a small market and a large one alike. The depth premium grows
+        # (log-scaled) with active inventory, so all else equal a larger market
+        # outranks a smaller one — and a single standout listing, earning little
+        # depth, cannot crown a thin market. `confidence_k` is now display-only
+        # (a "how much data" indicator); it no longer scales the score.
+        k           = cfg.get("confidence_k", 5)
+        depth_share = cfg.get("opportunity_depth_share", 0.0)
+        depth_ref   = cfg.get("opportunity_depth_ref", 50)
         cities = []
 
         for key, entries in city_data.items():
@@ -131,11 +133,10 @@ class CityRanker:
             pop_norm    = self._norm(math.log10(max(pop, 1)), pop_lo, pop_hi) if has_demo else 0
             growth_norm = self._norm(pop_growth, growth_lo, growth_hi) if pop_growth is not None else 0
 
-            # Each factor's normalised 0..1 strength, paired with the config key
-            # used for its weight/threshold and a human-readable label + source.
-            # points = normalised * weight * 100, and the factors sum to raw_score,
-            # so the report can render the real breakdown instead of recomputing it
-            # from a hardcoded (and drift-prone) copy of the weights.
+            # Quality factors: each a normalised 0..1 strength paired with the
+            # config key for its weight/threshold and a label + source. Listing
+            # volume is NOT here — depth is a separate premium (below) so a city's
+            # quality is judged independently of its size.
             factor_specs = [
                 ("act_cap",         "Cap Rate (Active)",    "active",
                  self._norm(active_cap_rate     or 0, *_t("act_cap",   3,    10))),
@@ -147,8 +148,6 @@ class CityRanker:
                  self._norm(active_dscr         or 0, *_t("act_dscr",  1,   1.5))),
                 ("act_cf",          "Cash Flow (Active)",   "active",
                  self._norm(active_cash_flow    or 0, *_t("act_cf",    0, 50000))),
-                ("n_active",        "Active Volume",        "structure",
-                 self._norm(n_active,                 *_t("n_active",  1,    10))),
                 ("act_drop",        "Price Drop (Active)",  "active",
                  self._norm(active_price_drop   or 0, *_t("act_drop",  0,    15))),
                 ("act_dom",         "Days Listed (Active)", "active",
@@ -167,22 +166,41 @@ class CityRanker:
                 ("growth_score",    "Pop. Growth Rate",     "demo", growth_norm),
             ]
 
-            factors   = []
-            raw_score = 0.0
+            # Quality weights are relative — renormalised to the quality share of
+            # the 100-point scale (the rest is the depth premium). points sum to
+            # quality_share·100; with the depth factor they sum to opportunity,
+            # so the report renders the real breakdown (weights total 100%).
+            quality_share = 1.0 - depth_share
+            qw_sum = sum(_w(name, 0) for name, *_rest in factor_specs) or 1.0
+
+            factors = []
+            quality_score = 0.0
             for name, label, source, normalised in factor_specs:
-                weight  = _w(name, 0)
-                points  = normalised * weight * 100
-                raw_score += points
+                share  = (_w(name, 0) / qw_sum) * quality_share
+                points = normalised * share * 100
+                quality_score += points
                 factors.append({
                     "key":    name,
                     "label":  label,
                     "source": source,
-                    "weight": round(weight, 4),
+                    "weight": round(share, 4),
                     "points": round(points, 2),
                 })
-            raw_score = round(raw_score, 1)
 
-            opportunity_score = round(raw_score * confidence + prior * (1 - confidence), 1)
+            # Market-depth premium: log-scaled active inventory, worth up to
+            # depth_share·100 points. depth_ref is the active count that earns
+            # (about) the full premium.
+            depth_norm = (math.log10(n_active + 1) / math.log10(depth_ref + 1)
+                          if depth_ref and depth_ref > 0 else 0)
+            depth_norm = max(0.0, min(1.0, depth_norm))
+            depth_points = depth_norm * depth_share * 100
+            factors.append({
+                "key": "depth", "label": "Market Depth", "source": "structure",
+                "weight": round(depth_share, 4), "points": round(depth_points, 2),
+            })
+
+            raw_score         = round(quality_score + depth_points, 1)
+            opportunity_score = round(max(0.0, min(100.0, raw_score)), 1)
 
             type_counts: dict = defaultdict(int)
             for e in entries:

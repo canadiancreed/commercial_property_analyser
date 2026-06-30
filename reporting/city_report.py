@@ -515,7 +515,7 @@ function renderCity(c, i) {{
     {{ label:'Cap Rate (Sold)',      val: fp(c.inactive_cap_rate), cls: gc('cap',c.inactive_cap_rate),  sub:'achieved market rate' }},
     {{ label:'CoCR (Sold)',          val: fp(c.inactive_cash_on_cash), cls: gc('coc',c.inactive_cash_on_cash),  sub:'achieved returns' }},
     {{ label:'Cap Rate Trend',       val: c.cap_trend == null ? '—' : trendArrow + ' ' + (c.cap_trend > 0 ? '+':'') + fp(c.cap_trend), cls: trendCls, sub:'active vs sold' }},
-    {{ label:'Data Confidence',      val: confPctStr,      cls: confCls, sub:`n/(n+k) · ${{c.total}} total props` }},
+    {{ label:'Data Confidence',      val: confPctStr,      cls: confCls, sub:`sample size · ${{c.total}} total props (context only)` }},
     {{ label:'Best Deal Score',      val: c.best_score ? fi(c.best_score)+'/100':'—', cls: gc('score',c.best_score), sub:'ceiling — any property' }},
     {{ label:'Population (2021)',    val: c.population ? popFmt(c.population) : '—', cls: c.population >= 50000 ? 'good' : c.population >= 10000 ? 'fair' : c.population ? 'info' : 'poor', sub:'Stats Canada 2021 Census' }},
     {{ label:'Pop. Growth (Ann.)',   val: c.pop_growth != null ? (c.pop_growth > 0 ? '+' : '') + c.pop_growth.toFixed(2) + '%/yr' : '—', cls: growthCls(c.pop_growth), sub:'2016→2021 annualised' }},
@@ -553,7 +553,7 @@ function renderCity(c, i) {{
     <div class="factor-bar-row" style="margin-top:0.5rem;border-top:1px dashed var(--rule);padding-top:0.5rem">
       <span class="factor-bar-label" style="color:var(--ink);font-weight:500">
         Data Confidence
-        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (scales final score)</span>
+        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (how much data — context only, not a multiplier)</span>
       </span>
       <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{confPct}}%;background:var(--ink)"></div></div>
       <span class="factor-bar-right" style="color:var(--ink)">${{confPct}}% · ${{c.total}} prop${{c.total===1?'':'s'}}</span>

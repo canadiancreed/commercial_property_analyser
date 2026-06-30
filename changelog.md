@@ -10,19 +10,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **City opportunity model is now market-depth focused** (`scoring/city_ranker.py`,
-  `json/score_weights.json`): the score blends a city's raw factor sum with a prior via
-  `opportunity = raw · conf + prior · (1 − conf)`, `conf = n / (n + k)`. Two problems were
-  fixed: the anchor was a hardcoded `50` (arbitrary — it floated above real cities and pulled
-  both excellent and terrible thin markets to the same place), and `k = 5` trusted a city's
-  numbers after only a handful of listings, so 1–4-listing towns with a lucky average
-  outranked deep, well-sampled markets. The anchor is now a configurable `opportunity_prior`
-  (default **40**, just below the typical-city score) and `confidence_k` is raised to **12**,
-  so deep markets rank on their real metrics while thin, unproven markets sit near the prior
-  regardless of a single standout listing. On the live data this moves the deep markets
-  (Trenton, St John's, Cornwall, Brockville, Belleville, Kingston) to the top and sinks
-  one-listing towns to mid/low. Both knobs live in `json/score_weights.json`; the code
-  default for the prior remains `50` for backward compatibility.
+- **City opportunity model rebuilt as quality + a market-depth premium** (`scoring/city_ranker.py`,
+  `json/score_weights.json`, `reporting/city_report.py`, `ui/config_editor.py`): the old model
+  averaged each city's metrics then shrank the result toward a hardcoded `50` anchor scaled by
+  `n / (n + k)`. That had two flaws — it pulled excellent and terrible thin markets to the same
+  place, and large markets with mediocre metrics ranked *below* tiny towns with a lucky average.
+  The score is now `opportunity = quality_share · quality + depth_share · depth` (default
+  **50% / 50%**):
+  - **Quality** is the renormalised weighted blend of the deal/market factors, independent of
+    city size — so a good listing buoys a small market and a large one alike.
+  - **Depth premium** grows log-scaled with active listing count (`opportunity_depth_share`,
+    `opportunity_depth_ref`), so all else equal a larger market outranks a smaller one and a
+    single standout listing cannot crown a thin market.
+
+  Listing volume is no longer a quality factor (it *is* the depth premium), and `confidence_k`
+  now only drives the displayed "Data Confidence" indicator — it no longer scales the score
+  (the report no longer claims it does). On the live data this puts the deep markets (Trenton,
+  St John's, Cornwall, Brockville, Belleville, Kingston) at the top with one-listing towns
+  sunk to mid/low. Knobs live in `json/score_weights.json`; the stale `opportunity_prior` was
+  removed.
 
 ### Fixed
 
