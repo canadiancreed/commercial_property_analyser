@@ -241,7 +241,7 @@ A separate sub-editor tunes the **city opportunity** formula. A city must be goo
 - **Depth** (0–1) grows log-scaled with active listing count (`opportunity_depth_ref`, the count earning ~full depth, default 50). Its weight is `opportunity_depth_exp` (default 0.4; quality gets the rest).
 - **Outlier screen**: active listings whose estimated rent implies an implausible cap rate (`outlier_max_cap_rate`, default 12%) or cash-on-cash (`outlier_max_coc`, default 25%) are kept in the inventory count but dropped from the income averages, so a bad estimate can't inflate a city.
 
-`confidence_k` now only drives the displayed "Data Confidence" indicator; it no longer scales the score. All knobs live in `json/score_weights.json`.
+The raw geometric score compresses into a narrow band, so the report displays it **rescaled to the top-ranked city = 100** (grades: Excellent ≥88, Good ≥72, Fair ≥50). The browser price-range filter keeps a city if **any** of its active listings fall in the range (not just the city average). `confidence_k` now only drives the displayed "Data Confidence" indicator; it no longer scales the score. All knobs live in `json/score_weights.json`.
 
 **HTML reports (options 6 / c)**
 Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (geometric mean of deal quality and market depth), with an accurate per-factor quality breakdown and sold/off-market comparables (inactive listings are treated as sold).
