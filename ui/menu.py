@@ -11,7 +11,7 @@ from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
 from reporting.city_report import CityReportGenerator
 from reporting.price_check_report import PriceCheckReportGenerator
-from reporting.deal_watchlist_report import DealWatchlistReportGenerator, DEFAULT_MIN_SCORE
+from reporting.deal_watchlist_report import DealWatchlistReportGenerator
 from reporting.negotiation_report import NegotiationReportGenerator
 from reporting.vacancy_report import VacancyReportGenerator
 from reporting.price_drop_report import PriceDropReportGenerator
@@ -699,14 +699,8 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         if not props:
             print("\n  No properties on file.")
             return
-
-        raw = input(f"  Minimum score (Enter for {DEFAULT_MIN_SCORE:g}): ").strip()
-        try:
-            min_score = float(raw) if raw else DEFAULT_MIN_SCORE
-        except ValueError:
-            print(f"  Not a number — using {DEFAULT_MIN_SCORE:g}.")
-            min_score = DEFAULT_MIN_SCORE
-
+        # Filtering (score / cap rate / price drop) and sorting are interactive
+        # in the report itself; just build the active, scored deal set here.
         print("  Building deal watchlist", end="", flush=True)
         rows = []
         for p in props:
@@ -714,7 +708,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             print(".", end="", flush=True)
             rows.append(self._build_report_row(p, scored, {}))
         print(" done.")
-        self._watch_rpt.open_in_browser(rows, min_score)
+        self._watch_rpt.open_in_browser(rows)
 
     def _open_negotiation_report(self):
         props = self._store.load_properties()
