@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.1] — 2026-06-30
+
+### Changed
+
+- **Deal Watchlist is now interactive** (`reporting/deal_watchlist_report.py`, `ui/menu.py`): the
+  report changed from a static, server-rendered table to a client-side one that embeds the deal
+  data as JSON and renders in the browser, so that:
+  - **every column is click-to-sort** (click a header to sort by it, click again to reverse, with
+    ▲/▼ indicators; default Score ↓), and
+  - the list **filters live** by minimum score, minimum cap rate, and minimum price drop (Min Score
+    seeded to 55; Apply/Reset).
+
+  The report now embeds **active listings only** (the watchlist is about deals still actionable),
+  so the redundant Status column was dropped and `_open_watchlist_report` no longer prompts for a
+  score — filtering happens in the page. Row escaping moved client-side (an `esc()` helper) since
+  rows render in JavaScript. The watchlist tests were reworked to assert on the embedded data set
+  (active + scored only) and the interactive machinery rather than on pre-filtered server output.
+
 ## [3.5.0] — 2026-06-30
 
 ### Added
