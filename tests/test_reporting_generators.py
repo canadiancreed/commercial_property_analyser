@@ -13,13 +13,24 @@ def _city(name="Ottawa, ON", opp=72.5, active=3, inactive=1):
         "city": name, "total": active + inactive,
         "active": active, "inactive": inactive,
         "confidence": 0.67, "opportunity": opp,
-        "act_score": 65.0, "act_cap": 7.2, "act_coc": 9.5,
-        "act_irr": 12.0, "act_dscr": 1.45, "act_cf": 14_000,
-        "act_drop": 4.5, "act_dom": 95, "act_price": 520_000,
-        "inact_score": 55.0, "inact_cap": 6.8, "inact_coc": 8.0,
-        "inact_price": 490_000, "best_score": 78.0,
+        "active_deal_score": 65.0, "active_deal_score_na": False,
+        "active_cap_rate": 7.2, "active_cash_on_cash": 9.5,
+        "active_irr": 12.0, "active_dscr": 1.45, "active_cash_flow": 14_000,
+        "active_price_drop": 4.5, "active_days_on_market": 95,
+        "active_avg_price": 520_000,
+        "inactive_deal_score": 55.0, "inactive_cap_rate": 6.8,
+        "inactive_cash_on_cash": 8.0, "inactive_avg_price": 490_000,
+        "best_score": 78.0,
         "cap_trend": 0.4, "population": 1_000_000,
         "pop_growth": 1.8, "has_demo": True,
+        "factors": [
+            {"key": "act_cap", "label": "Cap Rate (Active)", "source": "active",
+             "weight": 0.144, "points": 10.3},
+            {"key": "n_active", "label": "Active Volume", "source": "structure",
+             "weight": 0.104, "points": 2.3},
+            {"key": "pop_score", "label": "Population Size", "source": "demo",
+             "weight": 0.04, "points": 4.0},
+        ],
         "type_counts": {"Retail": 2, "Office": 1, "Industrial": 1},
     }
 
@@ -127,30 +138,48 @@ class TestCityReportGenerator:
         html = CityReportGenerator().render([city])
         assert "Industrial" in html or "Office" in html
 
-    def test_thresholds_injected_as_js_const(self):
-        """const T should be present and contain inact_cap from score_weights.json."""
-        html = CityReportGenerator().render([_city()])
-        assert "const T = " in html
-        start = html.index("const T = ") + len("const T = ")
-        end   = html.index(";", start)
-        parsed = json.loads(html[start:end])
-        assert "inact_cap" in parsed
+    def test_zero_is_not_rendered_as_missing(self):
+        """fp()/fi() must treat a genuine 0 as a value, only null/undefined as '—'.
 
-    def test_inact_cap_threshold_ceiling_is_10(self):
-        """inact_cap hi threshold must be 10.0 in the injected JS thresholds."""
+        Regression: the old `n ? n.toFixed()` form turned 0% price drops and a
+        DOM of 0 (listed today) into '—', conflating zero with missing data."""
         html = CityReportGenerator().render([_city()])
-        start = html.index("const T = ") + len("const T = ")
-        end   = html.index(";", start)
-        parsed = json.loads(html[start:end])
-        lo, hi = parsed["inact_cap"]
-        assert hi == pytest.approx(10.0), f"Expected 10.0, got {hi}"
+        assert "(n === null || n === undefined) ? '—' : n.toFixed(1)" in html
+        assert "n ? n.toFixed(1) + '%' : '—'" not in html
 
-    def test_thresholds_fallback_on_missing_file(self):
-        """render() must not raise if score_weights.json is unreadable."""
-        import reporting.city_report as mod
-        with patch.object(mod, "_load_city_thresholds", return_value={}):
-            html = CityReportGenerator().render([_city()])
-        assert "const T = {}" in html
+    def test_opportunity_color_bands_match_grades(self):
+        """oppColor must turn green at the same 55 boundary as the 'Good' grade."""
+        html = CityReportGenerator().render([_city()])
+        assert "if (opp >= 55) return 'var(--green)'" in html
+        assert "if (opp >= 65) return 'var(--green)'" not in html
+
+    def test_factors_embedded_in_cities_json(self):
+        """The ranker-supplied factor breakdown must round-trip into the embedded JSON."""
+        html = CityReportGenerator().render([_city()])
+        start = html.index("const CITIES = ") + len("const CITIES = ")
+        end   = html.index(";\n\nlet _priceMin")
+        parsed = json.loads(html[start:end])
+        factors = parsed[0]["factors"]
+        assert any(f["label"] == "Cap Rate (Active)" for f in factors)
+        assert all({"label", "source", "weight", "points"} <= set(f) for f in factors)
+
+    def test_report_renders_real_factors_not_hardcoded(self):
+        """The report must consume c.factors rather than recomputing the breakdown.
+
+        Regression: the old report hardcoded a divergent copy of the weights
+        (summing to 110% and omitting IRR/DSCR/CF/absorption/price-trend/best-score).
+        It must now read the points emitted by CityRanker."""
+        html = CityReportGenerator().render([_city()])
+        assert "c.factors" in html
+        assert "f.points" in html
+        # The stale threshold-recompute path must be gone.
+        assert "const T = " not in html
+        assert "log10PopScore" not in html
+
+    def test_factor_legend_includes_demo_source(self):
+        """The [demo] source (population/growth) must appear in the legend."""
+        html = CityReportGenerator().render([_city()])
+        assert "[demo]" in html
 
     def test_score_ministat_uses_opportunity_color(self):
         """Score mini-stat must use style=color:barColor so it matches the opportunity number."""
