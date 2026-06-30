@@ -114,13 +114,12 @@ class ConfigEditorMixin:
             ct    = cfg.get("city_score_thresholds", {})
             total = sum(cw.values())
             keys  = list(cw.keys())
-            depth_share = cfg.get("opportunity_depth_share", 0.0)
+            depth_exp = cfg.get("opportunity_depth_exp", 0.4)
             print(f"\n{'CITY OPPORTUNITY SCORE FORMULA':^75}")
             print(self.DIVIDER)
-            print(f"  These are relative QUALITY weights (auto-normalised), worth "
-                  f"{(1-depth_share)*100:.0f}% of the score.")
-            print(f"  The other {depth_share*100:.0f}% is a separate market-depth premium "
-                  f"(opportunity_depth_share in json).")
+            print(f"  These are relative QUALITY weights (auto-normalised) for the deal-quality")
+            print(f"  sub-score. Opportunity = quality^{1-depth_exp:.2f} x depth^{depth_exp:.2f} "
+                  f"(geometric — needs both). Depth knobs: opportunity_depth_exp / _ref in json.")
             print(self.DIVIDER)
             print(f"  {'#':<3} {'SIGNAL':<16} {'WEIGHT':>7}  {'FLOOR':>9}  {'CEILING':>9}  DESCRIPTION")
             print(self.DIVIDER)
@@ -129,11 +128,55 @@ class ConfigEditorMixin:
                 lo, hi   = ct.get(k, [0, 1])
                 print(f"  {i:<3} {k:<16} {pct:>7}  {lo:>9}  {hi:>9}  {DESCRIPTIONS.get(k,'')}")
             print(self.DIVIDER)
+            depth_ref = cfg.get("opportunity_depth_ref", 50)
+            max_cap   = cfg.get("outlier_max_cap_rate", 12.0)
+            max_coc   = cfg.get("outlier_max_coc", 25.0)
+            print("  MODEL KNOBS")
+            print(f"  D  Depth weight (exponent)  {depth_exp:>6.2f}   (quality gets {1-depth_exp:.2f})")
+            print(f"  R  Depth reference          {depth_ref:>6.0f}   active listings for ~full depth")
+            print(f"  C  Outlier cap-rate ceiling {max_cap:>6.1f}%  active listings above are screened out")
+            print(f"  K  Outlier CoCR ceiling     {max_coc:>6.1f}%  active listings above are screened out")
+            print(self.DIVIDER)
             print("  0  Back")
             print(self.DIVIDER)
-            choice = input("  Edit # (or 0): ").strip()
+            choice = input("  Edit # / D / R / C / K (or 0): ").strip()
             if choice == "0":
                 break
+
+            low = choice.lower()
+            if low in ("d", "r", "c", "k"):
+                if low == "d":
+                    raw = input(f"  Depth weight 0..1 (currently {depth_exp:.2f}, Enter to keep): ").strip()
+                    if raw:
+                        try:
+                            v = float(raw)
+                            if 0 <= v < 1: cfg["opportunity_depth_exp"] = round(v, 3)
+                            else: print("  Invalid — must be ≥ 0 and < 1.")
+                        except ValueError:
+                            print("  Invalid — unchanged.")
+                elif low == "r":
+                    raw = input(f"  Depth reference active count (currently {depth_ref:.0f}, Enter to keep): ").strip()
+                    if raw:
+                        try:
+                            v = float(raw)
+                            if v > 1: cfg["opportunity_depth_ref"] = round(v, 2)
+                            else: print("  Invalid — must be > 1.")
+                        except ValueError:
+                            print("  Invalid — unchanged.")
+                elif low == "c":
+                    raw = input(f"  Cap-rate outlier ceiling % (currently {max_cap:.1f}, Enter to keep): ").strip()
+                    if raw:
+                        try: cfg["outlier_max_cap_rate"] = round(float(raw), 2)
+                        except ValueError: print("  Invalid — unchanged.")
+                elif low == "k":
+                    raw = input(f"  CoCR outlier ceiling % (currently {max_coc:.1f}, Enter to keep): ").strip()
+                    if raw:
+                        try: cfg["outlier_max_coc"] = round(float(raw), 2)
+                        except ValueError: print("  Invalid — unchanged.")
+                self._scorer.save_config(cfg)
+                print("  Saved.")
+                continue
+
             try:
                 idx = int(choice) - 1
                 if not (0 <= idx < len(keys)):

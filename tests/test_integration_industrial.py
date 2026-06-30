@@ -136,8 +136,9 @@ class TestCityRankerExclusion:
         cities = {c["city"]: c for c in CityRanker(scorer).rank([low, med])}
         perth  = next(c for v, c in cities.items() if v.startswith("Perth"))
 
-        # Both kept in inventory, but the city cap-rate average reflects only
-        # the MED property (LOW excluded).
+        # Both kept in inventory. The LOW listing is excluded by confidence; the
+        # MED industrial's estimated rent implies a ~27% cap, itself implausible,
+        # so the outlier screen drops it too — leaving no plausible active cap.
         assert perth["total"] == 2
-        med_cap = scorer.score_property(med)["cap_rate"]
-        assert perth["active_cap_rate"] == pytest.approx(med_cap, rel=1e-3)
+        assert scorer.score_property(med)["cap_rate"] > 12
+        assert perth["active_cap_rate"] is None

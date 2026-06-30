@@ -342,50 +342,50 @@ class TestCityRankerConfig:
         opp = result[0]["opportunity"]
         assert 0 <= opp <= 100
 
-    def test_quality_counts_fully_regardless_of_size(self):
-        """A great single listing scores the same quality as a great large market.
-
-        Quality is renormalised and size-independent — depth is separate — so a
-        good listing buoys a small market and a large one alike."""
+    def test_quality_score_is_size_independent(self):
+        """The quality sub-score reflects deal metrics only — same for any city size."""
         weights    = {"act_cap": 1.0}
         thresholds = {"act_cap": [3.0, 9.0]}
         scorer = _make_scorer_with_config(weights, thresholds, cap=9.0)  # cap at ceiling
-        scorer.load_config.return_value["opportunity_depth_share"] = 0.0  # isolate quality
-        small = CityRanker(scorer).rank(_props(["Tiny"]))[0]["opportunity"]
-        large = CityRanker(scorer).rank(_props(["Big"] * 30))[0]["opportunity"]
-        assert small == pytest.approx(large, abs=0.1)
-        assert small == pytest.approx(100.0, abs=0.1)  # full quality, no shrinkage
+        small = CityRanker(scorer).rank(_props(["Tiny"]))[0]
+        large = CityRanker(scorer).rank(_props(["Big"] * 30))[0]
+        assert small["quality_score"] == pytest.approx(large["quality_score"], abs=0.1)
+        assert small["quality_score"] == pytest.approx(100.0, abs=0.1)
 
-    def test_larger_market_beats_smaller_all_else_equal(self):
-        """With a depth premium, identical metrics rank the larger market higher."""
-        weights    = {"act_cap": 1.0}
-        thresholds = {"act_cap": [3.0, 9.0]}
-        scorer = _make_scorer_with_config(weights, thresholds, cap=6.0)
-        scorer.load_config.return_value["opportunity_depth_share"] = 0.2
-        scorer.load_config.return_value["opportunity_depth_ref"]   = 50
-        small = CityRanker(scorer).rank(_props(["Tiny"] * 2))[0]["opportunity"]
-        large = CityRanker(scorer).rank(_props(["Big"] * 40))[0]["opportunity"]
-        assert large > small
+    def test_needs_both_quality_and_depth(self):
+        """Geometric mean: a big weak market and a tiny strong market both lose to
+        a market that is strong AND deep; neither axis carries the other alone."""
+        thr = {"act_cap": [3.0, 9.0]}
+        # tiny + great quality (1 listing, cap maxed)
+        tiny_strong = CityRanker(_make_scorer_with_config({"act_cap": 1.0}, thr, cap=9.0)
+                                 ).rank(_props(["Tiny"]))[0]["opportunity"]
+        # big + weak quality (40 listings, cap at floor -> quality 0)
+        big_weak = CityRanker(_make_scorer_with_config({"act_cap": 1.0}, thr, cap=3.0)
+                              ).rank(_props(["Big"] * 40))[0]["opportunity"]
+        # big + great quality
+        big_strong = CityRanker(_make_scorer_with_config({"act_cap": 1.0}, thr, cap=9.0)
+                                ).rank(_props(["Big"] * 40))[0]["opportunity"]
+        assert big_strong > tiny_strong   # depth breaks the tie when quality is equal
+        assert big_strong > big_weak      # quality matters even at full depth
+        assert big_weak < 30              # size cannot rescue weak deals
 
-    def test_thin_market_cannot_outrank_via_depth(self):
-        """A 1-listing market earns almost no depth premium even at full quality."""
-        weights    = {"act_cap": 1.0}
-        thresholds = {"act_cap": [3.0, 9.0]}
-        scorer = _make_scorer_with_config(weights, thresholds, cap=9.0)
-        scorer.load_config.return_value["opportunity_depth_share"] = 0.2
-        scorer.load_config.return_value["opportunity_depth_ref"]   = 50
+    def test_thin_market_cannot_top_on_quality_alone(self):
+        """A 1-listing market, even at perfect quality, is held down by low depth."""
+        scorer = _make_scorer_with_config({"act_cap": 1.0}, {"act_cap": [3.0, 9.0]}, cap=9.0)
         result = CityRanker(scorer).rank(_props(["Tiny"]))[0]
-        # quality maxes at 80 (the 20% depth share is nearly all unearned at n=1)
-        assert result["opportunity"] < 85
+        assert result["quality_score"] == pytest.approx(100.0, abs=0.1)
+        assert result["opportunity"] < 55   # geometric mean with tiny depth
 
-    def test_production_config_is_depth_focused(self):
-        """score_weights.json must allocate a market-depth premium (and no stale prior)."""
+    def test_production_config_is_geometric_with_outlier_screen(self):
+        """score_weights.json must define the geometric depth exponent and outlier screens."""
         import json
         with open("json/score_weights.json") as f:
             cfg = json.load(f)
-        assert cfg.get("opportunity_depth_share", 0) > 0, "depth premium share missing"
+        assert 0 < cfg.get("opportunity_depth_exp", 0) < 1, "depth exponent missing/invalid"
         assert cfg.get("opportunity_depth_ref", 0) > 1, "depth reference count missing"
-        assert "opportunity_prior" not in cfg, "stale shrinkage prior should be removed"
+        assert cfg.get("outlier_max_cap_rate", 0) > 0, "cap-rate outlier screen missing"
+        assert cfg.get("outlier_max_coc", 0) > 0, "CoCR outlier screen missing"
+        assert "opportunity_depth_share" not in cfg, "stale additive depth share should be removed"
 
 
 # ── Absorption rate ───────────────────────────────────────────────────────────
