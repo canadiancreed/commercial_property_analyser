@@ -35,11 +35,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and `outlier_max_coc` (25%). Previously they inflated a city's mean and could vault it to the
   top (Trenton was the example).
 
-- **City opportunity displayed on a rescaled 0–100 scale** (`reporting/city_report.py`): the raw
-  geometric score compresses into a narrow band (top ~58), so the report now rescales it so the
-  best city = 100, and the grade bands were recalibrated to that scale (Excellent ≥88, Good ≥72,
-  Fair ≥50). The grade/colour is computed on the same rounded value shown, so the number and
-  label can no longer disagree (a 54.7 no longer displays "55 · Fair").
+- **City opportunity shows the honest raw score** (`reporting/city_report.py`): the displayed
+  number is the raw geometric score (top ~58), not rescaled — if few markets are strong, the
+  scores and grades say so (grade bands Excellent ≥75, Good ≥55, Fair ≥35). The grade/colour is
+  computed on the same rounded value shown, so the number and label can no longer disagree
+  (a 54.7 no longer displayed "55 · Fair").
 
 ### Fixed
 
