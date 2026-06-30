@@ -338,6 +338,20 @@ class TestOutlierScreen:
         city = ranker.rank(props)[0]
         assert city["active_cash_on_cash"] == pytest.approx(9.0, abs=0.1)
 
+    def test_active_prices_emitted_for_filtering(self, ranker):
+        """Individual active asking prices must be emitted (sorted) so the report's
+        price filter can match a city on any in-range listing, not the average."""
+        props = [
+            _prop(status="active",   asking=300_000),
+            _prop(status="active",   asking=900_000),
+            _prop(status="inactive", asking=500_000),  # sold — not in active_prices
+        ]
+        city = ranker.rank(props)[0]
+        assert city["active_prices"] == [300_000, 900_000]
+        # the average (600k) is outside a 250k–350k filter, but the 300k listing
+        # is inside — so the city must NOT be filtered out on the average
+        assert any(250_000 <= p <= 350_000 for p in city["active_prices"])
+
     def test_outlier_does_not_inflate_quality(self, ranker):
         clean    = ranker.rank([_prop(status="active", cap=7.0)] * 3)[0]
         with_bad = ranker.rank([_prop(status="active", cap=7.0)] * 3

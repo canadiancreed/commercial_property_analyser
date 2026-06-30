@@ -35,7 +35,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   and `outlier_max_coc` (25%). Previously they inflated a city's mean and could vault it to the
   top (Trenton was the example).
 
+- **City opportunity displayed on a rescaled 0–100 scale** (`reporting/city_report.py`): the raw
+  geometric score compresses into a narrow band (top ~58), so the report now rescales it so the
+  best city = 100, and the grade bands were recalibrated to that scale (Excellent ≥88, Good ≥72,
+  Fair ≥50). The grade/colour is computed on the same rounded value shown, so the number and
+  label can no longer disagree (a 54.7 no longer displays "55 · Fair").
+
 ### Fixed
+
+- **Price-range filter no longer hides cities that have in-range listings**
+  (`reporting/city_report.py`, `scoring/city_ranker.py`): the filter matched on the city's
+  *average* active price, so a city was hidden whenever its average fell outside the range even
+  if individual listings fit (e.g. Cornwall, avg $713k, has listings at $325k–$350k). `CityRanker`
+  now emits each city's `active_prices`, and the filter keeps a city if **any** active listing
+  falls within the range.
 
 - **City report "Score contributions" no longer misrepresents the model**
   (`reporting/city_report.py`, `scoring/city_ranker.py`): the breakdown was a hardcoded

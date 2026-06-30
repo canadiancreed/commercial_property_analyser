@@ -372,10 +372,13 @@ function resetPriceFilter() {{
 
 function cityMatchesFilter(c) {{
   if (_priceMin === null && _priceMax === null) return true;
-  if (!c.active_avg_price) return true;
-  if (_priceMin !== null && c.active_avg_price < _priceMin) return false;
-  if (_priceMax !== null && c.active_avg_price > _priceMax) return false;
-  return true;
+  // Keep a city if ANY of its active listings falls in the range — not just if
+  // the city average does (which wrongly hid cities with in-range listings).
+  const prices = c.active_prices || [];
+  if (prices.length === 0) return true;   // no price data → don't hide
+  return prices.some(p =>
+    (_priceMin === null || p >= _priceMin) &&
+    (_priceMax === null || p <= _priceMax));
 }}
 
 function renderAll() {{
@@ -430,17 +433,19 @@ function gc(metric, v) {{
   return 'info';
 }}
 
+// Bands are on the rescaled 0–100 score (top city = 100). Tuned so "Excellent"
+// is the genuine top tier rather than the whole upper cluster.
 function gradeOf(opp) {{
-  if (opp >= 75) return ['excellent', 'Excellent'];
-  if (opp >= 55) return ['good',      'Good'];
-  if (opp >= 35) return ['fair',      'Fair'];
+  if (opp >= 88) return ['excellent', 'Excellent'];
+  if (opp >= 72) return ['good',      'Good'];
+  if (opp >= 50) return ['fair',      'Fair'];
   return ['poor', 'Weak'];
 }}
 
 // Bands must match gradeOf(): Excellent/Good → green, Fair → amber, Weak → red.
 function oppColor(opp) {{
-  if (opp >= 55) return 'var(--green)';
-  if (opp >= 35) return 'var(--amber)';
+  if (opp >= 72) return 'var(--green)';
+  if (opp >= 50) return 'var(--amber)';
   return 'var(--red)';
 }}
 
@@ -481,9 +486,15 @@ function buildVerdict(c, rank) {{
 
 function renderCity(c, i) {{
   const rank       = i + 1;
-  const [grade, gradeLabel] = gradeOf(c.opportunity);
-  const barColor   = oppColor(c.opportunity);
-  const barW       = Math.min(100, c.opportunity);
+  // Raw opportunity is a geometric mean of two 0–1 axes, so its realistic range
+  // is compressed (top ~58). Rescale for display so the best city = 100 and the
+  // 0–100 scale / grade bands are meaningful. Grade on the shown value so the
+  // number and label never disagree.
+  const _maxOpp    = Math.max(...CITIES.map(x => x.opportunity), 1);
+  const oppShown   = Math.round(c.opportunity / _maxOpp * 100);
+  const [grade, gradeLabel] = gradeOf(oppShown);
+  const barColor   = oppColor(oppShown);
+  const barW       = Math.min(100, oppShown);
   const rankClass  = rank <= 3 ? `rank-${{rank}}` : grade;
   const miniStats = [
     c.active_cap_rate   ? `Cap <span class="${{gc('cap',   c.active_cap_rate)}}">${{fp(c.active_cap_rate)}}</span>`   : '',
@@ -566,10 +577,10 @@ function renderCity(c, i) {{
     </div>
     <div class="factor-bar-row" style="margin-top:0.3rem;border-top:1px solid var(--rule);padding-top:0.4rem">
       <span class="factor-bar-label" style="color:var(--ink);font-weight:600">Opportunity
-        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (quality × depth, geometric — needs both)</span>
+        <span style="font-size:9px;color:var(--muted);font-weight:normal"> (quality × depth, geometric — scaled to the top city)</span>
       </span>
-      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{c.opportunity}}%;background:${{barColor}}"></div></div>
-      <span class="factor-bar-right" style="color:var(--ink)">${{c.opportunity.toFixed(0)}} / 100</span>
+      <div class="factor-bar-track"><div class="factor-bar-fill" style="width:${{oppShown}}%;background:${{barColor}}"></div></div>
+      <span class="factor-bar-right" style="color:var(--ink)">${{oppShown}} / 100</span>
     </div>`;
   return `<div class="city-row ${{rankClass}}" id="city-${{i}}">
     <div class="city-row-main" onclick="toggleCity(${{i}})">
@@ -583,7 +594,7 @@ function renderCity(c, i) {{
         </div>
       </div>
       <div class="city-score-col">
-        <div class="city-opp-num" style="color:${{barColor}}">${{c.opportunity.toFixed(0)}}</div>
+        <div class="city-opp-num" style="color:${{barColor}}">${{oppShown}}</div>
         <div class="city-opp-label">/ 100 · ${{gradeLabel}}</div>
       </div>
       <div class="city-metrics">

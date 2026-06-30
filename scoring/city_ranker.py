@@ -95,6 +95,10 @@ class CityRanker:
             active_price_drop     = self._avg(active, "price_drop")
             active_days_on_market = self._avg(active, "dom")
             active_avg_price      = self._avg(active, "asking")
+            # Individual active asking prices, so the report's price filter can
+            # match a city on whether ANY listing fits the range — not just the
+            # city average (which hid cities that did have in-range listings).
+            active_prices         = sorted(e["asking"] for e in active if e["asking"])
             active_scored         = [e for e in active if e["score"] is not None]
             active_deal_score     = self._avg(active_scored, "score")
 
@@ -238,6 +242,7 @@ class CityRanker:
                 active_days_on_market=(int(active_days_on_market)
                                        if active_days_on_market is not None else None),
                 active_avg_price=int(active_avg_price or 0),
+                active_prices=[int(p) for p in active_prices],
                 inactive_deal_score=round(inactive_deal_score or 0, 1),
                 inactive_cap_rate=inactive_cap_rate,
                 inactive_cash_on_cash=inactive_cash_on_cash,

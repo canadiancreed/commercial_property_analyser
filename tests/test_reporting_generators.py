@@ -18,6 +18,7 @@ def _city(name="Ottawa, ON", opp=72.5, active=3, inactive=1):
         "active_irr": 12.0, "active_dscr": 1.45, "active_cash_flow": 14_000,
         "active_price_drop": 4.5, "active_days_on_market": 95,
         "active_avg_price": 520_000,
+        "active_prices": [380_000, 520_000, 660_000],
         "inactive_deal_score": 55.0, "inactive_cap_rate": 6.8,
         "inactive_cash_on_cash": 8.0, "inactive_avg_price": 490_000,
         "best_score": 78.0,
@@ -147,10 +148,27 @@ class TestCityReportGenerator:
         assert "n ? n.toFixed(1) + '%' : '—'" not in html
 
     def test_opportunity_color_bands_match_grades(self):
-        """oppColor must turn green at the same 55 boundary as the 'Good' grade."""
+        """oppColor must turn green at the same 72 boundary as the 'Good' grade
+        (on the rescaled 0–100 score)."""
         html = CityReportGenerator().render([_city()])
-        assert "if (opp >= 55) return 'var(--green)'" in html
-        assert "if (opp >= 65) return 'var(--green)'" not in html
+        assert "if (opp >= 72) return 'var(--green)'" in html   # oppColor
+        assert "if (opp >= 72) return ['good',      'Good']" in html  # gradeOf
+        assert "if (opp >= 88) return ['excellent', 'Excellent']" in html
+
+    def test_price_filter_matches_individual_listings(self):
+        """The price filter must key off individual active prices, not the city
+        average — a city with an in-range listing must not be hidden."""
+        html = CityReportGenerator().render([_city()])
+        assert "c.active_prices" in html
+        # must not regress to filtering on the average
+        assert "c.active_avg_price < _priceMin" not in html
+
+    def test_opportunity_display_is_rescaled(self):
+        """The headline number is the rescaled (top-city = 100) value, graded on
+        the same shown value so number and label never disagree."""
+        html = CityReportGenerator().render([_city()])
+        assert "oppShown" in html
+        assert "c.opportunity / _maxOpp * 100" in html
 
     def test_factors_embedded_in_cities_json(self):
         """The ranker-supplied factor breakdown must round-trip into the embedded JSON."""
