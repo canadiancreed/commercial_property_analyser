@@ -48,7 +48,8 @@
       0.0
     ]
   },
-  "confidence_k": 5,
+  "confidence_k": 12,
+  "opportunity_prior": 40,
   "city_score_weights": {
     "act_cap": 0.144,
     "act_coc": 0.112,

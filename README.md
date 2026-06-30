@@ -238,7 +238,7 @@ A separate sub-editor tunes the **city opportunity** formula, whose 15 factors (
 - **Cross / structural**: active-vs-sold cap-rate trend and the single best deal score in the city.
 - **Demographics** (where available): population (log-scaled) and annual population growth.
 
-The final score is the weighted sum (0–100) scaled by a confidence factor `n / (n + k)` so cities with thin data are pulled toward a neutral 50.
+The final score is the weighted raw sum (0–100) blended with a prior by a confidence factor `n / (n + k)`: `opportunity = raw · conf + prior · (1 − conf)`. The model is **market-depth focused** — `confidence_k` (default 12) demands real listing volume before a city's own metrics are trusted, and `opportunity_prior` (default 40, just below the typical-city score) anchors thin, unproven markets so a single great listing can't outrank a deep, consistent market. Both are tunable in `json/score_weights.json`.
 
 **HTML reports (options 6 / c)**
 Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking ordered by confidence-adjusted opportunity score, with an accurate per-factor score breakdown and sold/off-market comparables (inactive listings are treated as sold).

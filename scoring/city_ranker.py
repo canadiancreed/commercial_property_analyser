@@ -56,7 +56,15 @@ class CityRanker:
                 "type":       p.get("property_type", ""),
             })
 
-        k  = cfg.get("confidence_k", 5)
+        # Shrinkage toward a prior anchor: a city's raw score is trusted in
+        # proportion to its sample size (confidence = n/(n+k)); the rest pulls
+        # toward `prior`. A higher k demands more listings before a city's own
+        # numbers are believed (market-depth focus — thin markets stay near the
+        # prior no matter how good a single listing is). `prior` set below the
+        # typical-city score makes an unproven market rank below a deep, known
+        # one rather than being assumed average.
+        k     = cfg.get("confidence_k", 5)
+        prior = cfg.get("opportunity_prior", 50)
         cities = []
 
         for key, entries in city_data.items():
@@ -174,7 +182,7 @@ class CityRanker:
                 })
             raw_score = round(raw_score, 1)
 
-            opportunity_score = round(raw_score * confidence + 50 * (1 - confidence), 1)
+            opportunity_score = round(raw_score * confidence + prior * (1 - confidence), 1)
 
             type_counts: dict = defaultdict(int)
             for e in entries:

@@ -343,6 +343,34 @@ class TestCityRankerConfig:
         opp = result[0]["opportunity"]
         assert 0 <= opp <= 100
 
+    def test_opportunity_shrinks_toward_configurable_prior(self):
+        """A thin-data city's opportunity is pulled toward opportunity_prior, not a fixed 50."""
+        weights    = {"act_cap": 1.0}
+        thresholds = {"act_cap": [3.0, 9.0]}
+        scorer = _make_scorer_with_config(weights, thresholds, cap=9.0)  # cap at ceiling -> raw 100
+        scorer.load_config.return_value["confidence_k"]    = 5
+        scorer.load_config.return_value["opportunity_prior"] = 30
+        # 1 property: conf = 1/6 -> opp = 100*(1/6) + 30*(5/6)
+        result = CityRanker(scorer).rank(_props(["Tiny Town"]))
+        assert result[0]["opportunity"] == pytest.approx(100 * (1 / 6) + 30 * (5 / 6), abs=0.5)
+
+    def test_prior_defaults_to_50_when_absent(self):
+        """Backward-compat: with no opportunity_prior in config the anchor stays 50."""
+        weights    = {"act_cap": 1.0}
+        thresholds = {"act_cap": [3.0, 9.0]}
+        scorer = _make_scorer_with_config(weights, thresholds, cap=9.0)
+        scorer.load_config.return_value["confidence_k"] = 5
+        result = CityRanker(scorer).rank(_props(["Tiny Town"]))
+        assert result[0]["opportunity"] == pytest.approx(100 * (1 / 6) + 50 * (5 / 6), abs=0.5)
+
+    def test_production_config_is_depth_focused(self):
+        """score_weights.json must demand market depth (higher k) and anchor below the typical city."""
+        import json
+        with open("json/score_weights.json") as f:
+            cfg = json.load(f)
+        assert cfg["confidence_k"] >= 10, "confidence_k should be raised for market-depth focus"
+        assert cfg.get("opportunity_prior", 50) < 45, "prior should sit below the typical-city score"
+
 
 # ── Absorption rate ───────────────────────────────────────────────────────────
 
