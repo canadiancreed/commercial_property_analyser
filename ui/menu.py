@@ -11,6 +11,10 @@ from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
 from reporting.city_report import CityReportGenerator
 from reporting.price_check_report import PriceCheckReportGenerator
+from reporting.deal_watchlist_report import DealWatchlistReportGenerator, DEFAULT_MIN_SCORE
+from reporting.negotiation_report import NegotiationReportGenerator
+from reporting.vacancy_report import VacancyReportGenerator
+from reporting.price_drop_report import PriceDropReportGenerator
 from scraping.realtor_scraper import RealtorScraper, OUTCOME_FOUND
 from scraping.price_comparator import compare
 from scoring.scorer import PropertyScorer
@@ -71,6 +75,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         self._ranker   = CityRanker(self._scorer)
         self._prop_rpt = PropertyReportGenerator()
         self._city_rpt = CityReportGenerator()
+        self._watch_rpt = DealWatchlistReportGenerator()
+        self._nego_rpt = NegotiationReportGenerator()
+        self._vac_rpt = VacancyReportGenerator()
+        self._drop_rpt = PriceDropReportGenerator()
         self._scan_existing_cities()
 
     def _scan_existing_cities(self):
@@ -94,6 +102,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             print("  5  Delete a property")
             print("  6  Open investment report in browser")
             print("  c  Open city opportunity report")
+            print("  w  Open deal watchlist")
+            print("  n  Open negotiation targets")
+            print("  v  Open vacancy sensitivity")
+            print("  d  Open price drop alerts")
             print("  p  Check realtor.ca prices (all properties)")
             print("  7  Edit commercial rent rates")
             print("  8  Edit residential rent rates")
@@ -113,6 +125,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             elif choice == "5": self._delete()
             elif choice == "6": self._open_report()
             elif choice == "c": self._open_city_report()
+            elif choice == "w": self._open_watchlist_report()
+            elif choice == "n": self._open_negotiation_report()
+            elif choice == "v": self._open_vacancy_report()
+            elif choice == "d": self._open_price_drop_report()
             elif choice == "p": self._price_check()
             elif choice == "7": self._edit_commercial_rates()
             elif choice == "8": self._edit_residential_rates()
@@ -673,6 +689,72 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         cities = self._ranker.rank(props)
         print(" done.")
         self._city_rpt.open_in_browser(cities)
+
+    def _open_watchlist_report(self):
+        props = self._store.load_properties()
+        if not props:
+            print("\n  No properties on file.")
+            return
+
+        raw = input(f"  Minimum score (Enter for {DEFAULT_MIN_SCORE:g}): ").strip()
+        try:
+            min_score = float(raw) if raw else DEFAULT_MIN_SCORE
+        except ValueError:
+            print(f"  Not a number — using {DEFAULT_MIN_SCORE:g}.")
+            min_score = DEFAULT_MIN_SCORE
+
+        print("  Building deal watchlist", end="", flush=True)
+        rows = []
+        for p in props:
+            scored = self._scorer.score_property(p)
+            print(".", end="", flush=True)
+            rows.append(self._build_report_row(p, scored, {}))
+        print(" done.")
+        self._watch_rpt.open_in_browser(rows, min_score)
+
+    def _open_negotiation_report(self):
+        props = self._store.load_properties()
+        if not props:
+            print("\n  No properties on file.")
+            return
+        print("  Building negotiation targets", end="", flush=True)
+        rows = []
+        for p in props:
+            scored  = self._scorer.score_property(p)
+            targets = self._scorer.solve_targets(
+                p, self._record_to_prop, CommercialPropertyAnalyzer, self._resolver)
+            print(".", end="", flush=True)
+            rows.append(self._build_report_row(p, scored, targets))
+        print(" done.")
+        self._nego_rpt.open_in_browser(rows)
+
+    def _open_vacancy_report(self):
+        props = self._store.load_properties()
+        if not props:
+            print("\n  No properties on file.")
+            return
+        print("  Building vacancy sensitivity", end="", flush=True)
+        rows = []
+        for p in props:
+            scored = self._scorer.score_property(p)
+            print(".", end="", flush=True)
+            rows.append(self._build_report_row(p, scored, {}))
+        print(" done.")
+        self._vac_rpt.open_in_browser(rows)
+
+    def _open_price_drop_report(self):
+        props = self._store.load_properties()
+        if not props:
+            print("\n  No properties on file.")
+            return
+        print("  Building price drop alerts", end="", flush=True)
+        rows = []
+        for p in props:
+            scored = self._scorer.score_property(p)
+            print(".", end="", flush=True)
+            rows.append(self._build_report_row(p, scored, {}))
+        print(" done.")
+        self._drop_rpt.open_in_browser(rows)
 
     @staticmethod
     def _price_check_key(p: dict) -> str:
