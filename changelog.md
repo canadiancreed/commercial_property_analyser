@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.2] — 2026-06-30
+
+### Changed
+
+- **The four remaining focused reports are now interactive**, matching the Deal Watchlist
+  (`reporting/negotiation_report.py`, `reporting/vacancy_report.py`,
+  `reporting/price_drop_report.py`, `reporting/benchmark_report.py`). Each now embeds its data as
+  JSON and renders client-side, so **every column is click-to-sort** (click a header, click again
+  to reverse) and each carries the filters that fit it:
+  - **Negotiation Targets** — Min Score, Min Cap Rate, and Min Room % (how far the target price
+    sits below today's asking); a sortable "Room" column was added.
+  - **Vacancy Sensitivity** — Min Score and a "cash-flow positive at [occupancy]" filter that
+    keeps only deals that stay in the black at the chosen 100/85/75/60% level.
+  - **Price Drop Alerts** — Min Drop % and a Status filter (all / active / inactive).
+  - **Cap-Rate & $/sqft Benchmarking** — a Verdict filter (underpriced / at market / overpriced)
+    and Min Comps, so weak one- or two-comp benchmarks can be hidden.
+
+  The per-report compute helpers stay server-side and unchanged (`vacancy_grid`,
+  `benchmark_rows`); only the rendering moved into the page. Row escaping is client-side (`esc()`).
+  The report tests were reworked to assert on the embedded data set and the interactive machinery.
+
 ## [3.5.1] — 2026-06-30
 
 ### Changed

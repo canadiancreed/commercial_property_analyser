@@ -9,10 +9,14 @@ tightest comp set available:
 
 The property itself is excluded from its own peer average, and the basis used
 is shown so the strength of each comparison is visible (a city comp is stronger
-than a type-wide one). Renders server-side, most-underpriced first.
+than a type-wide one).
+
+The comparison is computed server-side (benchmark_rows) and embedded as JSON;
+the page renders client-side so every column is click-to-sort and the list
+filters live by verdict and by a minimum number of comparables.
 """
 
-import html
+import json as _json
 import tempfile
 import webbrowser
 from datetime import datetime
@@ -20,24 +24,6 @@ from datetime import datetime
 # A property is called cheap/pricey only past this gap from peers; inside it,
 # it reads as "at market" rather than over-claiming signal from noise.
 _MATERIAL_PCT = 10.0
-
-
-def _money(v):
-    if not v and v != 0:
-        return "—"
-    return f"${v:,.0f}"
-
-
-def _pct(v, decimals=2):
-    if v is None:
-        return "—"
-    return f"{v:.{decimals}f}%"
-
-
-def _signed_pct(v, decimals=1):
-    if v is None:
-        return "—"
-    return f"{'+' if v > 0 else ''}{v:.{decimals}f}%"
 
 
 def _mean(xs):
@@ -131,27 +117,30 @@ def benchmark_rows(rows: list) -> list:
     return out
 
 
-_VERDICT_META = {
-    "under":  ("Underpriced", "good"),
-    "over":   ("Overpriced",  "poor"),
-    "market": ("At market",   "info"),
-}
-_BASIS_LABEL = {"city": "city", "province": "prov.", "type": "type"}
-
-
 class BenchmarkReportGenerator:
-    """Renders the cap-rate & $/sqft benchmarking report as a standalone HTML file."""
+    """Renders the cap-rate & $/sqft benchmarking report as a standalone,
+    interactive HTML file."""
 
     def render(self, rows: list) -> str:
-        data = benchmark_rows(rows)
+        deals = []
+        for e in benchmark_rows(rows):
+            r = e["row"]
+            deals.append({
+                "address": r.get("address"), "city": r.get("city"),
+                "type": r.get("type"),
+                "ppsf": round(e["ppsf"]) if e["ppsf"] is not None else None,
+                "peer_ppsf": round(e["peer_ppsf"]) if e["peer_ppsf"] is not None else None,
+                "ppsf_delta": round(e["ppsf_delta"], 1) if e["ppsf_delta"] is not None else None,
+                "cap": round(e["cap"], 2) if e["cap"] is not None else None,
+                "peer_cap": round(e["peer_cap"], 2) if e["peer_cap"] is not None else None,
+                "cap_delta": round(e["cap_delta"], 2) if e["cap_delta"] is not None else None,
+                "basis": e["basis"], "comps": e["comps"], "verdict": e["verdict"],
+            })
 
-        body_rows = "".join(self._row_html(e) for e in data) or (
-            '<tr><td colspan="11" class="empty">'
-            'No priced properties with square footage to benchmark.</td></tr>'
-        )
-
-        n_under = sum(1 for e in data if e["verdict"] == "under")
+        data_json = _json.dumps(deals)
+        n_under = sum(1 for d in deals if d["verdict"] == "under")
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        material = _MATERIAL_PCT
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -175,153 +164,177 @@ class BenchmarkReportGenerator:
     --mono:  'DM Mono', monospace;
   }}
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{
-    background: var(--paper);
-    color: var(--ink);
-    font-family: 'DM Sans', sans-serif;
-    font-size: 14px;
-    line-height: 1.5;
-  }}
-  header {{
-    background: var(--cream);
-    border-bottom: 3px double var(--rule);
-    padding: 2rem 2.5rem 1.5rem;
-  }}
-  header h1 {{
-    font-family: 'DM Serif Display', serif;
-    font-size: 2.4rem;
-    letter-spacing: -0.02em;
-    line-height: 1;
-  }}
+  body {{ background: var(--paper); color: var(--ink); font-family: 'DM Sans', sans-serif; font-size: 14px; line-height: 1.5; }}
+  header {{ background: var(--cream); border-bottom: 3px double var(--rule); padding: 2rem 2.5rem 1.5rem; }}
+  header h1 {{ font-family: 'DM Serif Display', serif; font-size: 2.4rem; letter-spacing: -0.02em; line-height: 1; }}
   header h1 em {{ font-style: italic; color: var(--gold); }}
-  .header-meta {{
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    margin-top: 0.4rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }}
-  .note {{
-    font-family: var(--mono);
-    font-size: 11.5px;
-    color: var(--muted);
-    margin-top: 0.8rem;
-    line-height: 1.6;
-    max-width: 86ch;
-    border-left: 3px solid var(--gold);
-    padding-left: 0.7rem;
-  }}
+  .header-meta {{ font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 0.4rem; letter-spacing: 0.08em; text-transform: uppercase; }}
+  .note {{ font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-top: 0.8rem; line-height: 1.6; max-width: 86ch; border-left: 3px solid var(--gold); padding-left: 0.7rem; }}
+  .filters {{ display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-top: 1rem; }}
+  .filter-group {{ display: flex; flex-direction: column; gap: 0.25rem; }}
+  .filter-group label {{ font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }}
+  .filter-group input, .filter-group select {{ font-family: var(--mono); font-size: 13px; width: 150px; padding: 0.35rem 0.55rem; border: 1px solid var(--rule); border-radius: 2px; background: var(--paper); color: var(--ink); }}
+  .filter-group input:focus, .filter-group select:focus {{ outline: none; border-color: var(--gold); }}
+  .filters button {{ font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em; padding: 0.4rem 1rem; cursor: pointer; border: none; border-radius: 2px; background: var(--ink); color: var(--paper); }}
+  .filters button:hover {{ background: #333; }}
+  .filters button.reset-btn {{ background: transparent; color: var(--muted); border: 1px solid var(--rule); }}
+  .filters button.reset-btn:hover {{ color: var(--ink); border-color: var(--ink); }}
   .page-wrap {{ max-width: 1300px; margin: 0 auto; padding: 2rem 2.5rem; }}
+  .count {{ font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 0.8rem; letter-spacing: 0.04em; }}
   table {{ width: 100%; border-collapse: collapse; background: var(--cream); font-size: 13px; }}
-  th, td {{
-    padding: 0.55rem 0.7rem;
-    border-bottom: 1px solid var(--rule);
-    text-align: right;
-    white-space: nowrap;
-    vertical-align: middle;
-  }}
-  th {{
-    font-family: var(--mono);
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--muted);
-  }}
+  th, td {{ padding: 0.55rem 0.7rem; border-bottom: 1px solid var(--rule); text-align: right; white-space: nowrap; vertical-align: middle; }}
+  th {{ font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); cursor: pointer; user-select: none; }}
+  th:hover {{ color: var(--ink); }}
+  th.sort-asc::after  {{ content: ' \\25B2'; font-size: 9px; }}
+  th.sort-desc::after {{ content: ' \\25BC'; font-size: 9px; }}
   th:first-child, td:first-child {{ text-align: left; white-space: normal; }}
   td.num {{ font-family: var(--mono); }}
   td.addr {{ font-weight: 500; }}
   td.good {{ color: var(--green); }}
-  td.fair {{ color: var(--amber); }}
   td.poor {{ color: var(--red); }}
-  td.muted {{ color: var(--muted); }}
   .basis {{ color: var(--muted); font-size: 10px; }}
-  .verdict {{
-    font-family: var(--mono); font-size: 10px; text-transform: uppercase;
-    letter-spacing: 0.05em; padding: 0.15rem 0.5rem; border-radius: 3px;
-  }}
+  .verdict {{ font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; padding: 0.15rem 0.5rem; border-radius: 3px; }}
   .verdict.good {{ background: #d4edda; color: var(--green); }}
   .verdict.poor {{ background: #f8d7da; color: var(--red); }}
   .verdict.info {{ background: var(--cream); color: var(--muted); }}
+  tr:hover td {{ background: #fffdf5; }}
   .empty {{ text-align: center; color: var(--muted); padding: 2rem; }}
 </style>
 </head>
 <body>
 <header>
   <h1>Cap Rate &amp; <em>$/sqft</em> Benchmarking</h1>
-  <div class="header-meta">{len(data)} properties · {n_under} underpriced vs peers · {stamp}</div>
+  <div class="header-meta">{len(deals)} properties · {n_under} underpriced vs peers · {stamp}</div>
   <div class="note">Each property vs the average of comparable listings — closest comp set first
   (city+type, then province+type, then type-wide; the basis is shown in the Comps column). The
   property itself is excluded from its own average. "Δ" is the gap from peers: negative $/sqft and
   positive cap are in the buyer's favour.</div>
+  <div class="filters">
+    <div class="filter-group">
+      <label>Verdict</label>
+      <select id="f-verdict">
+        <option value="">All</option>
+        <option value="under">Underpriced</option>
+        <option value="market">At market</option>
+        <option value="over">Overpriced</option>
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>Min Comps</label>
+      <input type="number" id="f-comps" min="0" step="1" placeholder="any">
+    </div>
+    <button onclick="applyFilters()">Apply</button>
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+  </div>
 </header>
 <div class="page-wrap">
-  <table>
+  <div class="count" id="count"></div>
+  <table id="tbl">
     <thead>
       <tr>
-        <th>Address</th>
-        <th>City</th>
-        <th>Type</th>
-        <th>$/sqft</th>
-        <th>Peer $/sqft</th>
-        <th>Δ $/sqft</th>
-        <th>Cap</th>
-        <th>Peer Cap</th>
-        <th>Δ Cap</th>
-        <th>Comps</th>
-        <th>Verdict</th>
+        <th data-col="address"    onclick="sortBy('address',this)">Address</th>
+        <th data-col="city"       onclick="sortBy('city',this)">City</th>
+        <th data-col="type"       onclick="sortBy('type',this)">Type</th>
+        <th data-col="ppsf"       onclick="sortBy('ppsf',this)">$/sqft</th>
+        <th data-col="peer_ppsf"  onclick="sortBy('peer_ppsf',this)">Peer $/sqft</th>
+        <th data-col="ppsf_delta" onclick="sortBy('ppsf_delta',this)" class="sort-asc">Δ $/sqft</th>
+        <th data-col="cap"        onclick="sortBy('cap',this)">Cap</th>
+        <th data-col="peer_cap"   onclick="sortBy('peer_cap',this)">Peer Cap</th>
+        <th data-col="cap_delta"  onclick="sortBy('cap_delta',this)">Δ Cap</th>
+        <th data-col="comps"      onclick="sortBy('comps',this)">Comps</th>
+        <th data-col="verdict"    onclick="sortBy('verdict',this)">Verdict</th>
       </tr>
     </thead>
-    <tbody>
-{body_rows}
-    </tbody>
+    <tbody id="tbody"></tbody>
   </table>
 </div>
+
+<script>
+const DATA = {data_json};
+const VERDICT_META = {{ under: ['Underpriced','good'], over: ['Overpriced','poor'], market: ['At market','info'] }};
+const BASIS_LABEL = {{ city: 'city', province: 'prov.', type: 'type' }};
+let sortCol = 'ppsf_delta';
+let sortDir = 1;            // ascending = most underpriced first
+let fVerdict = null, fComps = null;
+
+function esc(s) {{
+  return String(s == null ? '' : s).replace(/[&<>"]/g, c =>
+    ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}})[c]);
+}}
+function fmtMoney(n) {{ return (n == null || isNaN(n)) ? '\\u2014' : '$' + Math.round(n).toLocaleString('en-CA'); }}
+function fp(n) {{ return (n == null || isNaN(n)) ? '\\u2014' : n.toFixed(2) + '%'; }}
+function signedPct(n) {{ return (n == null || isNaN(n)) ? '\\u2014' : (n > 0 ? '+' : '') + n.toFixed(1) + '%'; }}
+
+function applyFilters() {{
+  const v = document.getElementById('f-verdict').value;
+  const c = document.getElementById('f-comps').value.trim();
+  fVerdict = v !== '' ? v : null;
+  fComps   = c !== '' ? parseFloat(c) : null;
+  render();
+}}
+function resetFilters() {{
+  fVerdict = null; fComps = null;
+  document.getElementById('f-verdict').value = '';
+  document.getElementById('f-comps').value = '';
+  render();
+}}
+function passes(r) {{
+  if (fVerdict != null && r.verdict !== fVerdict) return false;
+  if (fComps != null && r.comps < fComps) return false;
+  return true;
+}}
+
+function sortBy(col, th) {{
+  if (sortCol === col) {{ sortDir *= -1; }}
+  else {{ sortCol = col; sortDir = (col === 'ppsf_delta' || col === 'ppsf' || col === 'peer_ppsf') ? 1 : -1; }}
+  document.querySelectorAll('#tbl th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
+  th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+  render();
+}}
+
+function render() {{
+  let rows = DATA.filter(passes);
+  rows.sort((a, b) => {{
+    let av = a[sortCol], bv = b[sortCol];
+    if (av == null) av = sortDir < 0 ? -Infinity : Infinity;
+    if (bv == null) bv = sortDir < 0 ? -Infinity : Infinity;
+    if (typeof av === 'string' || typeof bv === 'string')
+      return String(av).localeCompare(String(bv)) * sortDir;
+    return (av - bv) * sortDir;
+  }});
+
+  document.getElementById('tbody').innerHTML = rows.length ? rows.map(r => {{
+    const ppsfCls = r.ppsf_delta == null ? '' : r.ppsf_delta <= -{material} ? 'good' : r.ppsf_delta >= {material} ? 'poor' : '';
+    const capCls  = r.cap_delta == null ? '' : r.cap_delta > 0 ? 'good' : r.cap_delta < 0 ? 'poor' : '';
+    const comps = r.basis
+      ? r.comps + ' <span class="basis">' + (BASIS_LABEL[r.basis] || r.basis) + '</span>'
+      : '\\u2014';
+    let vcell;
+    if (r.verdict) {{ const m = VERDICT_META[r.verdict]; vcell = `<span class="verdict ${{m[1]}}">${{m[0]}}</span>`; }}
+    else vcell = '<span class="verdict info">No comps</span>';
+    return `<tr>
+      <td class="addr">${{esc(r.address)}}</td>
+      <td>${{esc(r.city)}}</td>
+      <td>${{esc(r.type)}}</td>
+      <td class="num">${{fmtMoney(r.ppsf)}}</td>
+      <td class="num">${{fmtMoney(r.peer_ppsf)}}</td>
+      <td class="num ${{ppsfCls}}">${{signedPct(r.ppsf_delta)}}</td>
+      <td class="num">${{fp(r.cap)}}</td>
+      <td class="num">${{fp(r.peer_cap)}}</td>
+      <td class="num ${{capCls}}">${{r.cap_delta == null ? '\\u2014' : (r.cap_delta > 0 ? '+' : '') + r.cap_delta.toFixed(2) + ' pts'}}</td>
+      <td class="num">${{comps}}</td>
+      <td>${{vcell}}</td>
+    </tr>`;
+  }}).join('') : '<tr><td colspan="11" class="empty">No properties match the filters.</td></tr>';
+
+  document.getElementById('count').textContent =
+    rows.length + ' of ' + DATA.length + ' properties';
+}}
+
+render();
+</script>
 </body>
 </html>"""
-
-    def _row_html(self, e: dict) -> str:
-        r = e["row"]
-        addr  = html.escape(r.get("address") or "—")
-        city  = html.escape(r.get("city") or "—")
-        ptype = html.escape(r.get("type") or "—")
-
-        ppsf_delta = e["ppsf_delta"]
-        ppsf_cls = ("good" if ppsf_delta is not None and ppsf_delta <= -_MATERIAL_PCT
-                    else "poor" if ppsf_delta is not None and ppsf_delta >= _MATERIAL_PCT
-                    else "")
-        cap_delta = e["cap_delta"]
-        cap_cls = ("good" if cap_delta is not None and cap_delta > 0
-                   else "poor" if cap_delta is not None and cap_delta < 0
-                   else "")
-
-        if e["basis"]:
-            comps_cell = (f'{e["comps"]} '
-                          f'<span class="basis">{_BASIS_LABEL.get(e["basis"], e["basis"])}</span>')
-        else:
-            comps_cell = "—"
-
-        if e["verdict"]:
-            label, vcls = _VERDICT_META[e["verdict"]]
-            verdict_cell = f'<span class="verdict {vcls}">{label}</span>'
-        else:
-            verdict_cell = '<span class="verdict info">No comps</span>'
-
-        cap_str = _pct(e["cap"]) if e["cap"] is not None else "—"
-
-        return f"""      <tr>
-        <td class="addr">{addr}</td>
-        <td>{city}</td>
-        <td>{ptype}</td>
-        <td class="num">{_money(round(e['ppsf']))}</td>
-        <td class="num">{_money(round(e['peer_ppsf'])) if e['peer_ppsf'] is not None else '—'}</td>
-        <td class="num {ppsf_cls}">{_signed_pct(ppsf_delta)}</td>
-        <td class="num">{cap_str}</td>
-        <td class="num">{_pct(e['peer_cap']) if e['peer_cap'] is not None else '—'}</td>
-        <td class="num {cap_cls}">{_signed_pct(cap_delta, 2).replace('%', ' pts') if cap_delta is not None else '—'}</td>
-        <td class="num">{comps_cell}</td>
-        <td>{verdict_cell}</td>
-      </tr>"""
 
     def open_in_browser(self, rows: list):
         """Build the report and open it in the default browser."""
