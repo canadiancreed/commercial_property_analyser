@@ -15,6 +15,7 @@ from reporting.deal_watchlist_report import DealWatchlistReportGenerator, DEFAUL
 from reporting.negotiation_report import NegotiationReportGenerator
 from reporting.vacancy_report import VacancyReportGenerator
 from reporting.price_drop_report import PriceDropReportGenerator
+from reporting.benchmark_report import BenchmarkReportGenerator
 from scraping.realtor_scraper import RealtorScraper, OUTCOME_FOUND
 from scraping.price_comparator import compare
 from scoring.scorer import PropertyScorer
@@ -79,6 +80,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         self._nego_rpt = NegotiationReportGenerator()
         self._vac_rpt = VacancyReportGenerator()
         self._drop_rpt = PriceDropReportGenerator()
+        self._bench_rpt = BenchmarkReportGenerator()
         self._scan_existing_cities()
 
     def _scan_existing_cities(self):
@@ -106,6 +108,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             print("  n  Open negotiation targets")
             print("  v  Open vacancy sensitivity")
             print("  d  Open price drop alerts")
+            print("  b  Open cap-rate & $/sqft benchmarking")
             print("  p  Check realtor.ca prices (all properties)")
             print("  7  Edit commercial rent rates")
             print("  8  Edit residential rent rates")
@@ -129,6 +132,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             elif choice == "n": self._open_negotiation_report()
             elif choice == "v": self._open_vacancy_report()
             elif choice == "d": self._open_price_drop_report()
+            elif choice == "b": self._open_benchmark_report()
             elif choice == "p": self._price_check()
             elif choice == "7": self._edit_commercial_rates()
             elif choice == "8": self._edit_residential_rates()
@@ -755,6 +759,20 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             rows.append(self._build_report_row(p, scored, {}))
         print(" done.")
         self._drop_rpt.open_in_browser(rows)
+
+    def _open_benchmark_report(self):
+        props = self._store.load_properties()
+        if not props:
+            print("\n  No properties on file.")
+            return
+        print("  Building benchmarking report", end="", flush=True)
+        rows = []
+        for p in props:
+            scored = self._scorer.score_property(p)
+            print(".", end="", flush=True)
+            rows.append(self._build_report_row(p, scored, {}))
+        print(" done.")
+        self._bench_rpt.open_in_browser(rows)
 
     @staticmethod
     def _price_check_key(p: dict) -> str:

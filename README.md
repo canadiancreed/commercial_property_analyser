@@ -55,7 +55,13 @@ commercial_property_analyser_v2/
 ├── reporting/                 # Output generation
 │   ├── printer.py             # ReportPrinter — terminal output (list, analysis view)
 │   ├── property_report.py     # PropertyReportGenerator — HTML property investment report
-│   └── city_report.py         # CityReportGenerator — HTML city opportunity report
+│   ├── city_report.py         # CityReportGenerator — HTML city opportunity report
+│   ├── price_check_report.py  # PriceCheckReportGenerator — realtor.ca price sweep results
+│   ├── deal_watchlist_report.py   # DealWatchlistReportGenerator — scored deals over a threshold
+│   ├── negotiation_report.py  # NegotiationReportGenerator — bid anchors for active deals
+│   ├── vacancy_report.py      # VacancyReportGenerator — cash flow at 100/85/75/60% occupancy
+│   ├── price_drop_report.py   # PriceDropReportGenerator — listings cut below original list
+│   └── benchmark_report.py    # BenchmarkReportGenerator — $/sqft & cap rate vs peer comps
 │
 ├── ui/                        # Interactive terminal menu (excluded from coverage)
 │   ├── menu.py                # PropertyMenu — main loop, CRUD, analysis view, helpers
@@ -89,7 +95,12 @@ commercial_property_analyser_v2/
     ├── test_scoring_scorer_extended.py
     ├── test_scoring_city_ranker.py
     ├── test_reporting_printer.py
-    └── test_reporting_generators.py
+    ├── test_reporting_generators.py
+    ├── test_deal_watchlist_report.py
+    ├── test_negotiation_report.py
+    ├── test_vacancy_report.py
+    ├── test_price_drop_report.py
+    └── test_benchmark_report.py
 ```
 
 ---
@@ -167,6 +178,12 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 | `printer.py` | **`ReportPrinter`** — terminal-only output. `print_report(analyzer)` prints a formatted metric table to stdout. `list_properties(store)` prints a numbered property list sorted by city then street name/number. |
 | `property_report.py` | **`PropertyReportGenerator`** — renders a self-contained HTML file with a sortable, filterable table of all properties. Each row shows the investment score, per-component breakdown, financial metrics, and the target asking price / rent / interest rate / down payment that would achieve a near-perfect score. Opens in the default browser. |
 | `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (geometric mean of deal quality × market depth). Shows volume, avg/best scores, key financial signals, inactive-listing comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
+| `price_check_report.py` | **`PriceCheckReportGenerator`** — renders the results of a realtor.ca price sweep: each stored property classified as price dropped / risen / unchanged / not found / not checked, with the stored vs found price and delta. |
+| `deal_watchlist_report.py` | **`DealWatchlistReportGenerator`** — a focused table of scored deals at or above a score threshold (default 55), surfacing cap rate, cash-on-cash, IRR, annual cash flow, DSCR, days-on-market and price drop, best-score first. |
+| `negotiation_report.py` | **`NegotiationReportGenerator`** — for each active, scored property, the single lever value (price / rent / interest rate / down payment) that would alone lift the deal to a perfect score, with the gap from today's asking. Uses the scorer's `solve_targets`. |
+| `vacancy_report.py` | **`VacancyReportGenerator`** — stress-tests each income property by recomputing cap rate and annual cash flow at 100 / 85 / 75 / 60% occupancy, holding debt service constant. Debt service comes from the province-aware `MortgageCalculator`. |
+| `price_drop_report.py` | **`PriceDropReportGenerator`** — listings whose current asking has fallen below their original list price, ranked by the largest percentage drop. |
+| `benchmark_report.py` | **`BenchmarkReportGenerator`** — compares each property's $/sqft and cap rate against the average of comparable listings, preferring the tightest comp set available (city+type → province+type → type-wide) and excluding the property from its own average. Flags each as underpriced / at market / overpriced. |
 
 ---
 
@@ -176,7 +193,7 @@ The interactive terminal menu. Excluded from test coverage — all logic that ca
 
 | File | Purpose |
 |---|---|
-| `menu.py` | **`PropertyMenu`** — main menu loop (`run()`), property CRUD actions (`_add`, `_edit`, `_delete`, `_view`, `_list`), HTML report launchers (`_open_report`, `_open_city_report`), bulk re-analysis (`_reanalyze_all`, `_reanalyze_city`), and core helpers (`_prompt_property`, `_record_to_prop`, `_sorted_props`, `_pick_index`). |
+| `menu.py` | **`PropertyMenu`** — main menu loop (`run()`), property CRUD actions (`_add`, `_edit`, `_delete`, `_view`, `_list`), HTML report launchers (`_open_report`, `_open_city_report`, `_open_watchlist_report`, `_open_negotiation_report`, `_open_vacancy_report`, `_open_price_drop_report`, `_open_benchmark_report`), the realtor.ca price check (`_price_check`), bulk re-analysis (`_reanalyze_all`, `_reanalyze_city`), and core helpers (`_prompt_property`, `_record_to_prop`, `_sorted_props`, `_pick_index`). |
 | `rate_editor.py` | **`RateEditorMixin`** — menu options 7 & 8. Edit or add commercial rent rates ($/sqft/yr, split by property type) and residential rent rates ($/mo, split by bedroom count) per city. Automatically re-analyses all properties in that city after saving. |
 | `config_editor.py` | **`ConfigEditorMixin`** — menu option `s`. Edit per-component scoring weights and floor/ceiling thresholds. Sub-options let you manage city distances to regional centres (used by the Location scoring component) and city demographic data (population, annual growth). |
 | `csv_handler.py` | **`CsvHandlerMixin`** — menu option 9. Imports properties from a CSV file (auto-detects encoding, handles files with or without a header row). Also exports a blank template CSV so users know the expected column order. |
@@ -205,10 +222,17 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
   1  List all properties
   2  View analysis for a property
   3  Add a new property
+  u  Add a property from a realtor.ca URL
   4  Edit a property
   5  Delete a property
   6  Open investment report in browser
   c  Open city opportunity report
+  w  Open deal watchlist
+  n  Open negotiation targets
+  v  Open vacancy sensitivity
+  d  Open price drop alerts
+  b  Open cap-rate & $/sqft benchmarking
+  p  Check realtor.ca prices (all properties)
   7  Edit commercial rent rates
   8  Edit residential rent rates
   9  Import properties from CSV
@@ -245,6 +269,18 @@ The displayed score is the **honest raw value** (geometric mean, realistic top ~
 
 **HTML reports (options 6 / c)**
 Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (geometric mean of deal quality and market depth), with an accurate per-factor quality breakdown and inactive-listing comparables. The price-range filter shows a city only if it has active listings in range, and the shown count/avg price reflect that in-range subset.
+
+**Focused reports (options w / n / v / d / b)**
+Each opens a single-purpose HTML report in the browser, built from the same scored property set:
+
+- **`w` Deal Watchlist** — scored deals at or above a score threshold (you're prompted for one; default 55), with the key return metrics, best-score first.
+- **`n` Negotiation Targets** — for each active, scored deal, the one lever (price / rent / rate / down payment) that alone would make it a perfect score, plus the gap from today's asking.
+- **`v` Vacancy Sensitivity** — cap rate and annual cash flow for every income property at 100 / 85 / 75 / 60% occupancy, with debt service held constant, to show how much vacancy each deal can absorb.
+- **`d` Price Drop Alerts** — listings now priced below their original list price, ranked by the size of the cut.
+- **`b` Cap-Rate & $/sqft Benchmarking** — every property's price-per-sqft and cap rate against the average of comparable listings (city+type, then province+type, then type-wide), flagged underpriced / at market / overpriced.
+
+**Price check (option p)**
+Drives a real browser to look each stored property up on realtor.ca and reports which prices have dropped, risen, or been delisted since you saved them. Progress is checkpointed so a long sweep can be resumed.
 
 ---
 
