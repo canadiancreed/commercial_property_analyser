@@ -76,13 +76,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   self-describing — e.g. `act_cap` → `active_cap_rate`, `act_dom` → `active_days_on_market`,
   `inact_cap` → `inactive_cap_rate`. The `json/score_weights.json` weight/threshold keys are a
   separate persisted config namespace and were intentionally left unchanged.
-- **Inactive listings are framed as sold** (`scoring/city_ranker.py`,
-  `reporting/city_report.py`, `ui/config_editor.py`): status is binary (active vs inactive)
-  and an off-market listing is modelled as sold (off-market ≈ transacted). The report's
-  historical section is now "Sold & Off-Market", its cards read "(Sold)", the count pill reads
-  "N sold", and the two cross-cohort factors are "Absorption (Sold Share)" (demand signal) and
-  "Price Trend (Ask vs Sold)" (appreciation signal). The config-editor descriptions match and
-  now cover all 15 factors (previously 9).
+- **Inactive listings modelled as transacted** (`scoring/city_ranker.py`,
+  `reporting/city_report.py`, `ui/config_editor.py`): status is binary (active vs inactive) and
+  an off-market listing is treated as sold for the demand/appreciation signals — absorption
+  ("Absorption (Inactive Share)") and price trend ("Price Trend (Ask vs Inactive)"). The UI
+  labels everything "inactive" (not "sold"); the config-editor descriptions match and now cover
+  all 15 factors (previously 9).
 - `CityReportGenerator` no longer reads `json/score_weights.json` for thresholds — the
   breakdown comes entirely from the emitted factor data.
 

@@ -166,7 +166,7 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 |---|---|
 | `printer.py` | **`ReportPrinter`** — terminal-only output. `print_report(analyzer)` prints a formatted metric table to stdout. `list_properties(store)` prints a numbered property list sorted by city then street name/number. |
 | `property_report.py` | **`PropertyReportGenerator`** — renders a self-contained HTML file with a sortable, filterable table of all properties. Each row shows the investment score, per-component breakdown, financial metrics, and the target asking price / rent / interest rate / down payment that would achieve a near-perfect score. Opens in the default browser. |
-| `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (geometric mean of deal quality × market depth). Shows volume, avg/best scores, key financial signals, sold/off-market comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
+| `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (geometric mean of deal quality × market depth). Shows volume, avg/best scores, key financial signals, inactive-listing comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
 
 ---
 
@@ -235,8 +235,8 @@ A separate sub-editor tunes the **city opportunity** formula. A city must be goo
 
 - **Quality** (0–1) is the renormalised weighted blend of deal/market metrics (independent of city size), feeding the report's "Deal-quality contributions" breakdown:
   - *Active listings* (still for sale): cap rate, cash-on-cash, IRR, DSCR, annual cash flow, price drop from original list, days on market.
-  - *Sold listings* (inactive — treated as sold): cap rate, absorption (sold share = demand signal), price trend (active asking vs sold = appreciation signal).
-  - *Cross / structural*: active-vs-sold cap-rate trend and the single best deal score.
+  - *Inactive listings* (off-market, treated as transacted for demand signals): cap rate, absorption (inactive share = demand signal), price trend (active asking vs inactive = appreciation signal).
+  - *Cross / structural*: active-vs-inactive cap-rate trend and the single best deal score.
   - *Demographics* (where available): population (log-scaled) and annual population growth.
 - **Depth** (0–1) grows log-scaled with active listing count (`opportunity_depth_ref`, the count earning ~full depth, default 50). Its weight is `opportunity_depth_exp` (default 0.4; quality gets the rest).
 - **Outlier screen**: active listings whose estimated rent implies an implausible cap rate (`outlier_max_cap_rate`, default 12%) or cash-on-cash (`outlier_max_coc`, default 25%) are kept in the inventory count but dropped from the income averages, so a bad estimate can't inflate a city.
@@ -244,7 +244,7 @@ A separate sub-editor tunes the **city opportunity** formula. A city must be goo
 The displayed score is the **honest raw value** (geometric mean, realistic top ~60) — not rescaled, so a weak field of markets reads as mostly Fair/Weak rather than being flattered (grades: Excellent ≥75, Good ≥55, Fair ≥35). The browser price-range filter keeps a city if **any** of its active listings fall in the range (not just the city average). `confidence_k` now only drives the displayed "Data Confidence" indicator; it no longer scales the score. All knobs live in `json/score_weights.json`.
 
 **HTML reports (options 6 / c)**
-Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (geometric mean of deal quality and market depth), with an accurate per-factor quality breakdown and sold/off-market comparables (inactive listings are treated as sold).
+Option 6 opens a property report in your browser — sortable by any column, showing score breakdowns and the target adjustments needed to reach a near-perfect score. Option `c` opens a city opportunity ranking (geometric mean of deal quality and market depth), with an accurate per-factor quality breakdown and inactive-listing comparables. The price-range filter shows a city only if it has active listings in range, and the shown count/avg price reflect that in-range subset.
 
 ---
 
