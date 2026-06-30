@@ -156,10 +156,12 @@ class TestCityReportGenerator:
 
     def test_price_filter_matches_individual_listings(self):
         """The price filter must key off individual active prices, not the city
-        average — a city with an in-range listing must not be hidden."""
+        average, and recompute the shown count/avg to the in-range subset."""
         html = CityReportGenerator().render([_city()])
-        assert "c.active_prices" in html
-        # must not regress to filtering on the average
+        assert "function inRangePrices(c)" in html
+        assert "inRangePrices(c).length > 0" in html       # hide cities with none in range
+        assert "avgPriceShown" in html and "activeShown" in html  # recomputed display
+        # must not regress to filtering on the city average
         assert "c.active_avg_price < _priceMin" not in html
 
     def test_opportunity_shown_is_raw_not_rescaled(self):

@@ -370,15 +370,20 @@ function resetPriceFilter() {{
   renderAll();
 }}
 
+function priceInRange(p) {{
+  return (_priceMin === null || p >= _priceMin) &&
+         (_priceMax === null || p <= _priceMax);
+}}
+
+function inRangePrices(c) {{
+  return (c.active_prices || []).filter(priceInRange);
+}}
+
 function cityMatchesFilter(c) {{
   if (_priceMin === null && _priceMax === null) return true;
-  // Keep a city if ANY of its active listings falls in the range — not just if
-  // the city average does (which wrongly hid cities with in-range listings).
-  const prices = c.active_prices || [];
-  if (prices.length === 0) return true;   // no price data → don't hide
-  return prices.some(p =>
-    (_priceMin === null || p >= _priceMin) &&
-    (_priceMax === null || p <= _priceMax));
+  // Show a city only if it has active listings inside the range. A city with no
+  // qualifying (or no priced) active inventory is hidden when a filter is set.
+  return inRangePrices(c).length > 0;
 }}
 
 function renderAll() {{
@@ -394,9 +399,10 @@ function renderAll() {{
   }}
   const badge = document.getElementById('report-date');
   const total  = CITIES.reduce((s,c)=>s+c.total,0);
-  const shown  = filtered.reduce((s,c)=>s+c.total,0);
+  // When filtering, count the in-range active listings, not every property.
+  const shown  = filtered.reduce((s,c)=>s+inRangePrices(c).length,0);
   const filterNote = (_priceMin !== null || _priceMax !== null)
-    ? ` · showing ${{filtered.length}} of ${{CITIES.length}} cit${{CITIES.length===1?'y':'ies'}} (${{shown}} props)`
+    ? ` · showing ${{filtered.length}} of ${{CITIES.length}} cit${{CITIES.length===1?'y':'ies'}} (${{shown}} listings in range)`
     : '';
   badge.textContent = 'Generated ' + new Date().toLocaleDateString('en-CA', {{year:'numeric',month:'long',day:'numeric'}})
     + ' · ' + CITIES.length + ' cit' + (CITIES.length===1?'y':'ies') + ' · '
@@ -463,10 +469,10 @@ function buildVerdict(c, rank) {{
   else if (c.active_days_on_market > 0 && c.active_days_on_market < 30) weaknesses.push(`fast-moving market (${{c.active_days_on_market}}d avg DOM)`);
   if (c.active === 0)     weaknesses.push(`no active listings — no actionable deals`);
   if (c.confidence < 0.5) weaknesses.push(`limited data (${{c.total}} propert${{c.total===1?'y':'ies'}} — score discounted)`);
-  if (c.inactive_deal_score >= 60) context.push(`sold deals averaged ${{fi(c.inactive_deal_score)}}/100 — market has produced quality`);
-  else if (c.inactive > 0 && c.inactive_deal_score < 40) context.push(`sold deals were weak (${{fi(c.inactive_deal_score)}}/100)`);
-  if (c.cap_trend > 0.5)       context.push(`cap rates trending up vs sold (${{c.cap_trend > 0 ? '+' : ''}}${{fp(c.cap_trend)}})`);
-  else if (c.cap_trend < -0.5) context.push(`cap rates trending down vs sold (${{fp(c.cap_trend)}})`);
+  if (c.inactive_deal_score >= 60) context.push(`inactive deals averaged ${{fi(c.inactive_deal_score)}}/100 — market has produced quality`);
+  else if (c.inactive > 0 && c.inactive_deal_score < 40) context.push(`inactive deals were weak (${{fi(c.inactive_deal_score)}}/100)`);
+  if (c.cap_trend > 0.5)       context.push(`cap rates trending up vs inactive (${{c.cap_trend > 0 ? '+' : ''}}${{fp(c.cap_trend)}})`);
+  else if (c.cap_trend < -0.5) context.push(`cap rates trending down vs inactive (${{fp(c.cap_trend)}})`);
   if (c.has_demo) {{
     const popFmtV = p => p >= 1000000 ? (p/1000000).toFixed(1)+'M' : p >= 1000 ? Math.round(p/1000)+'K' : p;
     if (c.pop_growth >= 2.0)       strengths.push(`strong pop. growth (${{c.pop_growth.toFixed(2)}}%/yr) — expanding tenant base`);
@@ -491,6 +497,14 @@ function renderCity(c, i) {{
   // rescaled — if few cities are strong, the scores and grades say so. Grade on
   // the rounded shown value so the number and label never disagree.
   const oppShown   = Math.round(c.opportunity);
+  // When a price filter is active, the active count and avg price shown reflect
+  // only the in-range listings (so out-of-range listings aren't "considered").
+  const _filtered    = _priceMin !== null || _priceMax !== null;
+  const _inRange     = inRangePrices(c);
+  const activeShown  = _filtered ? _inRange.length : c.active;
+  const avgPriceShown = _filtered
+    ? (_inRange.length ? Math.round(_inRange.reduce((a, b) => a + b, 0) / _inRange.length) : 0)
+    : c.active_avg_price;
   const [grade, gradeLabel] = gradeOf(oppShown);
   const barColor   = oppColor(oppShown);
   const barW       = Math.min(100, oppShown);
@@ -516,15 +530,15 @@ function renderCity(c, i) {{
     {{ label:'DSCR (Active)',        val: c.active_dscr ? c.active_dscr.toFixed(2):'—', cls: gc('dscr',c.active_dscr), sub:'≥1.5 strong' }},
     {{ label:'Price Drop (Active)',  val: fp(c.active_price_drop),  cls: gc('drop',c.active_price_drop), sub:'from original list' }},
     {{ label:'Days Listed (Active)', val: c.active_days_on_market != null ? c.active_days_on_market+'d':'—', cls: gc('dom',c.active_days_on_market), sub:'seller motivation' }},
-    {{ label:'Avg Price (Active)',   val: fm(c.active_avg_price), cls:'info', sub:'active listings' }},
+    {{ label:'Avg Price (Active)',   val: fm(avgPriceShown), cls:'info', sub: _filtered ? `${{activeShown}} listing(s) in range` : 'active listings' }},
   ];
   const popFmt = p => p >= 1000000 ? (p/1000000).toFixed(1)+'M' : p >= 1000 ? Math.round(p/1000)+'K' : (p||'—');
   const growthCls = g => g == null ? 'info' : g >= 2 ? 'good' : g >= 0.5 ? 'fair' : g >= 0 ? 'info' : 'poor';
   const contextCards = [
-    {{ label:'Deal Score (Sold)',    val: c.inactive_deal_score ? fi(c.inactive_deal_score)+'/100':'—', cls: gc('score',c.inactive_deal_score), sub:'avg across sold listings' }},
-    {{ label:'Cap Rate (Sold)',      val: fp(c.inactive_cap_rate), cls: gc('cap',c.inactive_cap_rate),  sub:'achieved market rate' }},
-    {{ label:'CoCR (Sold)',          val: fp(c.inactive_cash_on_cash), cls: gc('coc',c.inactive_cash_on_cash),  sub:'achieved returns' }},
-    {{ label:'Cap Rate Trend',       val: c.cap_trend == null ? '—' : trendArrow + ' ' + (c.cap_trend > 0 ? '+':'') + fp(c.cap_trend), cls: trendCls, sub:'active vs sold' }},
+    {{ label:'Deal Score (Inactive)', val: c.inactive_deal_score ? fi(c.inactive_deal_score)+'/100':'—', cls: gc('score',c.inactive_deal_score), sub:'avg across inactive listings' }},
+    {{ label:'Cap Rate (Inactive)',   val: fp(c.inactive_cap_rate), cls: gc('cap',c.inactive_cap_rate),  sub:'inactive market rate' }},
+    {{ label:'CoCR (Inactive)',       val: fp(c.inactive_cash_on_cash), cls: gc('coc',c.inactive_cash_on_cash),  sub:'inactive returns' }},
+    {{ label:'Cap Rate Trend',       val: c.cap_trend == null ? '—' : trendArrow + ' ' + (c.cap_trend > 0 ? '+':'') + fp(c.cap_trend), cls: trendCls, sub:'active vs inactive' }},
     {{ label:'Data Confidence',      val: confPctStr,      cls: confCls, sub:`sample size · ${{c.total}} total props (context only)` }},
     {{ label:'Best Deal Score',      val: c.best_score ? fi(c.best_score)+'/100':'—', cls: gc('score',c.best_score), sub:'ceiling — any property' }},
     {{ label:'Population (2021)',    val: c.population ? popFmt(c.population) : '—', cls: c.population >= 50000 ? 'good' : c.population >= 10000 ? 'fair' : c.population ? 'info' : 'poor', sub:'Stats Canada 2021 Census' }},
@@ -541,7 +555,7 @@ function renderCity(c, i) {{
   // The factor breakdown is the *actual* contribution emitted by CityRanker
   // (points = normalised × weight × 100), so it always matches the scoring
   // model and config weights — no recomputation here.
-  const srcColor = {{ active:'var(--green)', sold:'var(--amber)', structure:'var(--gold)', cross:'var(--muted)', demo:'#7c9fbf' }};
+  const srcColor = {{ active:'var(--green)', inactive:'var(--amber)', structure:'var(--gold)', cross:'var(--muted)', demo:'#7c9fbf' }};
   const factors  = (c.factors || []).slice();
   const maxRaw   = Math.max(...factors.map(f => f.points), 1);
   const confPct  = ((c.confidence || 1) * 100).toFixed(0);
@@ -587,8 +601,8 @@ function renderCity(c, i) {{
       <div class="city-info">
         <div class="city-name">${{c.city}} <span class="chevron">▼</span></div>
         <div class="city-pills">
-          <span class="pill active">${{c.active}} active</span>
-          ${{c.inactive ? `<span class="pill inactive">${{c.inactive}} sold</span>` : ''}}
+          <span class="pill active">${{activeShown}} active${{_filtered && activeShown !== c.active ? ` of ${{c.active}}` : ''}}</span>
+          ${{c.inactive ? `<span class="pill inactive">${{c.inactive}} inactive</span>` : ''}}
           ${{typeStr ? `<span class="pill">${{typeStr}}</span>` : ''}}
         </div>
       </div>
@@ -608,14 +622,13 @@ function renderCity(c, i) {{
       <div class="detail-section-title">Active Listings — Actionable Now</div>
       <div class="detail-grid">${{cardHtml(activeCards)}}</div>
       <div class="detail-section-title" style="margin-top:1rem">
-        Sold &amp; Off-Market — Historical Context
-        <span style="text-transform:none;letter-spacing:0;color:var(--muted);font-weight:normal"> · inactive listings treated as sold (off-market ≈ transacted)</span>
+        Inactive Listings — Historical Context
       </div>
       <div class="detail-grid">${{cardHtml(contextCards)}}</div>
       <div class="factor-section-title" style="margin-top:1.2rem">
         Deal-quality contributions &nbsp;
         <span style="color:var(--green)">[active]</span>
-        <span style="color:var(--amber)"> [sold]</span>
+        <span style="color:var(--amber)"> [inactive]</span>
         <span style="color:var(--gold)"> [structure]</span>
         <span style="color:var(--muted)"> [cross]</span>
         <span style="color:#7c9fbf"> [demo]</span>
