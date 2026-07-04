@@ -93,7 +93,9 @@ class PropertyScorer:
         cap_rate   = val("Cap Rate")
         coc        = val("CoCR")
         dscr       = val("DSCR")
-        irr        = val_prefix("IRR (")
+        # "IRR not meaningful" (no real IRR root) has no digits, so it parses
+        # to the default; keep that None so reports show "—" instead of a fake 0%.
+        irr        = val_prefix("IRR (", default=None)
         em         = val("Equity Multiple")
         cf_annual  = val("Annual Cash Flow")
         price_drop = val("Price Drop %")
@@ -109,7 +111,7 @@ class PropertyScorer:
             "Cap Rate":        component("Cap Rate",        cap_rate),
             "CoCR":            component("CoCR",            coc),
             "DSCR":            component("DSCR",            dscr),
-            "IRR":             component("IRR",             irr),
+            "IRR":             component("IRR", irr) if irr is not None else 0.0,
             "Equity Multiple": component("Equity Multiple", em),
             "Cash Flow":       component("Cash Flow",       cf_annual),
             "Price Drop":      component("Price Drop",      price_drop),

@@ -54,9 +54,10 @@ class TestReturnMetrics:
         assert isinstance(m.irr, float)     # computed, not raised
 
     def test_irr_zero_hold_years(self):
+        # Zero hold: no periods to annualize over, so there is no rate to report.
         prop = _make_prop(hold_years=0)
         m = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=500_000)
-        assert m.irr == -100.0
+        assert m.irr is None
 
     def test_em_grade_excellent(self):
         prop = _make_prop(asking_price=300_000, hold_years=20)
@@ -371,17 +372,29 @@ class TestEquityMultipleLoanPaydownRegression:
                           exit_price=exit_price, loan_balance=loan_balance)
         assert m.equity_multiple == pytest.approx(expected_em, rel=1e-4)
 
-    def test_underwater_exit_floors_irr_to_minus_100(self):
+    def test_selling_costs_reduce_net_proceeds_and_multiple(self):
+        prop   = _make_prop(hold_years=5, noi_growth_rate=0.02)
+        m_free = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=650_000,
+                               loan_balance=350_000)
+        m_cost = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=650_000,
+                               loan_balance=350_000, selling_costs=30_000)
+        assert m_cost._net_sale_proceeds == pytest.approx(m_free._net_sale_proceeds - 30_000)
+        assert m_cost.equity_multiple < m_free.equity_multiple
+        assert m_cost.irr < m_free.irr
+
+    def test_underwater_exit_reports_irr_not_meaningful(self):
         """When the loan payoff exceeds the exit price the final cash flow goes
-        negative and numpy_financial.irr has no real root (nan). IRR floors to
-        -100% (total loss) — always a real number — and does not raise; the
+        negative and numpy_financial.irr has no real root (nan). No substitute
+        number is invented: irr is None and the report row reads "IRR not
+        meaningful" — never NaN, 0, or a fake rate. It does not raise; the
         negative final flow means the guardrail premise doesn't apply."""
         g    = 0.02
         prop = _make_prop(hold_years=5, noi_growth_rate=g)
         m    = ReturnMetrics(prop, 5_000, 0, 100_000,
                              exit_price=300_000, loan_balance=350_000)
-        assert m.irr == -100.0
-        assert isinstance(m.irr, float)
+        assert m.irr is None
+        irr_row = next(r for r in m.rows() if r.metric.startswith("IRR ("))
+        assert irr_row.value == "IRR not meaningful"
 
 
 # ── Issue #4 regression: yearly IRR flows escalate at noi_growth_rate ─────────
