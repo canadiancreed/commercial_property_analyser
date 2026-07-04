@@ -400,6 +400,13 @@ class PropertyReportGenerator:
   .modal-metric-val.fair {{ color: var(--amber); }}
   .modal-metric-val.poor {{ color: var(--red); }}
   .modal-metric-val.info {{ color: var(--ink); }}
+  .modal-metric-note {{
+    display: block;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 10px; font-weight: 400;
+    color: var(--muted);
+    text-align: right;
+  }}
   .score-bar-row {{
     display: flex; align-items: center; gap: 0.6rem;
     padding: 0.25rem 0; font-size: 12px;
@@ -774,9 +781,15 @@ function openModal(p) {{
       .map(k => {{
         const r  = resultMap[k];
         const gc = gradeFromLabel(r.grade);
+        // "value — annotation" renders as the value with a small muted
+        // note beneath it (e.g. NOI growth provenance), keeping the
+        // value column short and numeric.
+        const parts = String(r.value).split(' — ');
+        const val   = parts[0];
+        const note  = parts.slice(1).join(' — ');
         return `<div class="modal-metric-row">
           <span class="modal-metric-name">${{r.metric}}</span>
-          <span class="modal-metric-val ${{gc}}">${{r.value}}</span>
+          <span class="modal-metric-val ${{gc}}">${{val}}${{note ? `<span class="modal-metric-note">${{note}}</span>` : ''}}</span>
         </div>`;
       }}).join('');
     if (!rows) return '';
