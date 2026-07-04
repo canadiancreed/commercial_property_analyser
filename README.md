@@ -27,7 +27,7 @@ commercial_property_analyser_v2/
 ├── conftest.py                # pytest sys.path setup
 ├── pytest.ini                 # Test runner config + coverage flags
 ├── .coveragerc                # Coverage source/omit/threshold rules
-├── requirements.txt           # pytest, pytest-cov
+├── requirements.txt           # numpy-financial (runtime), pytest, pytest-cov
 │
 ├── models/                    # Plain data containers (no logic)
 │   ├── property_input.py      # PropertyInput, UnitMix dataclasses
@@ -117,7 +117,7 @@ commercial_property_analyser_v2/
 | `conftest.py` | Adds the project root to `sys.path` so absolute imports work correctly during `pytest` runs. |
 | `pytest.ini` | Configures test discovery, coverage sources, branch coverage, and XML/terminal report output. Coverage flags are in `addopts` so VS Code's Coverage Gutters extension picks up `coverage.xml` automatically on every test run. |
 | `.coveragerc` | Excludes `main.py`, `ui/`, and `tests/` from coverage measurement. Enforces a 90% minimum. |
-| `requirements.txt` | `pytest` and `pytest-cov`. No other runtime dependencies — the application uses only the Python standard library. |
+| `requirements.txt` | `numpy-financial` (runtime — used by `returns.py` for IRR via `numpy_financial.irr`, which pulls in `numpy`), plus `pytest` and `pytest-cov` for tests. Otherwise the application uses only the Python standard library. |
 
 ---
 
@@ -156,7 +156,7 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 |---|---|
 | `income.py` | Gross Rent, Effective Gross Income, Estimated Expenses, NOI, Entry Cap Rate, Estimated Exit NOI, GRM |
 | `cash_flow.py` | Annual Cash Flow, Cash-on-Cash Return (CoCR), Cash Invested, DSCR |
-| `returns.py` | IRR (Newton-Raphson), Equity Multiple, CELOC |
+| `returns.py` | IRR (`numpy_financial.irr`), Equity Multiple, CELOC |
 | `pricing.py` | Price per sqft, Original Price, Price Drop %, Loan-to-Value |
 | `property_types.py` | **Hotel**: Rooms, ADR, Occupancy %, RevPAR, CPOR, Annual Revenue, GOP grade. **Industrial**: Warehouse/office/yard sqft, dock & drive-in door counts, clear height, blended rate, estimated annual rent. |
 | `grader.py` | `grade(metric, value)` — maps a numeric value to `"GOOD"`, `"FAIR"`, `"POOR"`, or `""` using per-metric thresholds. |
@@ -333,8 +333,8 @@ Coverage is enforced at 90% minimum by `.coveragerc`. The current suite achieves
 | **NOI** | Net Operating Income — Effective Gross Income minus estimated operating expenses. |
 | **DSCR** | Debt Service Coverage Ratio — NOI ÷ Annual Mortgage Payment. Values below 1.0 mean the property cannot service its debt from income alone. |
 | **CoCR** | Cash-on-Cash Return — Annual Cash Flow ÷ Cash Invested. Measures immediate income yield on equity deployed. |
-| **IRR** | Internal Rate of Return — annualised return over the hold period accounting for all cash flows and exit proceeds. Solved via Newton-Raphson. |
-| **Equity Multiple** | Total Return ÷ Cash Invested. A value of 2.0× means you doubled your money over the hold period. |
+| **IRR** | Internal Rate of Return — annualised return over the hold period, computed by `numpy_financial.irr` on the period cash-flow array (equity out at year 0, operating cash flow each year, plus **net** sale proceeds at exit), so it reflects cash-flow timing. Independent of the Equity Multiple, not back-derived from it. |
+| **Equity Multiple** | Total positive cash returned ÷ Cash Invested, from the same cash-flow array (sale proceeds are **net** of the loan payoff). A value of 2.0× means you doubled your money over the hold period. |
 | **GRM** | Gross Rent Multiplier — Asking Price ÷ Annual Gross Rent. Lower is better. |
 | **CELOC** | Cash Equity Left Over on Close — (Exit Equity − Cash Invested) ÷ Cash Invested. |
 | **RevPAR** | Revenue Per Available Room — ADR × Occupancy Rate. Hotel-specific. |
