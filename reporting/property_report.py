@@ -395,7 +395,7 @@ class PropertyReportGenerator:
   }}
   .modal-metric-row:last-child {{ border-bottom: none; }}
   .modal-metric-name {{ color: var(--muted); font-size: 12px; }}
-  .modal-metric-val  {{ font-family: var(--mono); font-weight: 500; }}
+  .modal-metric-val  {{ font-family: var(--mono); font-weight: 500; text-align: right; }}
   .modal-metric-val.good {{ color: var(--green); }}
   .modal-metric-val.fair {{ color: var(--amber); }}
   .modal-metric-val.poor {{ color: var(--red); }}
