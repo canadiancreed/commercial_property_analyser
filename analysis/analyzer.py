@@ -177,7 +177,7 @@ class CommercialPropertyAnalyzer:
         )
         self.dom     = DaysOnMarketCalculator(prop.listing_date)
         self.pricing = PricingMetrics(prop, self.mortgage.loan_balance,
-                                      annual_rent if annual_rent else 1,
+                                      annual_rent,
                                       city_rent_per_sqft=getattr(rent_resolver, "_city_rent_per_sqft", None),
                                       comm_sq_ft=getattr(rent_resolver, "_comm_sq_ft", None))
 

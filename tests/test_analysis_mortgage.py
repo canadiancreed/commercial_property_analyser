@@ -5,13 +5,26 @@ from analysis.mortgage import (
     effective_monthly_rate, amortization_payment, remaining_balance,
     compounding_for_province,
 )
-from models.constants import CANADIAN_PROVINCES
+from models.constants import CANADIAN_PROVINCES, PROVINCE_NAME_TO_CODE
 
 
 class TestCompoundingForProvince:
     def test_canadian_provinces_are_semi_annual(self):
         for prov in CANADIAN_PROVINCES:
             assert compounding_for_province(prov) == "semi-annual", prov
+
+    def test_every_canadian_jurisdiction_by_full_name_is_semi_annual(self):
+        """A spelled-out province/territory name (as realtor.ca supplies) must
+        also reach the semi-annual branch — not silently fall to US monthly."""
+        for name, code in PROVINCE_NAME_TO_CODE.items():
+            assert code in CANADIAN_PROVINCES, f"{name} maps to non-Canadian code {code}"
+            assert compounding_for_province(name) == "semi-annual", name
+            assert compounding_for_province(name.title()) == "semi-annual", name
+
+    def test_all_thirteen_jurisdictions_covered(self):
+        """Guard against a province/territory being dropped from the set: all 10
+        provinces + 3 territories must be present."""
+        assert len(CANADIAN_PROVINCES) == 13
 
     def test_us_state_is_monthly(self):
         assert compounding_for_province("CA") == "monthly"
@@ -22,6 +35,9 @@ class TestCompoundingForProvince:
 
     def test_case_insensitive(self):
         assert compounding_for_province("on") == "semi-annual"
+
+    def test_full_name_quebec_with_accent(self):
+        assert compounding_for_province("Québec") == "semi-annual"
 
 
 class TestEffectiveMonthlyRate:

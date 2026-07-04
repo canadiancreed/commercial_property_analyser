@@ -1,11 +1,22 @@
 from datetime import date
 from models.report_row import ReportRow
-from models.constants import CANADIAN_PROVINCES
+from models.constants import CANADIAN_PROVINCES, PROVINCE_NAME_TO_CODE
 
 
 def compounding_for_province(province: str) -> str:
-    """Return 'semi-annual' for Canadian provinces, 'monthly' for US states."""
-    return "semi-annual" if (province or "").strip().upper() in CANADIAN_PROVINCES else "monthly"
+    """Return 'semi-annual' for any Canadian jurisdiction, 'monthly' otherwise.
+
+    Accepts either a 2-letter code ("ON") or a spelled-out name ("Ontario",
+    "Québec"), so a Canadian property always reaches the semi-annual branch no
+    matter how its province was recorded. Semi-annual compounding is federal
+    (Interest Act, s. 6) and applies uniformly to all 10 provinces + 3
+    territories — there is no per-province compounding split below this point,
+    so covering every jurisdiction here is what "handle all provinces" means.
+    The US/monthly branch is the fallback for anything not recognised as Canadian.
+    """
+    raw  = (province or "").strip()
+    code = PROVINCE_NAME_TO_CODE.get(raw.lower(), raw.upper())
+    return "semi-annual" if code in CANADIAN_PROVINCES else "monthly"
 
 
 def effective_monthly_rate(annual_rate: float, compounding: str = "semi-annual") -> float:

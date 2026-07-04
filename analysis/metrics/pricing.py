@@ -40,8 +40,17 @@ class PricingMetrics:
                  comm_sq_ft: float | None = None):
         self._cost_basis    = prop.asking_price + (prop.construction_cost or 0)
         sqft_denominator    = comm_sq_ft if comm_sq_ft else prop.total_sq_ft
+        # Square footage is mandatory — a zero here would crash or (via a silent
+        # fallback) fabricate a Price/Sq Ft. Fail loudly instead.
+        if not sqft_denominator or sqft_denominator <= 0:
+            raise ValueError(
+                f"total square footage is required and must be > 0 (got {sqft_denominator!r})"
+            )
         self.pp_sqft        = self._cost_basis / sqft_denominator
-        self.grm            = self._cost_basis / annual_rent
+        # GRM needs rent. When rent is unresolved (partial analysis for a city
+        # with no rates yet) leave it as None and flag the row — never divide by
+        # a silent stand-in like 1, which used to print GRM == cost basis.
+        self.grm            = self._cost_basis / annual_rent if annual_rent and annual_rent > 0 else None
         self.price_drop_pct = ((prop.original_price - prop.asking_price) / prop.original_price) * 100
         self.tax_load       = (prop.property_taxes / prop.asking_price) * 100
         self.ltv_ratio      = (loan_balance / prop.asking_price) * 100
@@ -63,10 +72,12 @@ class PricingMetrics:
                                   Grader.grade(self.pp_sqft, self._sqft_good, self._sqft_poor,
                                                higher_is_better=False,
                                                labels=("GOOD", "FAIR", "POOR/PREMIUM"))))
+        grm_value = "N/A (no rent)" if self.grm is None else f"{self.grm:.2f}"
+        grm_grade = ("WARN — no rent resolved" if self.grm is None else
+                     Grader.grade(self.grm, self._grm_good, self._grm_poor,
+                                  higher_is_better=False))
         rows += [
-            ReportRow("GRM",           f"{self.grm:.2f}",
-                      Grader.grade(self.grm, self._grm_good, self._grm_poor,
-                                   higher_is_better=False)),
+            ReportRow("GRM",           grm_value, grm_grade),
             ReportRow("Tax Load",      f"{self.tax_load:.2f}%",
                       Grader.grade(self.tax_load, 2.0, 3.0, higher_is_better=False)),
             ReportRow("Price Drop %",  f"{self.price_drop_pct:.2f}%",

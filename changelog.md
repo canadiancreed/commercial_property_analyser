@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.3] — 2026-07-03
+
+### Added
+
+- **Cross-metric consistency test suite** (`tests/test_consistency_invariants.py`): 64 checks that
+  drive a matrix of Canadian property configurations through the real `CommercialPropertyAnalyzer`
+  and assert the independently-computed metric groups agree with each other — the class of check
+  that catches silent arithmetic regressions a single-formula unit test misses. Asserts, among
+  others: annual debt service == monthly payment × 12; `exit_price × exit_cap == terminal NOI`; the
+  origination identity `loan/price + down_payment_pct == 1`; `price_per_sqft × denominator == cost
+  basis`; and cap rate reconstructs NOI. It also **locks the Canadian semi-annual compounding
+  convention** (Interest Act s. 6, `(1 + rate/2)^(1/6) − 1`) and confirms the payment lands below
+  the naive US-monthly figure, so a regression to `annual_rate/12` fails the suite. The matrix is
+  entirely Canadian (Ontario + BC) — no US/monthly-compounding data.
+
+### Changed
+
+- **Canadian compounding now recognizes every jurisdiction in any form**
+  (`analysis/mortgage.py`). `compounding_for_province` previously matched only 2-letter codes, so a
+  spelled-out province name ("Ontario", "Québec") would have silently fallen through to the
+  US/monthly branch. It now normalizes full names via `PROVINCE_NAME_TO_CODE` before checking
+  membership, so all 10 provinces + 3 territories reach the semi-annual branch (Interest Act s. 6)
+  whether recorded as a code or a name. Semi-annual compounding is federal and uniform across
+  jurisdictions — there is no per-province formula split — and the US/monthly branch is untouched as
+  the fallback for anything not recognized as Canadian. New tests assert every jurisdiction (by code
+  and by full name, including accented "Québec") compounds semi-annually and that all 13 remain in
+  the set.
+
+- **Metrics no longer emit silent fallbacks** (`analysis/metrics/pricing.py`, `income.py`,
+  `cash_flow.py`, `returns.py`, `analysis/analyzer.py`). Broken or missing mandatory inputs used to
+  render a plausible-looking value (e.g. a fabricated GRM of cost basis ÷ 1, a `0.00%` return, or a
+  bare `inf` DSCR); now:
+  - **Mandatory data fails loudly.** A missing/zero square footage or a zero exit cap rate raises
+    `ValueError`. Menu callers already catch this and route the property to a partial "no analysis"
+    record, so batches don't crash — the bad field is surfaced instead of faked. The
+    `annual_rent if annual_rent else 1` stand-in in `analyzer.py` was removed.
+  - **Legitimate edges are flagged, not faked.** GRM shows `N/A (no rent)` for a property whose city
+    has no rent data yet (the tested partial-analysis path is preserved); DSCR and the stress test
+    show `N/A (no debt)` for an all-cash deal; CoCR, Equity Multiple, and CELOC show
+    `N/A (no cash invested)`. The underlying `inf`/`0` attributes are unchanged, so no existing math
+    or downstream consumer regresses — only the rendered rows gained flags.
+
 ## [3.5.2] — 2026-06-30
 
 ### Changed

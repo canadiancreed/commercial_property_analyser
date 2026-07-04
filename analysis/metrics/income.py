@@ -92,14 +92,20 @@ class ExitMetrics:
                  noi_growth_rate: Optional[float] = None):
         self.exit_cap = (prop.exit_cap_rate if prop.exit_cap_rate is not None
                          else ExitCapEstimator(entry_cap, prop.hold_years, prop.market_cap_rate).estimate())
-        self.exit_cap_ratio = entry_cap / self.exit_cap if self.exit_cap else 0
+        # Required to capitalize the exit value — a zero/negative cap would
+        # silently collapse exit price to 0. Fail loudly instead.
+        if not self.exit_cap or self.exit_cap <= 0:
+            raise ValueError(
+                f"exit cap rate must be > 0 to capitalize exit value (got {self.exit_cap!r})"
+            )
+        self.exit_cap_ratio = entry_cap / self.exit_cap
         if noi_growth_rate is not None:
             g = noi_growth_rate
         else:
             _g = getattr(prop, "noi_growth_rate", None)
             g = _g if _g is not None else 0.02
         terminal_noi        = est_noi * (1 + g) ** prop.hold_years
-        self.exit_price     = terminal_noi / self.exit_cap if self.exit_cap else 0
+        self.exit_price     = terminal_noi / self.exit_cap
         self._entry_cap     = entry_cap
         self._cost_basis    = prop.asking_price + (prop.construction_cost or 0)
         self._loan_balance  = loan_balance
