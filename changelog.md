@@ -6,6 +6,35 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.4] — 2026-07-04
+
+### Fixed
+
+- **IRR now reconciles with the equity multiple** (`analysis/metrics/returns.py`). Both figures
+  describe the same cash-flow stream, so they must reconcile — yet the two were displayed far apart.
+  The equity multiple was healthy while the IRR read `-100%` on a large class of otherwise-strong
+  deals. Root cause: the IRR was solved by Newton-Raphson from a fixed 0.10 guess, which **diverged**
+  on high-IRR / thin-equity streams (interim NOI dwarfing a small equity check) and on long,
+  deep-discount holds; the divergent rate was then clamped to the `-100%` sentinel, hiding a real
+  return. A 60k-case sweep found ~6.4k such deals with a genuine, in-range IRR that the old solver
+  threw away.
+- **One canonical cash-flow array now drives both metrics.** `ReturnMetrics` builds a single period
+  vector — initial equity as a negative at period zero, operating cash flow each period (NOI
+  escalates, mortgage fixed), plus net sale proceeds folded into the final period — and derives *both*
+  the equity multiple (total returned ÷ invested) and the IRR from it, so they can never describe
+  different streams. The equity multiple is numerically unchanged.
+- **IRR solved by bracketed bisection** instead of Newton. NPV is monotonic in the discount rate for
+  a conventional stream, so bracketing between just-above `-100%` and a large upper rate is guaranteed
+  to converge on the true root; a stream whose discounted flows never cross zero has no conventional
+  IRR and degrades to the `-100%` sentinel rather than fabricating a rate.
+- **Reconciliation guard fails loud** (`_assert_reconciles`). After solving, the reported rate must
+  zero the NPV of the shared array — i.e. the positive and negative *discounted* cash flows must
+  cancel (residual measured against the peak discounted term, the honest yardstick at deep negative
+  rates over long holds). If they don't, the IRR is untrustworthy: raise instead of displaying, and
+  trust the multiple. New regression tests in `tests/test_metrics_returns.py` cover the thin-equity
+  no-clamp case, the NPV-zeroing invariant, proximity to the multiple's compound rate, and the guard
+  firing on a deliberately inconsistent rate.
+
 ## [3.5.3] — 2026-07-03
 
 ### Added
