@@ -104,20 +104,18 @@ def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
                     stale = (date.today().year - updated_year) >= refresh_years
                 except (ValueError, TypeError):
                     stale = False
-                # Provenance: prefer the per-city source (e.g. "Stats Canada
-                # 2021 Census"), else the file-level date. Never "unknown".
-                src   = (entry.get("source") or "").strip()
-                label = f"{prop.city} demographics"
-                if src:
-                    label += f", {src}"
-                elif last_updated:
-                    label += f", {last_updated}"
+                # Provenance, compact enough for the report value column:
+                # the per-city source with municipality/qualifier suffixes
+                # stripped (the row is already city-specific), else the
+                # file-level date, else the city. Never "unknown".
+                src   = (entry.get("source") or "").split("(")[0].split(",")[0].strip()
+                label = src or last_updated or f"{prop.city} demographics"
                 if stale:
                     label += " — DATA MAY BE STALE"
                 return float(pct) / 100, label
         except Exception:
             pass
-    return _DEFAULT_NOI_GROWTH, "default (no locale data)"
+    return _DEFAULT_NOI_GROWTH, "market default"
 
 
 def _resolve_vacancy_rate(prop: PropertyInput) -> float:
