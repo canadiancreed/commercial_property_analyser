@@ -96,11 +96,12 @@ class ReturnMetrics:
         return "POOR (Underperforming)"
 
     def _growth_grade(self) -> str:
-        # At/above the model's own default assumption (2%/yr, _DEFAULT_NOI_GROWTH
-        # in analyzer.py) is GOOD; positive but below-trend is FAIR; a declining
-        # local market (negative growth) is POOR -- it erodes both the annual
-        # cash flow and the exit price baked into EM/IRR above.
-        return Grader.grade(self.noi_growth_rate * 100, 2.0, 0.0)
+        # Bank of Canada inflation-control target: 2% CPI within a 1%-3% band
+        # (the standard external yardstick for "is nominal growth keeping pace
+        # with inflation"). >=3%/yr outgrows the top of the band (GOOD);
+        # 1%-3%/yr tracks it (FAIR); <1%/yr loses real value over the hold
+        # (POOR) even when nominally positive.
+        return Grader.grade(self.noi_growth_rate * 100, 3.0, 1.0)
 
     def rows(self) -> list:
         stale = "STALE" in self.noi_growth_source.upper()
