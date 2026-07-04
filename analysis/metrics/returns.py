@@ -39,6 +39,7 @@ class ReturnMetrics:
         yearly_flows = [year1_noi * (1 + g) ** (yr - 1) - annual_mortgage
                         for yr in range(1, prop.hold_years + 1)]
         total_cash_flow = sum(yearly_flows)
+        self._cash_invested  = cash_invested
         self.equity_multiple = ((total_cash_flow + exit_equity) / cash_invested
                                 if cash_invested else 0)
 
@@ -62,10 +63,14 @@ class ReturnMetrics:
     def rows(self) -> list:
         stale = "STALE" in self.noi_growth_source.upper()
         growth_grade = "WARN — refresh demographics data" if stale else ""
+        if self._cash_invested:
+            em_value, em_grade = f"{self.equity_multiple:.2f}x", self._em_grade()
+        else:
+            em_value, em_grade = "N/A (no cash invested)", "WARN — no cash basis"
         return [
             ReportRow(f"IRR ({self.hold_years}-Yr)", f"{self.irr:.2f}%",
                       Grader.grade(self.irr, 15.0, 10.0)),
-            ReportRow("Equity Multiple",      f"{self.equity_multiple:.2f}x", self._em_grade()),
+            ReportRow("Equity Multiple",      em_value, em_grade),
             ReportRow("NOI Growth Assumption", f"{self.noi_growth_rate * 100:.2f}%/yr  ({self.noi_growth_source})",
                       growth_grade),
         ]
@@ -76,6 +81,7 @@ class MarketMetrics:
     def __init__(self, est_noi: float, cash_invested: float, est_expenses: float,
                  annual_mortgage: float, days_on_market: int, vacancy_rate: float = 0.05):
         self.celoc_score        = (est_noi / cash_invested) * 100 if cash_invested else 0
+        self._cash_invested     = cash_invested
         monthly_carry           = (est_expenses + annual_mortgage) / 12
         self.total_seller_bleed = monthly_carry * (days_on_market / 30) * vacancy_rate
         self._days_on_market    = days_on_market
@@ -87,8 +93,12 @@ class MarketMetrics:
         return "NO CELOC"
 
     def rows(self) -> list:
+        if self._cash_invested:
+            celoc_value, celoc_grade = f"{self.celoc_score:.2f}", self._celoc_grade()
+        else:
+            celoc_value, celoc_grade = "N/A (no cash invested)", "WARN — no cash basis"
         return [
-            ReportRow("CELOC Speed Score", f"{self.celoc_score:.2f}",         self._celoc_grade()),
+            ReportRow("CELOC Speed Score", celoc_value,                       celoc_grade),
             ReportRow(METRIC_MARKET_STALENESS,  f"{self._days_on_market} Days",
                       Grader.grade(self._days_on_market, 150, 90)),
             ReportRow("Seller Bleed",      f"${self.total_seller_bleed:,.2f}",

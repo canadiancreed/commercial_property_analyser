@@ -88,6 +88,7 @@ commercial_property_analyser_v2/
     ├── test_metrics_cash_flow.py
     ├── test_metrics_returns.py
     ├── test_metrics_pricing.py
+    ├── test_consistency_invariants.py
     ├── test_metrics_property_types.py
     ├── test_metrics_grader.py
     ├── test_data_store.py
@@ -144,7 +145,7 @@ Plain dataclasses with no business logic or I/O.
 | File | Purpose |
 |---|---|
 | `analyzer.py` | **`CommercialPropertyAnalyzer`** — the central analysis orchestrator. Takes a `PropertyInput` and a `RentResolver`, resolves rent, constructs all metric groups, and exposes `report()` (list of `ReportRow`) and `to_record()` (dict ready for `DataStore`). |
-| `mortgage.py` | **`MortgageCalculator`** — monthly payment, annual payment, down payment, loan balance, and outstanding principal at end of hold period. **`DaysOnMarketCalculator`** — days between the listing date and today. |
+| `mortgage.py` | **`MortgageCalculator`** — monthly payment, annual payment, down payment, loan balance, and outstanding principal at end of hold period. Compounding is province-aware: every Canadian jurisdiction (all 10 provinces + 3 territories, matched by 2-letter code **or** spelled-out name, e.g. "Ontario"/"Québec") uses semi-annual compounding per the Interest Act s. 6; anything else falls back to monthly. **`DaysOnMarketCalculator`** — days between the listing date and today. |
 | `rent_resolver.py` | **`RentResolver`** — determines effective annual rent in priority order: explicit `annual_rent` on the property → market commercial rates × sqft → market residential rates × unit mix. Logs cities with missing market data to `DataStore` for follow-up. |
 
 #### `analysis/metrics/`
@@ -159,6 +160,18 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 | `pricing.py` | Price per sqft, Original Price, Price Drop %, Loan-to-Value |
 | `property_types.py` | **Hotel**: Rooms, ADR, Occupancy %, RevPAR, CPOR, Annual Revenue, GOP grade. **Industrial**: Warehouse/office/yard sqft, dock & drive-in door counts, clear height, blended rate, estimated annual rent. |
 | `grader.py` | `grade(metric, value)` — maps a numeric value to `"GOOD"`, `"FAIR"`, `"POOR"`, or `""` using per-metric thresholds. |
+
+**Data integrity — no silent fallbacks.** The metrics never emit a plausible-looking
+number in place of a broken one. Mandatory inputs fail loudly: a missing/zero square
+footage or a zero exit cap rate raises `ValueError` (callers already route these to a
+partial "no analysis" record rather than crashing). Where a zero is a legitimate edge
+rather than bad data, the row is flagged instead of faked: GRM shows `N/A (no rent)` for
+a property in a city with no rent data yet; DSCR and the stress test show `N/A (no debt)`
+for an all-cash deal; CoCR, Equity Multiple, and CELOC show `N/A (no cash invested)`.
+`tests/test_consistency_invariants.py` drives a matrix of Canadian configurations through
+the real analyzer and asserts the metric groups stay internally consistent (e.g. annual
+debt service == monthly payment × 12, `exit_price × exit_cap == terminal NOI`), and locks
+the Canadian semi-annual compounding convention against a regression to US monthly.
 
 ---
 
