@@ -111,7 +111,7 @@ class ReturnMetrics:
         return [
             ReportRow(f"IRR ({self.hold_years}-Yr)", irr_value, irr_grade),
             ReportRow("Equity Multiple",      em_value, em_grade),
-            ReportRow("NOI Growth Assumption", f"{self.noi_growth_rate * 100:.2f}%/yr  ({self.noi_growth_source})",
+            ReportRow("NOI Growth Assumption", f"{self.noi_growth_rate * 100:.2f}%/yr — {self.noi_growth_source}",
                       growth_grade),
         ]
 
