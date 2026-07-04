@@ -1,5 +1,6 @@
 pytest
 pytest-cov
+numpy-financial
 # After `pip install playwright`, download the browser binary it drives:
 #   python -m playwright install firefox
 playwright

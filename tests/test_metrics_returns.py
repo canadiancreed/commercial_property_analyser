@@ -42,12 +42,16 @@ class TestReturnMetrics:
         # IRR should be a plausible percentage, not -100
         assert -10 < m.irr < 50
 
-    def test_irr_negative_cash_flow_returns_minus100(self):
+    def test_irr_below_implied_is_allowed_when_capital_calls_present(self):
+        # Deep-negative operating years (a capital-call profile) legitimately
+        # pull the timing-aware IRR below the multiple's implied rate — the
+        # investor is injecting cash mid-hold. The guardrail's premise (early
+        # cash *raises* IRR) doesn't apply, so this computes rather than raises.
         prop = _make_prop(asking_price=500_000, hold_years=10)
         m = ReturnMetrics(prop, -50_000, 0, 125_000, exit_price=600_000)
-        # Very negative cash flow may produce invalid IRR
-        # Just ensure it runs without exception
-        assert isinstance(m.irr, float)
+        implied = (m.equity_multiple ** (1 / 10) - 1) * 100
+        assert m.irr < implied              # below implied, as expected
+        assert isinstance(m.irr, float)     # computed, not raised
 
     def test_irr_zero_hold_years(self):
         prop = _make_prop(hold_years=0)
@@ -101,64 +105,88 @@ class TestReturnMetrics:
         assert m._em_grade() == "POOR (Underperforming)"
 
 
-# ── Bug fix: IRR must reconcile with the equity multiple, with NO gap ─────────
+# ── IRR and Equity Multiple: independent, from one shared cash-flow array ─────
 
-class TestIRREquityMultipleReconciliation:
-    """IRR and the equity multiple describe one cash-flow stream, so they must
-    reconcile exactly. IRR is the multiple's annualized rate, EM**(1/years)-1,
-    so (1 + IRR)**years == EM always — no gap. A timing-sensitive money-weighted
-    IRR previously drifted far above the multiple (e.g. ~99% next to a 36x
-    multiple implying only ~13%/yr on a thin-equity, front-loaded deal), leaving
-    the two displayed 'far apart'."""
+class TestIRREquityMultipleIndependent:
+    """Both metrics are computed independently from a single shared cash-flow
+    array. Equity multiple uses NET sale proceeds (exit price minus loan payoff);
+    IRR is numpy_financial.irr over the same array so it reflects timing. Neither
+    is derived from the other."""
 
-    def test_irr_equals_multiple_compound_rate_exactly(self):
-        """(1 + IRR)**years must reproduce the equity multiple with no gap."""
+    def _cash_flows(self, noi, mort, cash, exit_p, loan, hold, g):
+        operating = [noi * (1 + g) ** (yr - 1) - mort for yr in range(1, hold + 1)]
+        cf = [-cash] + operating
+        cf[-1] += (exit_p - loan)
+        return cf
+
+    def test_irr_is_not_back_derived_from_multiple(self):
+        """The spec's own failure check: if IRR == EM**(1/N)-1 to the decimal,
+        the fix failed (IRR would be back-derived, ignoring timing)."""
         prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
         m = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=600_000)
-        assert (1 + m.irr / 100) ** 10 == pytest.approx(m.equity_multiple, rel=1e-12)
+        back_derived = (m.equity_multiple ** (1 / 10) - 1) * 100
+        # Front cash lifts a real IRR strictly above the multiple's compound rate.
+        assert m.irr > back_derived + 1.0
 
-    def test_thin_equity_front_loaded_deal_reconciles(self):
-        """The deal that solved to ~99% under a money-weighted IRR now reports
-        the multiple's compound rate, ~13%/yr, and reconciles exactly."""
-        prop = _make_prop(hold_years=25, noi_growth_rate=0.02)
-        m = ReturnMetrics(prop, 108_524, 8_979, 51_694, exit_price=2_432_685,
-                          loan_balance=841_904)
-        implied = (m.equity_multiple ** (1 / 25) - 1) * 100
-        assert m.irr == pytest.approx(implied, rel=1e-12)
-        assert m.irr < 20                      # not the old ~99% figure
+    def test_irr_matches_numpy_financial_on_shared_array(self):
+        """IRR is exactly numpy_financial.irr of the shared cash-flow array."""
+        import numpy_financial as npf
+        g = 0.02
+        prop = _make_prop(hold_years=10, noi_growth_rate=g)
+        m = ReturnMetrics(prop, 30_000, 12_000, 200_000, exit_price=900_000,
+                          loan_balance=100_000)
+        cf = self._cash_flows(30_000, 12_000, 200_000, 900_000, 100_000, 10, g)
+        assert m.irr == pytest.approx(float(npf.irr(cf)) * 100, rel=1e-9)
 
-    def test_no_gap_across_a_range_of_deals(self):
-        """No cash-flow shape produces a gap between IRR and the multiple."""
-        for noi, mort, cash, exit_p, loan, hold in [
-            (12_000, 0,      125_000, 600_000,   0,       10),
-            (30_000, 12_000, 200_000, 900_000,   500_000, 10),
-            (50_000, 60_000, 300_000, 1_500_000, 900_000, 15),
-            (40_000, 25_000, 125_000, 700_000,   300_000, 30),
-        ]:
-            prop = _make_prop(hold_years=hold, noi_growth_rate=0.02)
-            m = ReturnMetrics(prop, noi, mort, cash, exit_price=exit_p, loan_balance=loan)
-            if m.equity_multiple > 0:
-                assert (1 + m.irr / 100) ** hold == pytest.approx(m.equity_multiple, rel=1e-9)
+    def test_equity_multiple_uses_net_not_gross_proceeds(self):
+        """A larger loan payoff at sale lowers net proceeds and the multiple."""
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        m_low_loan  = ReturnMetrics(prop, 30_000, 12_000, 200_000, exit_price=900_000,
+                                    loan_balance=100_000)
+        m_high_loan = ReturnMetrics(prop, 30_000, 12_000, 200_000, exit_price=900_000,
+                                    loan_balance=400_000)
+        assert m_high_loan.equity_multiple < m_low_loan.equity_multiple
 
-    def test_irr_is_always_a_float_never_none(self):
-        """IRR is never None — a non-positive multiple floors to -100%."""
-        prop = _make_prop(hold_years=5, noi_growth_rate=0.02)
-        # loan far exceeds exit and NOI < mortgage -> total_returned <= 0
-        m = ReturnMetrics(prop, 1_000, 80_000, 100_000, exit_price=100_000,
-                          loan_balance=400_000)
-        assert m.equity_multiple <= 0
-        assert isinstance(m.irr, float)
-        assert m.irr == -100.0
-
-    def test_equity_multiple_unchanged_by_refactor(self):
-        """The canonical-array refactor must not move the equity multiple."""
+    def test_equity_multiple_is_sum_of_positive_flows_over_equity(self):
+        """EM == sum(cf for cf in cash_flows if cf > 0) / equity_invested."""
         g = 0.02
         prop = _make_prop(hold_years=10, noi_growth_rate=g)
         m = ReturnMetrics(prop, 40_000, 25_000, 125_000, exit_price=700_000,
                           loan_balance=300_000)
-        total_cf = sum(40_000 * (1 + g) ** (yr - 1) - 25_000 for yr in range(1, 11))
-        expected = (total_cf + 700_000 - 300_000) / 125_000
+        cf = self._cash_flows(40_000, 25_000, 125_000, 700_000, 300_000, 10, g)
+        expected = sum(x for x in cf if x > 0) / 125_000
         assert m.equity_multiple == pytest.approx(expected, rel=1e-9)
+
+    def test_irr_reflects_timing_higher_for_front_loaded_cash(self):
+        """A deal with big early cash (thin equity, high NOI) has a high, real
+        IRR that far exceeds the multiple's compound rate."""
+        prop = _make_prop(hold_years=25, noi_growth_rate=0.02)
+        m = ReturnMetrics(prop, 108_524, 8_979, 51_694, exit_price=2_432_685,
+                          loan_balance=841_904)
+        implied = (m.equity_multiple ** (1 / 25) - 1) * 100
+        assert m.irr > implied          # timing-aware, not back-derived
+        assert m.irr > 50               # genuinely front-loaded -> high IRR
+
+    def test_guardrail_holds_for_healthy_deal(self):
+        """A conventional all-positive-return deal passes the guardrail: the
+        real IRR sits at or above the multiple's implied compound rate."""
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        m = ReturnMetrics(prop, 40_000, 25_000, 125_000, exit_price=700_000,
+                          loan_balance=300_000)
+        implied = m.equity_multiple ** (1 / 10) - 1
+        assert m.irr / 100 >= implied - 1e-6
+
+    def test_guardrail_raises_on_broken_array_no_capital_calls(self):
+        """For an all-positive-return deal (guardrail premise holds), an IRR
+        that falls below the implied rate means the shared array is wrong; the
+        guardrail raises rather than setting irr=implied. Forced here by making
+        numpy_financial.irr return an impossibly low rate."""
+        from unittest.mock import patch
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        with patch("analysis.metrics.returns.npf.irr", return_value=0.001):
+            with pytest.raises(ValueError, match="IRR/EM mismatch"):
+                ReturnMetrics(prop, 40_000, 25_000, 125_000, exit_price=700_000,
+                              loan_balance=300_000)
 
 
 class TestMarketMetrics:
@@ -324,18 +352,17 @@ class TestEquityMultipleLoanPaydownRegression:
                           exit_price=exit_price, loan_balance=loan_balance)
         assert m.equity_multiple == pytest.approx(expected_em, rel=1e-4)
 
-    def test_negative_exit_equity_depresses_em_below_one(self):
-        """When loan balance exceeds exit price the investor is under water."""
-        g             = 0.02
-        prop          = _make_prop(hold_years=5, noi_growth_rate=g)
-        cash_flow     = 5_000
-        cash_invested = 100_000
-        total_cf      = sum(cash_flow * (1 + g) ** (yr - 1) for yr in range(1, 6))
-        m = ReturnMetrics(prop, cash_flow, 0, cash_invested,
-                          exit_price=300_000, loan_balance=350_000)
-        expected_em = (total_cf + 300_000 - 350_000) / cash_invested
-        assert m.equity_multiple == pytest.approx(expected_em, rel=1e-4)
-        assert m.equity_multiple < 1.0
+    def test_underwater_exit_floors_irr_to_minus_100(self):
+        """When the loan payoff exceeds the exit price the final cash flow goes
+        negative and numpy_financial.irr has no real root (nan). IRR floors to
+        -100% (total loss) — always a real number — and does not raise; the
+        negative final flow means the guardrail premise doesn't apply."""
+        g    = 0.02
+        prop = _make_prop(hold_years=5, noi_growth_rate=g)
+        m    = ReturnMetrics(prop, 5_000, 0, 100_000,
+                             exit_price=300_000, loan_balance=350_000)
+        assert m.irr == -100.0
+        assert isinstance(m.irr, float)
 
 
 # ── Issue #4 regression: yearly IRR flows escalate at noi_growth_rate ─────────
