@@ -7,13 +7,15 @@ looks broken on its own, but it breaks its algebraic relationship to a sibling
 field. Running the whole matrix through the real analyzer means a regression in
 one metric fails here even if its own unit test was never written.
 
-Two of the invariants are written against the code's *actual* definitions,
-which differ from the naive textbook form:
+One invariant is written against the code's *actual* definition, which differs
+from the naive textbook form:
 
-  * LTV is computed on the amortized-down loan balance (projected LTV at the end
-    of the hold), not origination. So the origination identity
-    ``loan/price + down_payment_pct == 1`` is the one that holds universally;
-    ``ltv + down/price == 1`` only holds at hold_years == 0.
+  * The rendered "Loan to Value" is the ORIGINATION ratio (loan advanced /
+    price), so ``ltv + down_payment_pct == 1`` holds for *every* property,
+    regardless of hold_years. (It was previously fed the amortized-down remaining
+    balance, which reads a misleading 0.00% whenever hold_years >= term_years —
+    i.e. the whole current portfolio, where hold 30 > term 25 pays the loan off
+    before the modeled sale. See test_rendered_ltv_is_origination below.)
   * Price/sqft uses cost basis (asking + construction) over the *commercial*
     square footage when supplied, so the identity is
     ``pp_sqft * denominator == cost_basis`` — not ``pp_sqft * total_sqft == price``.
@@ -74,6 +76,10 @@ _MATRIX = [
     ("construction",   dict(construction_cost=100_000),                dict()),
     ("comm-sqft",      dict(),                                          dict(comm_sq_ft=3_000)),
     ("hold-0",         dict(hold_years=0),                              dict()),
+    # Portfolio default: hold outlasts the amortization term, so the mortgage is
+    # fully paid off before the modeled sale. This is the case that used to make
+    # the rendered LTV read 0.00%.
+    ("hold-past-term", dict(term_years=25, hold_years=30),              dict()),
     ("explicit-exit",  dict(exit_cap_rate=0.07),                        dict()),
     ("high-dp",        dict(down_payment_pct=0.45),                     dict()),
     ("low-rate",       dict(interest_rate=0.031),                       dict()),
@@ -108,6 +114,24 @@ class TestConsistencyInvariants:
         """loan + down payment == price (origination financing identity)."""
         loan_share = a.mortgage.loan_amount / prop.asking_price
         assert loan_share + prop.down_payment_pct == pytest.approx(1.0, abs=1e-9)
+
+    @pytest.mark.parametrize("name,prop,a", list(_analyzers()), ids=lambda x: x if isinstance(x, str) else "")
+    def test_rendered_ltv_is_origination(self, name, prop, a):
+        """The value actually printed in the "Loan to Value" row is origination
+        LTV and satisfies ltv + down_payment_pct == 1 for EVERY property,
+        including hold_years >= term_years (where the remaining balance is 0).
+
+        This is the litmus test: with a 20% down payment the row must read
+        80.00%, never 0.00%. Reads the rendered row, not an internal field, so it
+        fails if the analyzer ever feeds pricing the amortized-down balance again.
+        """
+        ltv_row = next(r for r in a.pricing.rows() if r.metric == "Loan to Value")
+        rendered_ltv = float(ltv_row.value.rstrip("%"))
+        assert rendered_ltv == pytest.approx((1 - prop.down_payment_pct) * 100, abs=1e-6)
+        assert rendered_ltv / 100 + prop.down_payment_pct == pytest.approx(1.0, abs=1e-9)
+        # The regression symptom: a fully-paid-off loan (hold >= term) must not
+        # collapse the rendered LTV to 0.
+        assert rendered_ltv > 0
 
     @pytest.mark.parametrize("name,prop,a", list(_analyzers()), ids=lambda x: x if isinstance(x, str) else "")
     def test_down_payment_equals_price_minus_loan(self, name, prop, a):
