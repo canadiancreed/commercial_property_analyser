@@ -2,6 +2,7 @@ from typing import Optional
 from models.report_row import ReportRow
 from analysis.metrics.grader import Grader
 from models.constants import EXPENSE_RATIO_RANGES
+from analysis.underwriting_config import load_underwriting_config
 
 
 INCOME_METRIC_NAMES: frozenset = frozenset({
@@ -67,19 +68,20 @@ class IncomeMetrics:
 
 class ExitCapEstimator:
 
-    AGING_BPS_PER_YEAR = 10
-    MARKET_DRIFT_BPS   = 25
     MAX_HOLD_FOR_AGING = 10
 
     def __init__(self, entry_cap: float, hold_years: int, market_cap_rate: Optional[float] = None):
-        self.entry_cap       = entry_cap
-        self.hold_years      = hold_years
-        self.market_cap_rate = market_cap_rate
+        cfg = load_underwriting_config()
+        self.entry_cap          = entry_cap
+        self.hold_years         = hold_years
+        self.market_cap_rate    = market_cap_rate
+        self._aging_bps_per_year = cfg["exit_cap_aging_bps_per_year"]
+        self._market_drift_bps   = cfg["exit_cap_spread_bps"]
 
     def estimate(self) -> float:
         effective_hold = min(self.hold_years, self.MAX_HOLD_FOR_AGING)
-        aging_spread = (self.AGING_BPS_PER_YEAR * effective_hold) / 10000
-        drift_spread = self.MARKET_DRIFT_BPS / 10000
+        aging_spread = (self._aging_bps_per_year * effective_hold) / 10000
+        drift_spread = self._market_drift_bps / 10000
         formula_exit = self.entry_cap + aging_spread + drift_spread
         if self.market_cap_rate is not None:
             return round((formula_exit + self.market_cap_rate) / 2, 4)
@@ -103,7 +105,7 @@ class ExitMetrics:
             g = noi_growth_rate
         else:
             _g = getattr(prop, "noi_growth_rate", None)
-            g = _g if _g is not None else 0.02
+            g = _g if _g is not None else load_underwriting_config()["noi_growth_default"]
         terminal_noi        = est_noi * (1 + g) ** prop.hold_years
         self.exit_price     = terminal_noi / self.exit_cap
         self._entry_cap     = entry_cap

@@ -2,6 +2,7 @@ from typing import Optional
 import numpy_financial as npf
 from models.report_row import ReportRow
 from analysis.metrics.grader import Grader
+from analysis.underwriting_config import load_underwriting_config
 
 METRIC_MARKET_STALENESS = "Market Staleness"
 
@@ -25,7 +26,7 @@ class ReturnMetrics:
             g = noi_growth_rate
         else:
             _g = getattr(prop, "noi_growth_rate", None)
-            g = _g if _g is not None else 0.02
+            g = _g if _g is not None else load_underwriting_config()["noi_growth_default"]
         self.hold_years        = prop.hold_years
         self.noi_growth_rate   = g
         self.noi_growth_source = noi_growth_source
@@ -96,12 +97,14 @@ class ReturnMetrics:
         return "POOR (Underperforming)"
 
     def _growth_grade(self) -> str:
-        # Bank of Canada inflation-control target: 2% CPI within a 1%-3% band
-        # (the standard external yardstick for "is nominal growth keeping pace
-        # with inflation"). >=3%/yr outgrows the top of the band (GOOD);
-        # 1%-3%/yr tracks it (FAIR); <1%/yr loses real value over the hold
+        # Bank of Canada inflation-control target (config: inflation_rate) sits
+        # within a 1%-3% band around the target — the standard external
+        # yardstick for "is nominal growth keeping pace with inflation".
+        # >=1pt above target outgrows the band (GOOD); within the +/-1pt band
+        # tracks it (FAIR); below the band loses real value over the hold
         # (POOR) even when nominally positive.
-        return Grader.grade(self.noi_growth_rate * 100, 3.0, 1.0)
+        inflation = load_underwriting_config()["inflation_rate"] * 100
+        return Grader.grade(self.noi_growth_rate * 100, inflation + 1.0, inflation - 1.0)
 
     def rows(self) -> list:
         stale = "STALE" in self.noi_growth_source.upper()

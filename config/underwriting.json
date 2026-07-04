@@ -1,0 +1,7 @@
+{
+  "_comment": "House underwriting assumptions. One flat NOI growth rate applies to every property (professional-underwriter convention) — local variation flows through Year-1 NOI and cap rates instead. Change any value here to move every property's returns; nothing here is hardcoded in the Python.",
+  "noi_growth_default": 0.02,
+  "exit_cap_spread_bps": 25,
+  "exit_cap_aging_bps_per_year": 10,
+  "inflation_rate": 0.02
+}

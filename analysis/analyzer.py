@@ -1,5 +1,3 @@
-import json
-import os
 from datetime import date
 from models.property_input import PropertyInput
 from models.constants import VACANCY_RATE_DEFAULTS
@@ -11,9 +9,7 @@ from analysis.metrics.cash_flow import CashFlowMetrics, DebtMetrics
 from analysis.metrics.returns import ReturnMetrics, MarketMetrics
 from analysis.metrics.property_types import HotelMetrics, IndustrialMetrics
 from analysis.industrial_config import industrial_confidence
-
-_DEMOGRAPHICS_PATH = "json/city_demographics.json"
-_DEFAULT_NOI_GROWTH = 0.02
+from analysis.underwriting_config import load_underwriting_config
 
 
 def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
@@ -85,37 +81,18 @@ def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
 
 
 def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
-    """Return (growth_rate, source_label) in priority: explicit override > locale > default."""
+    """Return (growth_rate, source_label): explicit per-property override, else the
+    single house-standard growth assumption from config/underwriting.json.
+
+    Professional underwriters do not forecast a per-city growth rate — they apply
+    one flat assumption to every property and let local differences show up in
+    Year-1 NOI (built from actual rents) and cap rates instead. Per-city population
+    growth (json/city_demographics.json) is not a rent-growth proxy and is not
+    consulted here (other consumers of that file, e.g. city_ranker, are unaffected).
+    """
     if prop.noi_growth_rate is not None:
         return prop.noi_growth_rate, "manual override"
-    city = (prop.city or "").strip().lower()
-    if city and os.path.exists(_DEMOGRAPHICS_PATH):
-        try:
-            with open(_DEMOGRAPHICS_PATH, encoding="utf-8") as f:
-                demo = json.load(f)
-            meta  = demo.get("_meta", {})
-            entry = demo.get(city, {})
-            pct   = entry.get("growth_pct_annual")
-            if pct is not None:
-                last_updated  = meta.get("last_updated")
-                refresh_years = int(meta.get("refresh_years", 5))
-                try:
-                    updated_year = int(last_updated[:4])
-                    stale = (date.today().year - updated_year) >= refresh_years
-                except (ValueError, TypeError):
-                    stale = False
-                # Provenance, compact enough for the report value column:
-                # the per-city source with municipality/qualifier suffixes
-                # stripped (the row is already city-specific), else the
-                # file-level date, else the city. Never "unknown".
-                src   = (entry.get("source") or "").split("(")[0].split(",")[0].strip()
-                label = src or last_updated or f"{prop.city} demographics"
-                if stale:
-                    label += " — DATA MAY BE STALE"
-                return float(pct) / 100, label
-        except Exception:
-            pass
-    return _DEFAULT_NOI_GROWTH, "market default"
+    return load_underwriting_config()["noi_growth_default"], "house default"
 
 
 def _resolve_vacancy_rate(prop: PropertyInput) -> float:
