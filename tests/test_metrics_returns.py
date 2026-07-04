@@ -84,41 +84,6 @@ class TestReturnMetrics:
             metrics = {r.metric for r in m.rows()}
             assert f"IRR ({years}-Yr)" in metrics
 
-    def test_calc_irr_simple(self):
-        # Simple IRR: invest 100, get 110 after 1 year → IRR ≈ 10%
-        flows = [-100, 110]
-        irr = ReturnMetrics._calc_irr(flows)
-        assert irr == pytest.approx(0.10, rel=0.001)
-
-    def test_calc_irr_no_flows(self):
-        # constant returns
-        flows = [-1000] + [300] * 5
-        irr = ReturnMetrics._calc_irr(flows)
-        assert irr > 0
-
-    def test_calc_irr_dnpv_zero(self):
-        """Single cash flow at t=0 makes derivative = 0 → break immediately."""
-        flows = [-100.0]
-        # dnpv = sum(-t * cf / (1+rate)^(t+1)) — only t=0 term which is 0
-        irr = ReturnMetrics._calc_irr(flows)
-        assert isinstance(irr, float)  # did not crash
-
-    def test_calc_irr_loop_continues_multiple_iterations(self):
-        """Use iterations=1 so the loop body runs but break isn't triggered by
-        convergence — covers the 'rate = new_rate' branch (loop continues)."""
-        flows = [-1000, 100, 200, 300]
-        # With only 1 iteration, the loop runs once; convergence test unlikely to pass
-        irr = ReturnMetrics._calc_irr(flows, iterations=1)
-        assert isinstance(irr, float)
-
-    def test_irr_exception_handler(self):
-        """Forces the except branch (irr = -100.0) by patching _calc_irr to raise."""
-        from unittest.mock import patch
-        prop = _make_prop(asking_price=500_000, hold_years=5)
-        with patch.object(ReturnMetrics, "_calc_irr", side_effect=OverflowError("bad")):
-            m = ReturnMetrics(prop, 10_000, 0, 125_000, exit_price=600_000)
-        assert m.irr == -100.0
-
     def test_em_grade_good(self):
         """em between 1.5 and 2.0 → GOOD."""
         prop = _make_prop(asking_price=500_000, hold_years=5)
@@ -136,59 +101,54 @@ class TestReturnMetrics:
         assert m._em_grade() == "POOR (Underperforming)"
 
 
-# ── Bug fix: IRR and equity multiple must reconcile (one canonical array) ─────
+# ── Bug fix: IRR must reconcile with the equity multiple, with NO gap ─────────
 
 class TestIRREquityMultipleReconciliation:
-    """IRR and the equity multiple describe the same cash-flow stream, so they
-    must reconcile. Newton-Raphson used to diverge on high-IRR / thin-equity
-    deals and silently clamp a real return to -100% while the multiple stayed
-    healthy — leaving the two 'far apart'."""
+    """IRR and the equity multiple describe one cash-flow stream, so they must
+    reconcile exactly. IRR is the multiple's annualized rate, EM**(1/years)-1,
+    so (1 + IRR)**years == EM always — no gap. A timing-sensitive money-weighted
+    IRR previously drifted far above the multiple (e.g. ~99% next to a 36x
+    multiple implying only ~13%/yr on a thin-equity, front-loaded deal), leaving
+    the two displayed 'far apart'."""
 
-    def test_high_irr_thin_equity_not_clamped_to_minus100(self):
-        """Huge NOI on a tiny equity check has a real (high) IRR — the old
-        Newton solver diverged and clamped it to -100%. It must now compute."""
+    def test_irr_equals_multiple_compound_rate_exactly(self):
+        """(1 + IRR)**years must reproduce the equity multiple with no gap."""
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        m = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=600_000)
+        assert (1 + m.irr / 100) ** 10 == pytest.approx(m.equity_multiple, rel=1e-12)
+
+    def test_thin_equity_front_loaded_deal_reconciles(self):
+        """The deal that solved to ~99% under a money-weighted IRR now reports
+        the multiple's compound rate, ~13%/yr, and reconciles exactly."""
         prop = _make_prop(hold_years=25, noi_growth_rate=0.02)
         m = ReturnMetrics(prop, 108_524, 8_979, 51_694, exit_price=2_432_685,
                           loan_balance=841_904)
-        assert m.equity_multiple > 1
-        assert m.irr > 0            # a real positive return, not the -100 sentinel
-        assert m.irr != -100.0
+        implied = (m.equity_multiple ** (1 / 25) - 1) * 100
+        assert m.irr == pytest.approx(implied, rel=1e-12)
+        assert m.irr < 20                      # not the old ~99% figure
 
-    def test_reported_irr_zeroes_npv_of_shared_array(self):
-        """Whatever IRR is shown must actually solve NPV=0 on the same array the
-        equity multiple is built from."""
-        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
-        m = ReturnMetrics(prop, 30_000, 12_000, 200_000, exit_price=900_000,
-                          loan_balance=500_000)
-        npv = ReturnMetrics._npv(m._period_flows, m.irr / 100.0)
-        peak = max(abs(cf) / (1 + m.irr / 100.0) ** t
-                   for t, cf in enumerate(m._period_flows))
-        assert abs(npv) < 1e-4 * peak
+    def test_no_gap_across_a_range_of_deals(self):
+        """No cash-flow shape produces a gap between IRR and the multiple."""
+        for noi, mort, cash, exit_p, loan, hold in [
+            (12_000, 0,      125_000, 600_000,   0,       10),
+            (30_000, 12_000, 200_000, 900_000,   500_000, 10),
+            (50_000, 60_000, 300_000, 1_500_000, 900_000, 15),
+            (40_000, 25_000, 125_000, 700_000,   300_000, 30),
+        ]:
+            prop = _make_prop(hold_years=hold, noi_growth_rate=0.02)
+            m = ReturnMetrics(prop, noi, mort, cash, exit_price=exit_p, loan_balance=loan)
+            if m.equity_multiple > 0:
+                assert (1 + m.irr / 100) ** hold == pytest.approx(m.equity_multiple, rel=1e-9)
 
-    def test_irr_near_multiple_compound_rate(self):
-        """IRR should land near multiple**(1/years)-1, a touch higher when cash
-        arrives during the hold rather than all at exit."""
-        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
-        m = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=600_000)
-        implied = (m.equity_multiple ** (1 / 10) - 1) * 100
-        assert m.irr >= implied - 0.5          # not far below the compound rate
-        assert m.irr < implied + 15            # only a modest upward gap
-
-    def test_guard_raises_when_irr_does_not_reconcile(self):
-        """If a solver returned a rate that doesn't zero the shared array, the
-        pair is inconsistent — fail loud and trust the multiple, don't display."""
-        from unittest.mock import patch
-        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
-        with patch.object(ReturnMetrics, "_calc_irr", return_value=0.05):
-            with pytest.raises(ValueError, match="does not reconcile"):
-                ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=600_000)
-
-    def test_no_conventional_irr_falls_back_to_sentinel(self):
-        """A stream whose discounted flows never cross zero has no conventional
-        IRR; _calc_irr returns nan and the metric degrades to the -100 sentinel
-        rather than fabricating a rate."""
-        import math
-        assert math.isnan(ReturnMetrics._calc_irr([-100.0]))
+    def test_irr_is_always_a_float_never_none(self):
+        """IRR is never None — a non-positive multiple floors to -100%."""
+        prop = _make_prop(hold_years=5, noi_growth_rate=0.02)
+        # loan far exceeds exit and NOI < mortgage -> total_returned <= 0
+        m = ReturnMetrics(prop, 1_000, 80_000, 100_000, exit_price=100_000,
+                          loan_balance=400_000)
+        assert m.equity_multiple <= 0
+        assert isinstance(m.irr, float)
+        assert m.irr == -100.0
 
     def test_equity_multiple_unchanged_by_refactor(self):
         """The canonical-array refactor must not move the equity multiple."""
