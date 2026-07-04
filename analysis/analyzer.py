@@ -104,8 +104,13 @@ def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
                     stale = (date.today().year - updated_year) >= refresh_years
                 except (ValueError, TypeError):
                     stale = False
+                # Provenance: prefer the per-city source (e.g. "Stats Canada
+                # 2021 Census"), else the file-level date. Never "unknown".
+                src   = (entry.get("source") or "").strip()
                 label = f"{prop.city} demographics"
-                if last_updated:
+                if src:
+                    label += f", {src}"
+                elif last_updated:
                     label += f", {last_updated}"
                 if stale:
                     label += " — DATA MAY BE STALE"
