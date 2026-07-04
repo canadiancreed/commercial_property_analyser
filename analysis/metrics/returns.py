@@ -97,7 +97,9 @@ class ReturnMetrics:
 
     def rows(self) -> list:
         stale = "STALE" in self.noi_growth_source.upper()
-        growth_grade = "WARN — refresh demographics data" if stale else ""
+        # "INFO", not "": to_record drops grade-"" rows from the stored
+        # results the HTML reports render, and this assumption drives EM/IRR.
+        growth_grade = "WARN — refresh demographics data" if stale else "INFO"
         if self._cash_invested:
             em_value, em_grade = f"{self.equity_multiple:.2f}x", self._em_grade()
         else:

@@ -747,7 +747,7 @@ function openModal(p) {{
     {{ label: "Exit",                 keys: ["Exit Cap Rate","Exit Cap Ratio","Exit Price"] }},
     {{ label: "Cash Flow",            keys: ["Annual Cash Flow","Monthly Cash Flow","CoCR"] }},
     {{ label: "Debt",                 keys: ["DSCR","Break-Even NOI","Break-Even NOI %","Break-Even Occupancy %","Stress Test (+2%)"] }},
-    {{ label: "Returns",              keys: ["IRR (*","Equity Multiple"] }},
+    {{ label: "Returns",              keys: ["IRR (*","Equity Multiple","NOI Growth Assumption"] }},
     {{ label: "Market",               keys: ["CELOC Speed Score","{staleness_key}","Seller Bleed"] }},
     {{ label: "Hotel Operations",     keys: ["Hotel Rooms","ADR","Occupancy Rate","RevPAR","NRevPAR (low dist.)","NRevPAR (mid dist.)","NRevPAR (high dist.)","Rev/Room/Yr","GOP Margin","GOP Amount","CPOR","FF&E Reserve"] }},
     {{ label: "Industrial",           keys: ["Clear Height","Dock Doors","Drive-In Doors","Warehouse Income","Office Income","Yard Income","Door Income","Total Industrial Rev","Blended Rate"] }},
