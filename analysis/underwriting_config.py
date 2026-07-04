@@ -11,7 +11,10 @@ import json
 
 _CONFIG_PATH = "config/underwriting.json"
 
-_REQUIRED_KEYS = ("noi_growth_default", "exit_cap_spread_bps", "inflation_rate")
+_REQUIRED_KEYS = ("noi_growth_default", "exit_cap_spread_bps", "inflation_rate",
+                  "stress_rate_bump", "stress_min_dscr",
+                  "confidence_uncertainty_start", "confidence_steepness", "confidence_floor",
+                  "cap_rate_risk_threshold_pct", "cap_rate_risk_confidence_factor")
 
 _cache = None
 

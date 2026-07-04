@@ -37,11 +37,13 @@ class CashFlowMetrics:
 class DebtMetrics:
 
     DEFAULT_STRESS_RATE = 0.02
+    DEFAULT_STRESS_MIN_DSCR = 1.20
 
     def __init__(self, est_noi: float, expense_ratio: float,
                  annual_mortgage: float, annual_rent: float,
                  loan_amount: float = 0.0, interest_rate: float = 0.05,
                  term_years: int = 25, stress_rate_bump: float = DEFAULT_STRESS_RATE,
+                 stress_min_dscr: float = DEFAULT_STRESS_MIN_DSCR,
                  compounding: str = "semi-annual"):
         self.dscr             = est_noi / annual_mortgage if annual_mortgage else float('inf')
         self.be_ratio         = (annual_mortgage / est_noi) * 100 if est_noi > 0 else float('inf')
@@ -60,6 +62,7 @@ class DebtMetrics:
 
         self.stressed_dscr = est_noi / stressed_debt if stressed_debt else 0
         self._stress_rate_bump = stress_rate_bump
+        self._stress_min_dscr = stress_min_dscr
 
     def rows(self) -> list:
         no_debt = not self._annual_mortgage
@@ -73,7 +76,8 @@ class DebtMetrics:
             dscr_grade  = Grader.grade(self.dscr, 1.5, 1.25,
                                        labels=("GOOD", "FAIR", "POOR/UNBANKABLE"))
             stress_value  = f"{self.stressed_dscr:.2f} DSCR"
-            stress_grade  = "PASS" if self.stressed_dscr >= 1.20 else "FAIL: High Rate Risk"
+            stress_grade  = ("PASS" if self.stressed_dscr >= self._stress_min_dscr
+                              else "FAIL: High Rate Risk")
         be_occ_value = ("N/A" if not self._net_rent_per_unit
                         else f"{self.break_even_point:.2f}%")
         return [

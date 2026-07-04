@@ -28,6 +28,8 @@ class IncomeMetrics:
         self.oer_ratio      = (self.est_expenses / self.egi) * 100
         self.entry_cap      = self.est_noi / self._cost_basis
         self._prop          = prop
+        self._cap_rate_risk_threshold = load_underwriting_config()["cap_rate_risk_threshold_pct"]
+        self.cap_rate_flagged = self.cap_rate > self._cap_rate_risk_threshold
 
     def _expense_grade(self) -> str:
         p     = self._prop
@@ -61,8 +63,87 @@ class IncomeMetrics:
                       Grader.grade(self.entry_cap, 0.07, 0.05)),
             ReportRow("Cap Rate",         f"{self.cap_rate:.2f}%",
                       Grader.grade(self.cap_rate, 7.5, 5.5)),
+            ReportRow(
+                "  Cap Rate Risk Check",
+                (f"Above {self._cap_rate_risk_threshold:.1f}% regional norm"
+                 if self.cap_rate_flagged else "Within normal range"),
+                ("CAUTION: verify underlying risk (illiquidity, vacancy, value erosion)"
+                 if self.cap_rate_flagged else "OK"),
+            ),
             ReportRow("Op Expense Ratio", f"{self.oer_ratio:.2f}%",      self._oer_grade()),
         ]
+        return rows
+
+
+class IncomeConfidenceMetrics:
+    """
+    Data-confidence axis (separate from structural/debt risk): how much of a
+    property's income is stated in the listing versus imputed from a city-wide
+    bedroom-type average. Imputed lines carry the coefficient of variation of
+    the SAME area-rent sample the average came from — no invented risk premium.
+
+    verified_income_pct / confidence_multiplier are informational only; they do
+    NOT alter DSCR, cap rate, NOI, IRR, or any other dollar-based metric. The
+    multiplier is applied to the overall property score alone (scoring/scorer.py).
+    """
+
+    def __init__(self, total_income: float, verified_income: float,
+                 imputed_lines: list, cap_rate_flagged: bool = False):
+        cfg = load_underwriting_config()
+        self.total_income   = total_income
+        self.verified_income = verified_income
+        self.imputed_lines   = imputed_lines  # list of (amount, cov)
+        self.imputed_income  = sum(a for a, _ in imputed_lines)
+        self.verified_income_pct = (
+            (verified_income / total_income) * 100 if total_income else 100.0
+        )
+        self.income_uncertainty = (
+            sum((a / total_income) * cov for a, cov in imputed_lines) if total_income else 0.0
+        )
+        start      = cfg["confidence_uncertainty_start"]
+        steepness  = cfg["confidence_steepness"]
+        floor      = cfg["confidence_floor"]
+        haircut = steepness * max(0.0, self.income_uncertainty - start)
+        multiplier = 1.0 - haircut
+        # Issue 3: a cap rate well above the regional norm is a pricing signal the
+        # structural rows can't see (illiquidity, hidden vacancy/tenant risk). It
+        # does not fail the deal — it feeds a small, bounded, config-driven
+        # reduction into this same confidence axis rather than the graded rows.
+        self.cap_rate_flagged = cap_rate_flagged
+        if cap_rate_flagged:
+            multiplier *= cfg["cap_rate_risk_confidence_factor"]
+        self.confidence_multiplier = max(floor, min(1.0, multiplier))
+
+    def imputed_range(self) -> Optional[tuple]:
+        """(low, high) dollar range for imputed income using its measured spread,
+        or None when there is no imputed income."""
+        if self.imputed_income <= 0:
+            return None
+        half_width = sum(a * cov for a, cov in self.imputed_lines)
+        return (self.imputed_income - half_width, self.imputed_income + half_width)
+
+    def rows(self) -> list:
+        estimated_pct = 100.0 - self.verified_income_pct
+        rows = [
+            ReportRow(
+                "Income Verification",
+                f"Verified: {self.verified_income_pct:.0f}%  ·  Estimated: {estimated_pct:.0f}%",
+                "INFO",
+            ),
+        ]
+        rng = self.imputed_range()
+        if rng is not None:
+            lo, hi = rng
+            rows.append(ReportRow(
+                "  Estimated Income Range",
+                f"${lo:,.0f}-${hi:,.0f}/yr",
+                "INFO",
+            ))
+        rows.append(ReportRow(
+            "Confidence Multiplier",
+            f"{self.confidence_multiplier:.2f}x",
+            "INFO" if self.confidence_multiplier >= 0.99 else "CAUTION: Score Adjusted",
+        ))
         return rows
 
 

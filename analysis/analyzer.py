@@ -4,7 +4,7 @@ from models.constants import VACANCY_RATE_DEFAULTS
 from analysis.mortgage import MortgageCalculator, DaysOnMarketCalculator
 from analysis.rent_resolver import RentResolver
 from analysis.metrics.pricing import PricingMetrics
-from analysis.metrics.income import IncomeMetrics, ExitMetrics
+from analysis.metrics.income import IncomeMetrics, ExitMetrics, IncomeConfidenceMetrics
 from analysis.metrics.cash_flow import CashFlowMetrics, DebtMetrics
 from analysis.metrics.returns import ReturnMetrics, MarketMetrics
 from analysis.metrics.property_types import HotelMetrics, IndustrialMetrics
@@ -76,6 +76,8 @@ def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
         "noi_growth_rate":     prop.noi_growth_rate,
         "income_confidence":   None,
         "income_size_band":    None,
+        "confidence_multiplier": None,
+        "verified_income_pct": None,
         "results":          [],
     }
 
@@ -169,6 +171,12 @@ class CommercialPropertyAnalyzer:
             self._noi_growth_rate = noi_growth_rate
             vacancy_rate = _resolve_vacancy_rate(prop)
             self.income   = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate)
+            imputed_lines = getattr(rent_resolver, "_imputed_lines", [])
+            imputed_total = sum(a for a, _ in imputed_lines)
+            self.income_confidence = IncomeConfidenceMetrics(
+                annual_rent, annual_rent - imputed_total, imputed_lines,
+                cap_rate_flagged=self.income.cap_rate_flagged,
+            )
             self.exit     = ExitMetrics(prop, self.income.entry_cap, self.income.est_noi,
                                         self.mortgage.loan_balance,
                                         noi_growth_rate=noi_growth_rate)
@@ -176,6 +184,7 @@ class CommercialPropertyAnalyzer:
                 self.income.est_noi, self.mortgage.annual_mortgage, self.mortgage.down_payment,
                 prop.construction_cost or 0
             )
+            _underwriting = load_underwriting_config()
             self.debt     = DebtMetrics(
                 self.income.est_noi, prop.expense_ratio,
                 self.mortgage.annual_mortgage, annual_rent,
@@ -183,6 +192,8 @@ class CommercialPropertyAnalyzer:
                 interest_rate=prop.interest_rate,
                 term_years=prop.term_years,
                 compounding=self.mortgage.compounding,
+                stress_rate_bump=_underwriting["stress_rate_bump"],
+                stress_min_dscr=_underwriting["stress_min_dscr"],
             )
             self.returns  = ReturnMetrics(prop, self.income.est_noi, self.mortgage.annual_mortgage,
                                           self.cashflow.cash_invested, self.exit.exit_price,
@@ -198,14 +209,15 @@ class CommercialPropertyAnalyzer:
             self.hotel = HotelMetrics(prop, annual_rent) if is_hotel else None
         else:
             self.income = self.exit = self.cashflow = self.debt = self.returns = self.market = None
+            self.income_confidence = None
             self.hotel      = None
             self.industrial = None
             self._income_confidence = None
 
     def report(self) -> list:
         rows = []
-        for group in (self.mortgage, self.pricing, self.income, self.exit,
-                      self.cashflow, self.debt, self.returns, self.market, self.hotel,
+        for group in (self.mortgage, self.pricing, self.income, self.income_confidence,
+                      self.exit, self.cashflow, self.debt, self.returns, self.market, self.hotel,
                       self.industrial):
             if group is not None:
                 rows.extend(group.rows())
@@ -268,5 +280,11 @@ class CommercialPropertyAnalyzer:
             "noi_growth_rate":     p.noi_growth_rate,
             "income_confidence":   self._income_confidence,
             "income_size_band":    self._income_size_band,
+            "confidence_multiplier": (
+                self.income_confidence.confidence_multiplier if self.income_confidence else None
+            ),
+            "verified_income_pct": (
+                self.income_confidence.verified_income_pct if self.income_confidence else None
+            ),
             "results":          [row.to_dict() for row in self.report() if row.grade != ""],
         }

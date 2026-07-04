@@ -1,3 +1,4 @@
+import statistics
 from models.property_input import PropertyInput, UnitMix
 from data.store import CommercialRentLoader, ResidentialRentLoader
 from models.constants import COMMERCIAL_TYPES_LOWER
@@ -30,6 +31,14 @@ class RentResolver:
         """Returns (annual_rent: float, breakdown: list[str])."""
         self._city_rent_per_sqft: float | None = None
         self._comm_sq_ft: float | None = None
+        # Data-confidence tracking (Issue 2): every dollar of resolved income is
+        # either "verified" (stated in the listing, or tied to this property's own
+        # measured attributes — sqft, unit count) or "imputed" (an unidentified-type
+        # residential unit priced at a city-wide bedroom-type average). Imputed lines
+        # carry the coefficient of variation of the SAME city rent sample used to
+        # build that average, so the uncertainty is measured, not invented.
+        self._verified_income: float = 0.0
+        self._imputed_lines: list = []  # list of (amount, cov)
         # Industrial provenance (set only when an industrial market rate is used).
         self._industrial_base_rate: float | None = None
         self._industrial_size_band: str | None = None
@@ -51,6 +60,7 @@ class RentResolver:
             res  = prop.residential_rent or 0.0
             self._comm_rent = comm
             self._res_rent  = res
+            self._verified_income = comm + res
             parts = []
             if comm: parts.append(f"Commercial rent provided directly: ${comm:,.2f}/yr")
             if res:  parts.append(f"Residential rent provided directly: ${res:,.2f}/yr")
@@ -59,6 +69,7 @@ class RentResolver:
         if prop.annual_rent is not None:
             self._comm_rent = prop.annual_rent
             self._res_rent  = 0.0
+            self._verified_income = prop.annual_rent
             return prop.annual_rent, ["Rent provided directly"]
 
         ptype           = (prop.property_type or "").strip().lower()
@@ -71,6 +82,7 @@ class RentResolver:
             if comm_frozen:
                 self._comm_rent = prop.commercial_rent
                 self._res_rent  = 0.0
+                self._verified_income = prop.commercial_rent
                 return prop.commercial_rent, [f"Commercial rent provided directly: ${prop.commercial_rent:,.2f}/yr"]
             rooms     = prop.hotel_rooms or 0
             adr       = prop.hotel_adr or 0.0
@@ -82,10 +94,12 @@ class RentResolver:
                 ]
                 self._comm_rent = revenue
                 self._res_rent  = 0.0
+                self._verified_income = revenue
                 return revenue, breakdown
             elif prop.annual_rent:
                 self._comm_rent = prop.annual_rent
                 self._res_rent  = 0.0
+                self._verified_income = prop.annual_rent
                 return prop.annual_rent, ["Hotel revenue provided directly"]
             else:
                 raise ValueError(
@@ -215,6 +229,8 @@ class RentResolver:
 
         self._comm_rent = comm_total
         self._res_rent  = res_total
+        imputed_total = sum(amount for amount, _ in self._imputed_lines)
+        self._verified_income = comm_total + res_total - imputed_total
         return comm_total + res_total, breakdown
 
     def _log_missing(self, city, province, missing_type, property_types=None):
@@ -245,20 +261,36 @@ class RentResolver:
         # Exclude None stubs and explicit zeros — only real positive rates count.
         known_rates   = [v for v in market.values() if isinstance(v, (int, float)) and v > 0]
         city_avg_rate = sum(known_rates) / len(known_rates) if known_rates else None
+        # Measured dispersion of the same sample the average is built from — used
+        # as the (non-invented) uncertainty signal for imputed lines below.
+        if len(known_rates) > 1:
+            rate_mean = city_avg_rate
+            rate_cov  = (statistics.pstdev(known_rates) / rate_mean) if rate_mean else 0.0
+        else:
+            rate_cov = 0.0
 
         total, lines = 0.0, []
         for unit_key, count, override in mix.unit_types():
             if count == 0:
                 continue
+            imputed = False
             if override is not None:
                 monthly = override
                 source  = "specified"
+            elif unit_key == "unknown" and unit_key in market and market[unit_key] and market[unit_key] > 0:
+                # Bedroom type unidentified — priced at the city's blended "unknown"
+                # rate, which stands in for "some type, we don't know which". Its
+                # true uncertainty is the spread across this city's bedroom-type rates.
+                monthly = market[unit_key]
+                source  = note
+                imputed = True
             elif unit_key in market and market[unit_key] is not None and market[unit_key] > 0:
                 monthly = market[unit_key]
                 source  = note
             elif city_avg_rate is not None:
                 monthly = city_avg_rate
                 source  = f"{city} avg (no {self.UNIT_LABELS[unit_key]} rate)"
+                imputed = True
             else:
                 lines.append(
                     f"{self.UNIT_LABELS[unit_key]} × {count} — ⚠ no rate for {city} (skipped)"
@@ -266,6 +298,8 @@ class RentResolver:
                 continue
             annual  = monthly * count * 12
             total  += annual
+            if imputed:
+                self._imputed_lines.append((annual, rate_cov))
             lines.append(
                 f"{self.UNIT_LABELS[unit_key]} × {count} @ ${monthly:,.0f}/mo ({source}): ${annual:,.2f}/yr"
             )
