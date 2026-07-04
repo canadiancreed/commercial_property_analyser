@@ -188,6 +188,25 @@ class TestIRREquityMultipleIndependent:
                 ReturnMetrics(prop, 40_000, 25_000, 125_000, exit_price=700_000,
                               loan_balance=300_000)
 
+    def test_declining_noi_multi_sign_change_resolves_to_finite_irr(self):
+        """Declining-NOI deals go positive early, negative mid-hold, then
+        positive at the big exit -> 3 sign changes, so numpy_financial.irr
+        could return NaN or a spurious root. Confirm it lands on a single,
+        finite, NPV-zeroing rate (not NaN silently floored, not garbage) and
+        does not raise. Guards the multiple-root failure mode on real data."""
+        import math
+        g    = -0.02
+        prop = _make_prop(hold_years=30, noi_growth_rate=g)
+        m    = ReturnMetrics(prop, 13_600, 10_000, 180_000, exit_price=650_000)
+        cf   = m._cash_flows
+        # This really is a multi-sign-change stream (not a conventional one).
+        signs = [1 if x > 0 else -1 for x in cf if x != 0]
+        assert sum(1 for a, b in zip(signs, signs[1:]) if a != b) >= 3
+        r = m.irr / 100.0
+        assert math.isfinite(m.irr) and m.irr != -100.0    # finite, not NaN-floored
+        npv = sum(c / (1 + r) ** t for t, c in enumerate(cf))
+        assert abs(npv) < 1e-6 * max(abs(c) for c in cf)   # the returned rate zeroes NPV
+
 
 class TestMarketMetrics:
     def test_celoc_score(self):
