@@ -39,14 +39,20 @@ commercial_property_analyser_v2/
 ├── data/                      # JSON persistence layer
 │   └── store.py               # DataStore, CommercialRentLoader, ResidentialRentLoader
 │
+├── config/                    # House underwriting assumptions (editable, no code changes needed)
+│   └── underwriting.json      # NOI growth, exit-cap spread, stress test, data-confidence shape
+│
 ├── analysis/                  # Core financial analysis engine
 │   ├── analyzer.py            # CommercialPropertyAnalyzer — orchestrates all metric groups
 │   ├── mortgage.py            # MortgageCalculator, DaysOnMarketCalculator
-│   ├── rent_resolver.py       # RentResolver — derives annual rent from inputs or market data
-│   ├── underwriting_config.py # Loads config/underwriting.json (NOI growth, exit cap spread, inflation)
+│   ├── rent_resolver.py       # RentResolver — derives annual rent from inputs or market data;
+│   │                          #   flags residential lines priced at a city-wide average as imputed
+│   ├── underwriting_config.py # load_underwriting_config() — loader/validator for config/underwriting.json
+│   ├                          # Loads config/underwriting.json (NOI growth, exit cap spread, inflation)
 │   └── metrics/               # Individual metric calculators
-│       ├── income.py          # NOI, Cap Rate, Gross/Effective Rent, GRM
-│       ├── cash_flow.py       # Annual Cash Flow, CoCR, Cash Invested, DSCR
+│       ├── income.py          # NOI, Cap Rate, Gross/Effective Rent, GRM, Cap Rate Risk Check,
+│       │                      #   IncomeConfidenceMetrics (verified vs. imputed income, confidence multiplier)
+│       ├── cash_flow.py       # Annual Cash Flow, CoCR, Cash Invested, DSCR, rate-shock Stress Test
 │       ├── returns.py         # IRR, Equity Multiple, CELOC
 │       ├── pricing.py         # Price/sqft, Price Drop %, Loan-to-Value
 │       ├── property_types.py  # HotelMetrics (RevPAR, ADR, GOP), IndustrialMetrics
@@ -152,6 +158,14 @@ Plain dataclasses with no business logic or I/O.
 
 ---
 
+### `config/`
+
+| File | Purpose |
+|---|---|
+| `underwriting.json` | House underwriting assumptions, loaded and validated by `analysis/underwriting_config.py` (missing file/keys are a hard error, not a silent fallback). Every tunable risk constant lives here — nothing is hardcoded in the Python: `noi_growth_default`, `exit_cap_spread_bps`, `exit_cap_aging_bps_per_year`, `inflation_rate`, `stress_rate_bump` / `stress_min_dscr` (rate-shock stress test), `confidence_uncertainty_start` / `confidence_steepness` / `confidence_floor` (data-confidence multiplier shape), `cap_rate_risk_threshold_pct` / `cap_rate_risk_confidence_factor` (high-cap-rate flag). |
+
+---
+
 ### `analysis/`
 
 | File | Purpose |
@@ -167,8 +181,8 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 
 | File | Metrics Produced |
 |---|---|
-| `income.py` | Gross Rent, Effective Gross Income, Estimated Expenses, NOI, Entry Cap Rate, Estimated Exit NOI, GRM |
-| `cash_flow.py` | Annual Cash Flow, Cash-on-Cash Return (CoCR), Cash Invested, DSCR |
+| `income.py` | Gross Rent, Effective Gross Income, Estimated Expenses, NOI, Entry Cap Rate, Estimated Exit NOI, GRM, Cap Rate Risk Check (flags cap rates well above the regional norm), Income Verification / Confidence Multiplier (data-confidence axis — verified vs. imputed income share) |
+| `cash_flow.py` | Annual Cash Flow, Cash-on-Cash Return (CoCR), Cash Invested, DSCR, Stress Test (DSCR re-priced at `interest_rate + stress_rate_bump`, graded PASS/FAIL against `stress_min_dscr`) |
 | `returns.py` | IRR (`numpy_financial.irr`), Equity Multiple, CELOC |
 | `pricing.py` | Price per sqft, Original Price, Price Drop %, Loan-to-Value |
 | `property_types.py` | **Hotel**: Rooms, ADR, Occupancy %, RevPAR, CPOR, Annual Revenue, GOP grade. **Industrial**: Warehouse/office/yard sqft, dock & drive-in door counts, clear height, blended rate, estimated annual rent. |
@@ -185,6 +199,25 @@ for an all-cash deal; CoCR, Equity Multiple, and CELOC show `N/A (no cash invest
 the real analyzer and asserts the metric groups stay internally consistent (e.g. annual
 debt service == monthly payment × 12, `exit_price × exit_cap == terminal NOI`), and locks
 the Canadian semi-annual compounding convention against a regression to US monthly.
+
+**Three independent risk axes.** Risk is deliberately kept on three separate signals rather
+than collapsed into one opaque number:
+- **Structural/debt risk** — DSCR, Break-Even NOI/Occupancy, and the rate-shock **Stress Test**
+  (`cash_flow.py`): the mortgage payment re-priced at `interest_rate + stress_rate_bump` (default
+  +2 percentage points, config-driven), graded PASS/FAIL against `stress_min_dscr`.
+- **Data confidence** — `IncomeConfidenceMetrics` (`income.py`): how much of a property's income
+  is stated in the listing versus imputed from a city-wide bedroom-type average (the "Unknown"
+  unit-type bucket is the imputed signal). Imputed lines carry the coefficient of variation of the
+  *same* city rent sample used to build the average — no invented risk premium. Feeds a small,
+  bounded `confidence_multiplier` onto the overall property score only; DSCR/cap rate/NOI/IRR are
+  never touched.
+- **Pricing/cap-rate signal** — the **Cap Rate Risk Check** row (`income.py`): a cap rate above
+  `cap_rate_risk_threshold_pct` (Canadian commercial prime trades ~5–7%) is flagged as a market
+  signal of illiquidity/vacancy/value-erosion risk rather than read as pure upside. It's a soft
+  flag — it does not fail the deal — and feeds the same bounded confidence multiplier via
+  `cap_rate_risk_confidence_factor`.
+
+All thresholds/weights/shapes for these three axes live in `config/underwriting.json`.
 
 ---
 
@@ -355,3 +388,7 @@ Coverage is enforced at 90% minimum by `.coveragerc`. The current suite achieves
 | **CPOR** | Cost Per Occupied Room — Total Operating Cost ÷ Occupied Room-nights. Hotel-specific. |
 | **Price Drop** | (Original Price − Asking Price) ÷ Original Price. A higher discount signals motivated seller and negotiating room. |
 | **DOM** | Days on Market — from listing date to today. Longer time on market increases seller motivation. |
+| **Stress Test** | DSCR recomputed with the mortgage re-priced at `interest_rate + stress_rate_bump` (config, default +2 pp). PASS/FAIL against `stress_min_dscr` (config, default 1.20). A structural/debt-risk check — independent of the two rows below. |
+| **Income Verification** | % of a property's income stated in the listing ("verified") vs. imputed from a city-wide bedroom-type average rent ("estimated"). Informational — does not alter DSCR, NOI, cap rate, or IRR. |
+| **Confidence Multiplier** | A small, bounded multiplier (config-shaped, floor `confidence_floor`) applied to the **overall property score only**, driven by measured income uncertainty (coefficient of variation of the same rent sample used for imputed lines) and, if flagged, the high-cap-rate signal below. 1.0× = fully verified income. |
+| **Cap Rate Risk Check** | Flags when Cap Rate exceeds `cap_rate_risk_threshold_pct` (config, default 10%) — a market signal of illiquidity/vacancy/value-erosion risk that a high cap rate alone doesn't otherwise surface. Soft flag; does not fail the deal. |

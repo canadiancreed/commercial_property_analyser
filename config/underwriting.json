@@ -3,5 +3,12 @@
   "noi_growth_default": 0.02,
   "exit_cap_spread_bps": 25,
   "exit_cap_aging_bps_per_year": 10,
-  "inflation_rate": 0.02
+  "inflation_rate": 0.02,
+  "stress_rate_bump": 0.02,
+  "stress_min_dscr": 1.20,
+  "confidence_uncertainty_start": 0.05,
+  "confidence_steepness": 0.30,
+  "confidence_floor": 0.90,
+  "cap_rate_risk_threshold_pct": 10.0,
+  "cap_rate_risk_confidence_factor": 0.97
 }

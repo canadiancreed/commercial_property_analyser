@@ -141,9 +141,9 @@ class TestIncomeMetrics:
         prop = _make_prop()
         m = IncomeMetrics(prop, 60_000, ["line1", "line2"])
         rows = m.rows()
-        # 2 breakdown + 7 metric rows (Gross Potential Rent, Vacancy Rate, EGI,
-        # Expense Ratio, NOI, Cap Rate, Op Expense Ratio)
-        assert len(rows) == 9
+        # 2 breakdown + 8 metric rows (Gross Potential Rent, Vacancy Rate, EGI,
+        # Expense Ratio, NOI, Cap Rate, Cap Rate Risk Check, Op Expense Ratio)
+        assert len(rows) == 10
 
     def test_hotel_omits_vacancy_rate_row(self):
         prop = _make_prop(property_type="hotel")

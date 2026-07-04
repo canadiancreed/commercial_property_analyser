@@ -125,8 +125,18 @@ class PropertyScorer:
         if total_w > 0:
             score = sum(scores[k] * (w / total_w) for k, w in active_w.items()) * 10
 
+        # Data-confidence axis (Issue 2): a separate, bounded haircut for income
+        # built on imputed (city-average) rents vs. stated/measured ones. Applied
+        # to the overall score only — every graded row above is unaffected.
+        confidence_multiplier = p.get("confidence_multiplier")
+        raw_score = round(score, 1)
+        adjusted_score = round(score * confidence_multiplier, 1) if confidence_multiplier is not None else raw_score
+
         return {
-            "score":       round(score, 1),
+            "score":       adjusted_score,
+            "raw_score":   raw_score,
+            "confidence_multiplier": confidence_multiplier,
+            "verified_income_pct":   p.get("verified_income_pct"),
             "breakdown":   {k: round(scores[k] * 10, 1) for k in scores},
             "weights":     weights,
             "income_confidence": p.get("income_confidence"),

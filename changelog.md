@@ -6,6 +6,61 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.6] — 2026-07-04
+
+### Added
+
+- **Data-confidence axis: `IncomeConfidenceMetrics`** (`analysis/metrics/income.py`,
+  `analysis/rent_resolver.py`). Income is no longer treated as uniformly trustworthy: `RentResolver`
+  now tags each resolved income line as verified (stated in the listing, or tied to the property's
+  own measured attributes — sqft, unit count) or imputed (a residential unit priced at a city-wide
+  bedroom-type average — the existing "Unknown" unit-type bucket, or the rarer missing-rate
+  fallback average). Imputed lines carry the coefficient of variation of the *same* city rent
+  sample used to build that average — a measured spread, not an invented risk premium. New report
+  rows: "Income Verification" (verified % / estimated %), an estimated-income $ range using the
+  measured spread instead of a false-precision point value, and a "Confidence Multiplier" row. The
+  multiplier is applied to the **overall property score only** (`scoring/scorer.py`, which now also
+  returns `raw_score` alongside the adjusted `score`); every existing graded row (DSCR, cap rate,
+  NOI, IRR, equity multiple) is unchanged. Verified against the live portfolio: a property with
+  ~31% verified / 69% imputed income (Owen Sound, 2-bed "Unknown" residential units) gets a small,
+  bounded haircut (0.96×); a fully-verified property gets exactly 1.0×; the worst case across the
+  full 539-property portfolio is 0.93× — confirming the haircut stays small in practice.
+- **High-cap-rate soft flag** (`analysis/metrics/income.py`). A cap rate above
+  `cap_rate_risk_threshold_pct` (config, default 10%) no longer reads as pure upside: a new
+  "Cap Rate Risk Check" row flags it as a market signal of illiquidity/vacancy/value-erosion risk
+  the structural metrics can't see. It does not fail the deal or touch the Cap Rate grade itself —
+  it feeds a small, bounded, config-driven reduction (`cap_rate_risk_confidence_factor`) into the
+  same data-confidence multiplier above. Verified against real listings: Lindsay (11.01% cap) and
+  Owen Sound (12.74% cap) both raise the flag; a normal ~5.5% cap property does not.
+- **`config/underwriting.json` gains six new keys**: `stress_rate_bump`, `stress_min_dscr`,
+  `confidence_uncertainty_start`, `confidence_steepness`, `confidence_floor`,
+  `cap_rate_risk_threshold_pct`, `cap_rate_risk_confidence_factor` — every threshold and shape
+  parameter introduced by the two features above lives in config, matching the existing
+  house-assumption pattern (`analysis/underwriting_config.py`, required-keys hard error on a
+  missing file/key).
+
+### Changed
+
+- **Stress test bump and pass threshold moved out of hardcoded Python defaults into config**
+  (`analysis/metrics/cash_flow.py`, `analysis/analyzer.py`). `DebtMetrics` previously defaulted
+  `stress_rate_bump` to a class constant and graded PASS/FAIL against a literal `1.20`; both now
+  come from `config/underwriting.json` via `analyzer.py`, consistent with the "every risk constant
+  lives in config" rule. The underlying stress-test calculation itself (re-pricing the mortgage
+  payment at `interest_rate + stress_rate_bump` via `amortization_payment()`) was already correct —
+  verified against real properties (Owen Sound: $280k loan, 4.5%→6.5%, payment $18,596.69→
+  $22,506.08, a +21.0% increase, matching an independent hand-calc exactly) — so no behavioural
+  regression, only the config wiring changed. Confirmed the new config values are load-bearing:
+  raising `stress_min_dscr` from 1.20 to 2.0 drops the portfolio PASS count from 143 to 37.
+
+### Tests
+
+- **`tests/test_metrics_income.py`** — `test_rows_count` updated for the new "Cap Rate Risk Check"
+  row (8 metric rows instead of 7).
+- Full suite (1287 tests) passes unchanged otherwise; no existing metric, score, or report output
+  changed for any property that has no imputed income and a normal cap rate.
+
+---
+
 ## [3.5.5] — 2026-07-04
 
 ### Changed
