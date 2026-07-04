@@ -29,6 +29,9 @@ commercial_property_analyser_v2/
 ├── .coveragerc                # Coverage source/omit/threshold rules
 ├── requirements.txt           # numpy-financial (runtime), pytest, pytest-cov
 │
+├── config/                    # House underwriting assumptions (editable, no code changes needed)
+│   └── underwriting.json      # NOI growth default, exit cap spread/aging bps, inflation rate
+│
 ├── models/                    # Plain data containers (no logic)
 │   ├── property_input.py      # PropertyInput, UnitMix dataclasses
 │   └── report_row.py          # ReportRow (metric / value / grade)
@@ -45,6 +48,7 @@ commercial_property_analyser_v2/
 │   ├── rent_resolver.py       # RentResolver — derives annual rent from inputs or market data;
 │   │                          #   flags residential lines priced at a city-wide average as imputed
 │   ├── underwriting_config.py # load_underwriting_config() — loader/validator for config/underwriting.json
+│   ├                          # Loads config/underwriting.json (NOI growth, exit cap spread, inflation)
 │   └── metrics/               # Individual metric calculators
 │       ├── income.py          # NOI, Cap Rate, Gross/Effective Rent, GRM, Cap Rate Risk Check,
 │       │                      #   IncomeConfidenceMetrics (verified vs. imputed income, confidence multiplier)
@@ -127,6 +131,14 @@ commercial_property_analyser_v2/
 
 ---
 
+### `config/`
+
+| File | Purpose |
+|---|---|
+| `underwriting.json` | House underwriting assumptions, loaded by `analysis/underwriting_config.py`: `noi_growth_default` (flat annual NOI growth applied to every property unless a property has a manual `noi_growth_rate` override), `exit_cap_spread_bps` / `exit_cap_aging_bps_per_year` (feed `ExitCapEstimator`), and `inflation_rate` (bands the NOI Growth Assumption grade). Missing file/keys raise `UnderwritingConfigError` rather than falling back to a hardcoded literal — change a value here and every property's returns move on the next analysis, no code edit required. |
+
+---
+
 ### `models/`
 
 Plain dataclasses with no business logic or I/O.
@@ -158,9 +170,10 @@ Plain dataclasses with no business logic or I/O.
 
 | File | Purpose |
 |---|---|
-| `analyzer.py` | **`CommercialPropertyAnalyzer`** — the central analysis orchestrator. Takes a `PropertyInput` and a `RentResolver`, resolves rent, constructs all metric groups, and exposes `report()` (list of `ReportRow`) and `to_record()` (dict ready for `DataStore`). |
+| `analyzer.py` | **`CommercialPropertyAnalyzer`** — the central analysis orchestrator. Takes a `PropertyInput` and a `RentResolver`, resolves rent, constructs all metric groups, and exposes `report()` (list of `ReportRow`) and `to_record()` (dict ready for `DataStore`). `_resolve_noi_growth` picks a property's manual `noi_growth_rate` override if set, else the flat `noi_growth_default` house assumption from `config/underwriting.json` — no per-city rate; `json/city_demographics.json` population growth is not used here (only by `scoring/`). |
 | `mortgage.py` | **`MortgageCalculator`** — monthly payment, annual payment, down payment, loan balance, and outstanding principal at end of hold period. Compounding is province-aware: every Canadian jurisdiction (all 10 provinces + 3 territories, matched by 2-letter code **or** spelled-out name, e.g. "Ontario"/"Québec") uses semi-annual compounding per the Interest Act s. 6; anything else falls back to monthly. **`DaysOnMarketCalculator`** — days between the listing date and today. |
 | `rent_resolver.py` | **`RentResolver`** — determines effective annual rent in priority order: explicit `annual_rent` on the property → market commercial rates × sqft → market residential rates × unit mix. Logs cities with missing market data to `DataStore` for follow-up. |
+| `underwriting_config.py` | Loads and caches `config/underwriting.json`. Hard-fails (`UnderwritingConfigError`) if the file or a required key (`noi_growth_default`, `exit_cap_spread_bps`, `inflation_rate`) is missing, rather than silently falling back to a hardcoded default. |
 
 #### `analysis/metrics/`
 
@@ -257,7 +270,7 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
 | `residential_rents.json` | `{ "cities": { "Ottawa": { "province": "ON", "units": { "bachelor": 1400, "one_br": 1700, "two_br": 2100 } } } }` |
 | `score_weights.json` | Scoring weights (must sum to 1.0), floor/ceiling thresholds per metric, city-level signal weights, and confidence smoothing constant `k`. |
 | `city_distances.json` | `{ "Cobourg": { "nearest_centre": "Toronto", "distance_km": 100 } }` |
-| `city_demographics.json` | `{ "cobourg": { "population": 20000, "population_2016": 19000, "growth_pct_annual": 1.02, "source": "Stats Canada 2021 Census" } }` |
+| `city_demographics.json` | `{ "cobourg": { "population": 20000, "population_2016": 19000, "growth_pct_annual": 1.02, "source": "Stats Canada 2021 Census" } }` — census population growth, used only by `scoring/city_ranker.py` for city opportunity depth. Not used as a rent/NOI growth assumption (see `config/underwriting.json`). |
 | `missing_rent_data.json` | Tracks which cities are missing commercial or residential rent data so the menu can prompt the user to fill them in. |
 
 ---
@@ -368,6 +381,7 @@ Coverage is enforced at 90% minimum by `.coveragerc`. The current suite achieves
 | **CoCR** | Cash-on-Cash Return — Annual Cash Flow ÷ Cash Invested. Measures immediate income yield on equity deployed. |
 | **IRR** | Internal Rate of Return — annualised return over the hold period, computed by `numpy_financial.irr` on the period cash-flow array (equity out at year 0, operating cash flow each year, plus **net** sale proceeds at exit), so it reflects cash-flow timing. Independent of the Equity Multiple, not back-derived from it. When the stream has no real IRR root (e.g. an underwater exit) the report reads "IRR not meaningful" rather than a substitute number. |
 | **Equity Multiple** | Total positive cash returned ÷ Cash Invested, from the same cash-flow array (sale proceeds are **net** of the loan payoff). A value of 2.0× means you doubled your money over the hold period. |
+| **NOI Growth Assumption** | The flat annual NOI escalation used to project the cash-flow array and terminal (exit) NOI. Defaults to `noi_growth_default` in `config/underwriting.json` for every property; a property with a manual `noi_growth_rate` override uses that instead. Not derived from city population growth. |
 | **GRM** | Gross Rent Multiplier — Asking Price ÷ Annual Gross Rent. Lower is better. |
 | **CELOC** | Cash Equity Left Over on Close — (Exit Equity − Cash Invested) ÷ Cash Invested. |
 | **RevPAR** | Revenue Per Available Room — ADR × Occupancy Rate. Hotel-specific. |

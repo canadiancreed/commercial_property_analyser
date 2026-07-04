@@ -77,6 +77,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **Guardrail also fires when IRR is missing in the no-capital-call regime.** A single outflow at t0
   plus non-negative later flows has exactly one sign change, so a real IRR must exist there; `irr is
   None` in that regime now raises `IRR/EM mismatch` instead of being skipped silently.
+- **NOI growth is now a single flat house-standard assumption, not per-city population growth**
+  (`analysis/analyzer.py`). `_resolve_noi_growth` no longer reads `growth_pct_annual` from
+  `json/city_demographics.json` — that field is 2016→2021 census population growth, not rent growth,
+  and was modeling shrinking-population towns (e.g. Owen Sound, −0.32%) as having shrinking rents for
+  30 years, which is false: rents track inflation regardless of local population trend. Priority is
+  now explicit per-property `noi_growth_rate` override → `noi_growth_default` from the new
+  `config/underwriting.json` (ships at 2%, matching how institutional underwriters apply one flat rate
+  to every deal and let local variation show up in Year-1 NOI and cap rates instead).
+  `city_demographics.json` itself is untouched — `scoring/city_ranker.py` still uses it for city
+  opportunity depth. On the live 504-property portfolio, Owen Sound's Equity Multiple rose from 9.89×
+  to 19.64× and its IRR from 21.23% to 25.91%; no property's NOI growth assumption is negative anymore.
+- **All underwriting assumptions now live in one config file, not hardcoded literals.** New
+  `config/underwriting.json` holds `noi_growth_default`, `exit_cap_spread_bps` /
+  `exit_cap_aging_bps_per_year` (previously the hardcoded `MARKET_DRIFT_BPS`/`AGING_BPS_PER_YEAR` in
+  `ExitCapEstimator`), and `inflation_rate` (now drives the NOI Growth Assumption's grading band,
+  previously a hardcoded 1%–3%). New `analysis/underwriting_config.py` loads and caches it; a missing
+  file or required key raises `UnderwritingConfigError` instead of silently falling back to a buried
+  literal. Changing a value in `config/underwriting.json` moves every property's returns on the next
+  analysis with no code edit.
+- **NOI Growth Assumption is graded like every other metric** in the property report, using the
+  configured `inflation_rate` ±1pt band (GOOD at or above the top of the band, FAIR within it, POOR
+  below).
 
 ### Added
 
