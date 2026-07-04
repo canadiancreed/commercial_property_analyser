@@ -136,6 +136,71 @@ class TestReturnMetrics:
         assert m._em_grade() == "POOR (Underperforming)"
 
 
+# ── Bug fix: IRR and equity multiple must reconcile (one canonical array) ─────
+
+class TestIRREquityMultipleReconciliation:
+    """IRR and the equity multiple describe the same cash-flow stream, so they
+    must reconcile. Newton-Raphson used to diverge on high-IRR / thin-equity
+    deals and silently clamp a real return to -100% while the multiple stayed
+    healthy — leaving the two 'far apart'."""
+
+    def test_high_irr_thin_equity_not_clamped_to_minus100(self):
+        """Huge NOI on a tiny equity check has a real (high) IRR — the old
+        Newton solver diverged and clamped it to -100%. It must now compute."""
+        prop = _make_prop(hold_years=25, noi_growth_rate=0.02)
+        m = ReturnMetrics(prop, 108_524, 8_979, 51_694, exit_price=2_432_685,
+                          loan_balance=841_904)
+        assert m.equity_multiple > 1
+        assert m.irr > 0            # a real positive return, not the -100 sentinel
+        assert m.irr != -100.0
+
+    def test_reported_irr_zeroes_npv_of_shared_array(self):
+        """Whatever IRR is shown must actually solve NPV=0 on the same array the
+        equity multiple is built from."""
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        m = ReturnMetrics(prop, 30_000, 12_000, 200_000, exit_price=900_000,
+                          loan_balance=500_000)
+        npv = ReturnMetrics._npv(m._period_flows, m.irr / 100.0)
+        peak = max(abs(cf) / (1 + m.irr / 100.0) ** t
+                   for t, cf in enumerate(m._period_flows))
+        assert abs(npv) < 1e-4 * peak
+
+    def test_irr_near_multiple_compound_rate(self):
+        """IRR should land near multiple**(1/years)-1, a touch higher when cash
+        arrives during the hold rather than all at exit."""
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        m = ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=600_000)
+        implied = (m.equity_multiple ** (1 / 10) - 1) * 100
+        assert m.irr >= implied - 0.5          # not far below the compound rate
+        assert m.irr < implied + 15            # only a modest upward gap
+
+    def test_guard_raises_when_irr_does_not_reconcile(self):
+        """If a solver returned a rate that doesn't zero the shared array, the
+        pair is inconsistent — fail loud and trust the multiple, don't display."""
+        from unittest.mock import patch
+        prop = _make_prop(hold_years=10, noi_growth_rate=0.02)
+        with patch.object(ReturnMetrics, "_calc_irr", return_value=0.05):
+            with pytest.raises(ValueError, match="does not reconcile"):
+                ReturnMetrics(prop, 12_000, 0, 125_000, exit_price=600_000)
+
+    def test_no_conventional_irr_falls_back_to_sentinel(self):
+        """A stream whose discounted flows never cross zero has no conventional
+        IRR; _calc_irr returns nan and the metric degrades to the -100 sentinel
+        rather than fabricating a rate."""
+        import math
+        assert math.isnan(ReturnMetrics._calc_irr([-100.0]))
+
+    def test_equity_multiple_unchanged_by_refactor(self):
+        """The canonical-array refactor must not move the equity multiple."""
+        g = 0.02
+        prop = _make_prop(hold_years=10, noi_growth_rate=g)
+        m = ReturnMetrics(prop, 40_000, 25_000, 125_000, exit_price=700_000,
+                          loan_balance=300_000)
+        total_cf = sum(40_000 * (1 + g) ** (yr - 1) - 25_000 for yr in range(1, 11))
+        expected = (total_cf + 700_000 - 300_000) / 125_000
+        assert m.equity_multiple == pytest.approx(expected, rel=1e-9)
+
+
 class TestMarketMetrics:
     def test_celoc_score(self):
         m = MarketMetrics(36_000, 100_000, 24_000, 24_000, 90)
