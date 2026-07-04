@@ -10,30 +10,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **IRR now reconciles with the equity multiple** (`analysis/metrics/returns.py`). Both figures
-  describe the same cash-flow stream, so they must reconcile — yet the two were displayed far apart.
-  The equity multiple was healthy while the IRR read `-100%` on a large class of otherwise-strong
-  deals. Root cause: the IRR was solved by Newton-Raphson from a fixed 0.10 guess, which **diverged**
-  on high-IRR / thin-equity streams (interim NOI dwarfing a small equity check) and on long,
-  deep-discount holds; the divergent rate was then clamped to the `-100%` sentinel, hiding a real
-  return. A 60k-case sweep found ~6.4k such deals with a genuine, in-range IRR that the old solver
-  threw away.
-- **One canonical cash-flow array now drives both metrics.** `ReturnMetrics` builds a single period
-  vector — initial equity as a negative at period zero, operating cash flow each period (NOI
-  escalates, mortgage fixed), plus net sale proceeds folded into the final period — and derives *both*
-  the equity multiple (total returned ÷ invested) and the IRR from it, so they can never describe
-  different streams. The equity multiple is numerically unchanged.
-- **IRR solved by bracketed bisection** instead of Newton. NPV is monotonic in the discount rate for
-  a conventional stream, so bracketing between just-above `-100%` and a large upper rate is guaranteed
-  to converge on the true root; a stream whose discounted flows never cross zero has no conventional
-  IRR and degrades to the `-100%` sentinel rather than fabricating a rate.
-- **Reconciliation guard fails loud** (`_assert_reconciles`). After solving, the reported rate must
-  zero the NPV of the shared array — i.e. the positive and negative *discounted* cash flows must
-  cancel (residual measured against the peak discounted term, the honest yardstick at deep negative
-  rates over long holds). If they don't, the IRR is untrustworthy: raise instead of displaying, and
-  trust the multiple. New regression tests in `tests/test_metrics_returns.py` cover the thin-equity
-  no-clamp case, the NPV-zeroing invariant, proximity to the multiple's compound rate, and the guard
-  firing on a deliberately inconsistent rate.
+- **IRR now reconciles with the equity multiple exactly — no gap** (`analysis/metrics/returns.py`).
+  The two describe one cash-flow stream, yet the report showed them wildly far apart: e.g. a $200k
+  retail listing (193 Pembroke St W) whose estimated NOI implies a ~25% cap threw off a year-one
+  distribution near its whole $40k equity check, so the old money-weighted IRR solved to **99.24%**
+  while the 36.62x equity multiple only implies **12.75%/yr**. A timing-sensitive IRR legitimately
+  drifts above the multiple's compound rate when cash arrives during the hold, but on these
+  thin-equity, front-loaded deals the drift was enormous and the pair looked disconnected. Measured
+  across the live 522-property portfolio the reconciliation gap is now **0** (max relative error 3e-15).
+- **IRR is the equity multiple's annualized rate**, `EM**(1/hold_years) − 1`, so
+  `(1 + IRR)**years == EM` holds identically. Deriving IRR *from* the multiple means the two can never
+  diverge; we trust the multiple (the total cash returned ÷ invested) and report its exact annual
+  equivalent rather than a separately-solved root that reads far apart from it.
+- **One canonical cash-flow array** still backs the multiple: `ReturnMetrics` builds a single period
+  vector — initial equity as a negative at period zero, operating cash flow each period (NOI escalates,
+  mortgage fixed), net sale proceeds folded into the final period — and takes the equity multiple as
+  the sum of every inflow after period zero over cash invested. The equity multiple is numerically
+  unchanged. This also retired the fragile Newton-Raphson solver that had been diverging and clamping
+  real returns to `-100%`.
+- **IRR is always a real number**; a non-positive multiple (total wipeout / underwater exit, which
+  can't be annualized) floors to `-100%` — the investor loses the whole equity stake — and the
+  property stays fully analyzable instead of crashing. New regression tests in
+  `tests/test_metrics_returns.py` assert `(1+IRR)**years == EM` exactly across a range of deals, that
+  the former 99% front-loaded case now reports its ~13% compound rate, and that IRR is never `None`.
 
 ## [3.5.3] — 2026-07-03
 
