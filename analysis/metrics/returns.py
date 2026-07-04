@@ -95,11 +95,18 @@ class ReturnMetrics:
         if self.equity_multiple >= 1.2: return "FAIR"
         return "POOR (Underperforming)"
 
+    def _growth_grade(self) -> str:
+        # At/above the model's own default assumption (2%/yr, _DEFAULT_NOI_GROWTH
+        # in analyzer.py) is GOOD; positive but below-trend is FAIR; a declining
+        # local market (negative growth) is POOR -- it erodes both the annual
+        # cash flow and the exit price baked into EM/IRR above.
+        return Grader.grade(self.noi_growth_rate * 100, 2.0, 0.0)
+
     def rows(self) -> list:
         stale = "STALE" in self.noi_growth_source.upper()
-        # "INFO", not "": to_record drops grade-"" rows from the stored
-        # results the HTML reports render, and this assumption drives EM/IRR.
-        growth_grade = "WARN — refresh demographics data" if stale else "INFO"
+        # Staleness is a data-quality caveat layered on the rate itself, so it
+        # overrides the value-based grade rather than stacking with it.
+        growth_grade = "FAIR — refresh demographics data" if stale else self._growth_grade()
         if self._cash_invested:
             em_value, em_grade = f"{self.equity_multiple:.2f}x", self._em_grade()
         else:
