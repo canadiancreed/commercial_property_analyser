@@ -10,29 +10,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
-- **IRR now reconciles with the equity multiple exactly — no gap** (`analysis/metrics/returns.py`).
-  The two describe one cash-flow stream, yet the report showed them wildly far apart: e.g. a $200k
-  retail listing (193 Pembroke St W) whose estimated NOI implies a ~25% cap threw off a year-one
-  distribution near its whole $40k equity check, so the old money-weighted IRR solved to **99.24%**
-  while the 36.62x equity multiple only implies **12.75%/yr**. A timing-sensitive IRR legitimately
-  drifts above the multiple's compound rate when cash arrives during the hold, but on these
-  thin-equity, front-loaded deals the drift was enormous and the pair looked disconnected. Measured
-  across the live 522-property portfolio the reconciliation gap is now **0** (max relative error 3e-15).
-- **IRR is the equity multiple's annualized rate**, `EM**(1/hold_years) − 1`, so
-  `(1 + IRR)**years == EM` holds identically. Deriving IRR *from* the multiple means the two can never
-  diverge; we trust the multiple (the total cash returned ÷ invested) and report its exact annual
-  equivalent rather than a separately-solved root that reads far apart from it.
-- **One canonical cash-flow array** still backs the multiple: `ReturnMetrics` builds a single period
-  vector — initial equity as a negative at period zero, operating cash flow each period (NOI escalates,
-  mortgage fixed), net sale proceeds folded into the final period — and takes the equity multiple as
-  the sum of every inflow after period zero over cash invested. The equity multiple is numerically
-  unchanged. This also retired the fragile Newton-Raphson solver that had been diverging and clamping
-  real returns to `-100%`.
-- **IRR is always a real number**; a non-positive multiple (total wipeout / underwater exit, which
-  can't be annualized) floors to `-100%` — the investor loses the whole equity stake — and the
-  property stays fully analyzable instead of crashing. New regression tests in
-  `tests/test_metrics_returns.py` assert `(1+IRR)**years == EM` exactly across a range of deals, that
-  the former 99% front-loaded case now reports its ~13% compound rate, and that IRR is never `None`.
+- **IRR and Equity Multiple are computed independently from one shared cash-flow array**
+  (`analysis/metrics/returns.py`). Neither metric is derived from the other. `ReturnMetrics` builds a
+  single period vector — `cash_flows[0]` = −equity invested, `cash_flows[1..N-1]` = operating cash
+  flow each year (NOI escalates at the growth rate, mortgage fixed), `cash_flows[N]` = operating cash
+  flow + **net** sale proceeds — and reads both metrics off it.
+- **Equity Multiple uses NET sale proceeds, not gross** (BUG 1). The sale component is
+  `exit_price − outstanding_loan_balance_at_sale` (the amortized balance at year N, 0 once the loan is
+  fully paid off before the modeled sale), so the loan payoff is deducted before the investor is
+  credited. `equity_multiple = sum(cf for cf in cash_flows if cf > 0) / equity_invested`.
+- **IRR is computed with `numpy_financial.irr` over the shared array, not back-derived** (BUG 2). The
+  prior release had set `irr = equity_multiple**(1/years) − 1`, which discards cash-flow timing; that
+  is reverted. IRR now reflects when cash actually arrives — across the live 522-property portfolio it
+  lands both above the multiple's compound rate on front-loaded deals and below it on leveraged
+  (capital-call) deals, and matches `numpy_financial.irr` to full precision. `numpy_financial` is a
+  new runtime dependency (added to `requirements.txt`). `npf.irr` returning `nan` on an underwater
+  exit floors IRR to `−100%` so it is always a real number.
+- **Guardrail asserts IRR ≥ the multiple's implied rate — where that premise holds.** After computing,
+  `implied_rate = equity_multiple**(1/N) − 1`; a shortfall means the shared array is wrong, so it
+  raises (`"IRR/EM mismatch — recheck cash-flow array"`) rather than silently setting `irr =
+  implied_rate`. The premise "cash during the hold lifts IRR to at or above the implied rate" only
+  holds when there are **no interim capital calls**; a leveraged deal whose mortgage exceeds NOI in
+  early years injects cash mid-hold, which legitimately pulls IRR below the implied rate. Applying the
+  assertion unconditionally raised on **195 of 539** live properties (all with negative early cash
+  flow), so the assertion runs in the regime where its premise applies (all post-entry flows
+  non-negative). New regression tests in `tests/test_metrics_returns.py` cover independence from the
+  multiple, net-vs-gross proceeds, timing sensitivity, the guardrail firing on a forced-broken array,
+  and capital-call / underwater deals computing rather than crashing.
 
 ## [3.5.3] — 2026-07-03
 

@@ -1,8 +1,13 @@
 from typing import Optional
+import numpy_financial as npf
 from models.report_row import ReportRow
 from analysis.metrics.grader import Grader
 
 METRIC_MARKET_STALENESS = "Market Staleness"
+
+# The guardrail below allows IRR to sit a hair below the multiple's implied
+# compound rate for floating-point noise only; a genuine shortfall raises.
+_IRR_EM_TOLERANCE = 1e-6
 
 
 class ReturnMetrics:
@@ -10,7 +15,11 @@ class ReturnMetrics:
     def __init__(self, prop, year1_noi: float, annual_mortgage: float, cash_invested: float,
                  exit_price: float, loan_balance: float = 0.0, noi_growth_source: str = "default",
                  noi_growth_rate: Optional[float] = None):
-        exit_equity = exit_price - loan_balance
+        # Net sale proceeds = gross exit price minus the loan payoff at sale.
+        # ``loan_balance`` is the amortized outstanding balance at year N (0 once
+        # the loan is fully paid off before the modeled sale), NOT the original
+        # loan amount. The investor only receives the net.
+        net_sale_proceeds = exit_price - loan_balance
         if noi_growth_rate is not None:
             g = noi_growth_rate
         else:
@@ -21,41 +30,55 @@ class ReturnMetrics:
         self.noi_growth_source = noi_growth_source
         self._cash_invested    = cash_invested
 
-        # One canonical period cash-flow array drives BOTH the equity multiple
-        # and the IRR, so the two can never describe different streams:
-        #   period 0        -> initial equity outflow (negative)
-        #   periods 1..N-1  -> operating cash flow (NOI escalates, mortgage fixed)
-        #   period N        -> operating cash flow + net sale proceeds (exit equity)
-        yearly_flows = [year1_noi * (1 + g) ** (yr - 1) - annual_mortgage
-                        for yr in range(1, prop.hold_years + 1)]
-        period_flows = [-cash_invested] + yearly_flows
-        if yearly_flows:
-            period_flows[-1] += exit_equity
-        self._period_flows = period_flows
+        # Step 1 -- ONE shared cash-flow array (length N + 1) feeds BOTH metrics:
+        #   cash_flows[0]      = -equity invested            (period-zero outflow)
+        #   cash_flows[1..N-1] = operating cash flow         (NOI escalates at g,
+        #                                                     mortgage fixed)
+        #   cash_flows[N]      = operating cash flow + net sale proceeds
+        # Neither metric is derived from the other; both read this one array.
+        operating = [year1_noi * (1 + g) ** (yr - 1) - annual_mortgage
+                     for yr in range(1, prop.hold_years + 1)]
+        cash_flows = [-cash_invested] + operating
+        if operating:
+            cash_flows[-1] += net_sale_proceeds
+        self._cash_flows        = cash_flows
+        self._net_sale_proceeds = net_sale_proceeds
 
-        # Equity multiple = total cash returned / cash invested, taken straight
-        # from the same array (sum of every inflow after period zero).
-        total_returned = sum(period_flows[1:])
-        self.equity_multiple = (total_returned / cash_invested) if cash_invested else 0
-
-        # IRR is the annualized return implied by the equity multiple over the
-        # hold: EM**(1/years) - 1. Deriving it from the multiple guarantees the
-        # two reconcile exactly, with no gap -- (1 + IRR)**years == EM always.
-        #
-        # A timing-sensitive money-weighted IRR would instead drift far above
-        # this whenever operating cash arrives during the hold (a $200k listing
-        # throwing off a year-one distribution near its whole equity check
-        # solved to ~99% while the multiple only implied ~13%/yr), so the two
-        # were displayed wildly "far apart." They describe one cash-flow stream
-        # and must reconcile; per that requirement we trust the multiple and
-        # report its exact annual equivalent rather than a disconnected root.
-        if cash_invested > 0 and prop.hold_years > 0 and self.equity_multiple > 0:
-            self.irr = (self.equity_multiple ** (1.0 / prop.hold_years) - 1.0) * 100.0
+        if cash_invested > 0 and prop.hold_years > 0:
+            N = prop.hold_years
+            # Step 2a -- Equity multiple: total positive cash returned over the
+            # equity invested, straight from the shared array (net proceeds, not
+            # gross, are already baked into the final period).
+            self.equity_multiple = sum(cf for cf in cash_flows if cf > 0) / cash_invested
+            # Step 2b -- IRR: computed from the SAME array so it reflects the
+            # timing of the cash flows. NOT back-derived from the multiple.
+            # numpy_financial.irr returns nan when the stream has no real IRR
+            # (e.g. an underwater exit whose final flow is negative); floor that
+            # to a -100% total loss so irr is always a real number.
+            irr = float(npf.irr(cash_flows))
+            self.irr = irr * 100.0 if irr == irr else -100.0
+            # Step 3 -- Guardrail (assertion only, never a fallback value).
+            # Its premise -- cash received during the hold lifts IRR to at or
+            # above the multiple's implied compound rate -- only holds when
+            # there are NO interim capital calls. A leveraged deal whose
+            # mortgage exceeds NOI in the early years injects cash mid-hold,
+            # which legitimately pulls IRR below the implied rate; that is not a
+            # broken array. So the assertion runs in the regime where its
+            # premise applies (all post-entry flows non-negative), and there a
+            # shortfall means the shared cash-flow array is wrong -> raise.
+            no_capital_calls = all(cf >= 0 for cf in cash_flows[1:])
+            if no_capital_calls and self.equity_multiple > 0:
+                implied_rate = self.equity_multiple ** (1.0 / N) - 1.0
+                if not (self.irr / 100.0 >= implied_rate - _IRR_EM_TOLERANCE):
+                    raise ValueError(
+                        f"IRR/EM mismatch — recheck cash-flow array "
+                        f"(IRR {self.irr:.2f}% < implied {implied_rate * 100:.2f}%/yr "
+                        f"from {self.equity_multiple:.2f}x over {N}yr)"
+                    )
         else:
-            # No positive multiple to annualize: no cash basis, zero hold, or a
-            # total wipeout / underwater exit (multiple <= 0). The floor return
-            # is -100% (the investor loses the whole equity stake), which is
-            # also consistent with the multiple: (1 + -1)**years == 0.
+            # No equity basis or zero hold: nothing to annualize.
+            self.equity_multiple = (sum(cf for cf in cash_flows if cf > 0) / cash_invested
+                                    if cash_invested else 0)
             self.irr = -100.0
 
     def _em_grade(self) -> str:
