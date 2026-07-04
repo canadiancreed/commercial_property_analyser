@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.5.5] — 2026-07-04
+
+### Changed
+
+- **A cash-flow stream with no real IRR now reports "IRR not meaningful" instead of a −100% floor**
+  (`analysis/metrics/returns.py`). When `numpy_financial.irr` returns `nan` (e.g. an underwater exit
+  whose flows never turn positive) there is no honest rate to print, so `irr` is `None` and the report
+  row reads `IRR not meaningful` with a WARN grade — never NaN, 0, blank, or a substitute number
+  dressed up as a real return. The zero-hold / no-equity branch reports the same instead of −100%.
+  `PropertyScorer` keeps the unparseable IRR as `None` (scoring contribution 0, as before) and the
+  deal-watchlist/property reports render it as "—" via their existing null formatting; previously a
+  missing IRR could surface as a fake `0`. No live property is affected numerically: all 234
+  capital-call deals in the current 539-record portfolio still resolve to a finite `npf.irr` root.
+- **Guardrail also fires when IRR is missing in the no-capital-call regime.** A single outflow at t0
+  plus non-negative later flows has exactly one sign change, so a real IRR must exist there; `irr is
+  None` in that regime now raises `IRR/EM mismatch` instead of being skipped silently.
+
+### Added
+
+- **`selling_costs` parameter on `ReturnMetrics`** (default 0): net sale proceeds are
+  `exit_price − outstanding_loan_balance_at_year_N − selling_costs`, so records that carry selling
+  costs can deduct them from the exit flow. No caller passes a value yet (the property record has no
+  such field), so live numbers are unchanged.
+
 ## [3.5.4] — 2026-07-04
 
 ### Fixed

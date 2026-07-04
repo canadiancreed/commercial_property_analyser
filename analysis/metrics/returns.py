@@ -14,12 +14,13 @@ class ReturnMetrics:
 
     def __init__(self, prop, year1_noi: float, annual_mortgage: float, cash_invested: float,
                  exit_price: float, loan_balance: float = 0.0, noi_growth_source: str = "default",
-                 noi_growth_rate: Optional[float] = None):
-        # Net sale proceeds = gross exit price minus the loan payoff at sale.
+                 noi_growth_rate: Optional[float] = None, selling_costs: float = 0.0):
+        # Net sale proceeds = gross exit price minus the loan payoff at sale,
+        # minus selling costs when the record carries them (0 otherwise).
         # ``loan_balance`` is the amortized outstanding balance at year N (0 once
         # the loan is fully paid off before the modeled sale), NOT the original
         # loan amount. The investor only receives the net.
-        net_sale_proceeds = exit_price - loan_balance
+        net_sale_proceeds = exit_price - loan_balance - selling_costs
         if noi_growth_rate is not None:
             g = noi_growth_rate
         else:
@@ -52,11 +53,13 @@ class ReturnMetrics:
             self.equity_multiple = sum(cf for cf in cash_flows if cf > 0) / cash_invested
             # Step 2b -- IRR: computed from the SAME array so it reflects the
             # timing of the cash flows. NOT back-derived from the multiple.
-            # numpy_financial.irr returns nan when the stream has no real IRR
-            # (e.g. an underwater exit whose final flow is negative); floor that
-            # to a -100% total loss so irr is always a real number.
+            # numpy_financial.irr returns nan when the stream has no usable
+            # root (e.g. an underwater exit whose flows never turn positive).
+            # There is no honest rate to print then, so irr stays None and the
+            # report reads "IRR not meaningful" -- never a substitute number
+            # dressed up as a real return.
             irr = float(npf.irr(cash_flows))
-            self.irr = irr * 100.0 if irr == irr else -100.0
+            self.irr = irr * 100.0 if irr == irr else None
             # Step 3 -- Guardrail (assertion only, never a fallback value).
             # Its premise -- cash received during the hold lifts IRR to at or
             # above the multiple's implied compound rate -- only holds when
@@ -68,18 +71,23 @@ class ReturnMetrics:
             # shortfall means the shared cash-flow array is wrong -> raise.
             no_capital_calls = all(cf >= 0 for cf in cash_flows[1:])
             if no_capital_calls and self.equity_multiple > 0:
+                # A single outflow at t0 plus non-negative later flows has
+                # exactly one sign change, so a real IRR must exist here; a
+                # missing root in this regime is itself a broken array.
                 implied_rate = self.equity_multiple ** (1.0 / N) - 1.0
-                if not (self.irr / 100.0 >= implied_rate - _IRR_EM_TOLERANCE):
+                if self.irr is None or not (self.irr / 100.0 >= implied_rate - _IRR_EM_TOLERANCE):
+                    irr_desc = "none" if self.irr is None else f"{self.irr:.2f}%"
                     raise ValueError(
                         f"IRR/EM mismatch — recheck cash-flow array "
-                        f"(IRR {self.irr:.2f}% < implied {implied_rate * 100:.2f}%/yr "
+                        f"(IRR {irr_desc} < implied {implied_rate * 100:.2f}%/yr "
                         f"from {self.equity_multiple:.2f}x over {N}yr)"
                     )
         else:
-            # No equity basis or zero hold: nothing to annualize.
+            # No equity basis or zero hold: nothing to annualize, so there is
+            # no rate to report.
             self.equity_multiple = (sum(cf for cf in cash_flows if cf > 0) / cash_invested
                                     if cash_invested else 0)
-            self.irr = -100.0
+            self.irr = None
 
     def _em_grade(self) -> str:
         if self.equity_multiple >= 2.0: return "EXCELLENT"
@@ -94,9 +102,12 @@ class ReturnMetrics:
             em_value, em_grade = f"{self.equity_multiple:.2f}x", self._em_grade()
         else:
             em_value, em_grade = "N/A (no cash invested)", "WARN — no cash basis"
+        if self.irr is None:
+            irr_value, irr_grade = "IRR not meaningful", "WARN — no real IRR for this cash-flow stream"
+        else:
+            irr_value, irr_grade = f"{self.irr:.2f}%", Grader.grade(self.irr, 15.0, 10.0)
         return [
-            ReportRow(f"IRR ({self.hold_years}-Yr)", f"{self.irr:.2f}%",
-                      Grader.grade(self.irr, 15.0, 10.0)),
+            ReportRow(f"IRR ({self.hold_years}-Yr)", irr_value, irr_grade),
             ReportRow("Equity Multiple",      em_value, em_grade),
             ReportRow("NOI Growth Assumption", f"{self.noi_growth_rate * 100:.2f}%/yr  ({self.noi_growth_source})",
                       growth_grade),

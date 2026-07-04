@@ -333,7 +333,7 @@ Coverage is enforced at 90% minimum by `.coveragerc`. The current suite achieves
 | **NOI** | Net Operating Income — Effective Gross Income minus estimated operating expenses. |
 | **DSCR** | Debt Service Coverage Ratio — NOI ÷ Annual Mortgage Payment. Values below 1.0 mean the property cannot service its debt from income alone. |
 | **CoCR** | Cash-on-Cash Return — Annual Cash Flow ÷ Cash Invested. Measures immediate income yield on equity deployed. |
-| **IRR** | Internal Rate of Return — annualised return over the hold period, computed by `numpy_financial.irr` on the period cash-flow array (equity out at year 0, operating cash flow each year, plus **net** sale proceeds at exit), so it reflects cash-flow timing. Independent of the Equity Multiple, not back-derived from it. |
+| **IRR** | Internal Rate of Return — annualised return over the hold period, computed by `numpy_financial.irr` on the period cash-flow array (equity out at year 0, operating cash flow each year, plus **net** sale proceeds at exit), so it reflects cash-flow timing. Independent of the Equity Multiple, not back-derived from it. When the stream has no real IRR root (e.g. an underwater exit) the report reads "IRR not meaningful" rather than a substitute number. |
 | **Equity Multiple** | Total positive cash returned ÷ Cash Invested, from the same cash-flow array (sale proceeds are **net** of the loan payoff). A value of 2.0× means you doubled your money over the hold period. |
 | **GRM** | Gross Rent Multiplier — Asking Price ÷ Annual Gross Rent. Lower is better. |
 | **CELOC** | Cash Equity Left Over on Close — (Exit Equity − Cash Invested) ÷ Cash Invested. |

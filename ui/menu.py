@@ -906,7 +906,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             "cap_rate":     scored.get("cap_rate", 0),
             "coc":          scored.get("coc", 0),
             "dscr":         scored.get("dscr", 0),
-            "irr":          scored.get("irr", 0),
+            "irr":          scored.get("irr"),
             "em":           scored.get("em", 0),
             "cf_annual":    scored.get("cf_annual", 0),
             "price_drop":   scored.get("price_drop", 0),
