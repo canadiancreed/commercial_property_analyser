@@ -35,7 +35,7 @@ class PricingMetrics:
         "GRM_THRESHOLDS keys must match PROPERTY_TYPES"
     )
 
-    def __init__(self, prop, loan_balance: float, annual_rent: float,
+    def __init__(self, prop, loan_amount: float, annual_rent: float,
                  city_rent_per_sqft: float | None = None,
                  comm_sq_ft: float | None = None):
         self._cost_basis    = prop.asking_price + (prop.construction_cost or 0)
@@ -53,7 +53,14 @@ class PricingMetrics:
         self.grm            = self._cost_basis / annual_rent if annual_rent and annual_rent > 0 else None
         self.price_drop_pct = ((prop.original_price - prop.asking_price) / prop.original_price) * 100
         self.tax_load       = (prop.property_taxes / prop.asking_price) * 100
-        self.ltv_ratio      = (loan_balance / prop.asking_price) * 100
+        # Loan-to-Value is the ORIGINATION ratio (loan advanced / price), which
+        # is what "LTV" means in underwriting and what the 70/80 grading below is
+        # calibrated to. It must NOT be fed the amortized-down remaining balance:
+        # when hold_years >= term_years the mortgage is fully paid off, the
+        # remaining balance is a genuine 0, and LTV would read a misleading 0.00%
+        # for the whole portfolio. Origination LTV keeps the ltv + down/price == 1
+        # identity holding for every property.
+        self.ltv_ratio      = (loan_amount / prop.asking_price) * 100
         ptype               = (prop.property_type or "").strip().lower()
         self._grm_good,  self._grm_poor  = self._GRM_THRESHOLDS.get(ptype, self._GRM_DEFAULT)
         if city_rent_per_sqft and city_rent_per_sqft > 0:
