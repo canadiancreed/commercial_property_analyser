@@ -97,14 +97,21 @@ def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
             entry = demo.get(city, {})
             pct   = entry.get("growth_pct_annual")
             if pct is not None:
-                last_updated  = meta.get("last_updated", "unknown")
+                last_updated  = meta.get("last_updated")
                 refresh_years = int(meta.get("refresh_years", 5))
                 try:
                     updated_year = int(last_updated[:4])
                     stale = (date.today().year - updated_year) >= refresh_years
                 except (ValueError, TypeError):
                     stale = False
-                label = f"{prop.city} demographics ({last_updated})"
+                # Provenance: prefer the per-city source (e.g. "Stats Canada
+                # 2021 Census"), else the file-level date. Never "unknown".
+                src   = (entry.get("source") or "").strip()
+                label = f"{prop.city} demographics"
+                if src:
+                    label += f", {src}"
+                elif last_updated:
+                    label += f", {last_updated}"
                 if stale:
                     label += " — DATA MAY BE STALE"
                 return float(pct) / 100, label
