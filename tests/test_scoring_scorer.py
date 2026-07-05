@@ -3,6 +3,7 @@ import os
 import pytest
 from scoring.scorer import PropertyScorer, SCORE_CONFIG_PATH
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
+from analysis.underwriting_config import load_underwriting_config
 
 
 def _scored_record(cap=7.0, coc=8.0, dscr=1.4, irr=12.0, em=1.8,
@@ -42,10 +43,16 @@ class TestConfig:
         assert "Cap Rate" in cfg["weights"]
 
     def test_config_weights_sum_to_1(self, make_store):
+        # Price Drop / DOM are intentionally weighted 0 here — they carry no
+        # fixed sign, so they no longer feed the raw score directly and
+        # instead amplify the confidence axis (scoring/scorer.py market-signal
+        # logic).
         scorer = PropertyScorer(make_store())
         cfg = scorer.load_config()
+        assert cfg["weights"]["Price Drop"] == 0.0
+        assert cfg["weights"]["DOM"] == 0.0
         total = sum(cfg["weights"].values())
-        assert total == pytest.approx(1.0, abs=0.001)
+        assert total == pytest.approx(0.92, abs=0.001)
 
 
 # ── score_property ─────────────────────────────────────────────────────────────
@@ -168,3 +175,68 @@ class TestSolveTargets:
 
         result = scorer.solve_targets(p, lambda rec: mock_prop, mock_analyzer, MagicMock())
         assert isinstance(result, dict)
+
+
+# ── Market-signal confidence axis (DOM / Price Drop as amplifiers, not score inputs) ──
+
+def _geo_patches(tmp_path, distance_km=10, population=500_000, growth=2.0):
+    """Write city_distances/city_demographics fixtures and return a patcher for
+    scoring.scorer's module-level path constants."""
+    from unittest.mock import patch
+    json_dir = tmp_path / "json"
+    os.makedirs(str(json_dir), exist_ok=True)
+    dist_path = str(json_dir / "city_distances.json")
+    demo_path = str(json_dir / "city_demographics.json")
+    with open(dist_path, "w") as f:
+        json.dump({"ottawa": {"distance_km": distance_km, "nearest_centre": "Ottawa"}}, f)
+    with open(demo_path, "w") as f:
+        json.dump({"ottawa": {"population": population, "growth_pct_annual": growth}}, f)
+    return patch.multiple("scoring.scorer", CITY_DISTANCES_PATH=dist_path,
+                           CITY_DEMOGRAPHICS_PATH=demo_path)
+
+
+class TestMarketSignalConfidence:
+
+    def test_high_confidence_liquid_stale_and_dropped_no_penalty(self, make_store, tmp_path):
+        scorer = PropertyScorer(make_store())
+        p = _scored_record(dom=200, drop=40.0)
+        p["verified_income_pct"] = 100.0
+        p["confidence_multiplier"] = 1.0
+        with _geo_patches(tmp_path, distance_km=5, population=1_000_000, growth=3.0):
+            result = scorer.score_property(p)
+        assert result["market_signal_multiplier"] == pytest.approx(1.0)
+        assert result["score"] == result["raw_score"]
+
+    def test_low_confidence_thin_market_stale_and_dropped_amplifies(self, make_store, tmp_path):
+        scorer = PropertyScorer(make_store())
+        p = _scored_record(dom=200, drop=40.0)
+        p["verified_income_pct"] = 40.0  # mostly imputed income
+        p["confidence_multiplier"] = 0.90
+        with _geo_patches(tmp_path, distance_km=300, population=5_000, growth=-2.0):
+            result = scorer.score_property(p)
+        cfg = load_underwriting_config()
+        assert result["market_signal_multiplier"] < 1.0
+        assert result["market_signal_multiplier"] >= cfg["market_signal_confidence_floor"]
+        assert result["score"] < result["raw_score"] * result["confidence_multiplier"]
+
+    def test_dom_and_drop_alone_do_not_move_score(self, make_store, tmp_path):
+        """Stale DOM + severe price drop with everything else neutral (verified
+        income, cap rate in range, liquid market) must not move the score —
+        confirms these signals are amplifiers, not standalone inputs."""
+        scorer = PropertyScorer(make_store())
+        stale_dropped = _scored_record(dom=200, drop=40.0)
+        stale_dropped["verified_income_pct"] = 100.0
+        stale_dropped["confidence_multiplier"] = 1.0
+        normal = _scored_record(dom=30, drop=0.0)
+        normal["verified_income_pct"] = 100.0
+        normal["confidence_multiplier"] = 1.0
+        with _geo_patches(tmp_path, distance_km=5, population=1_000_000, growth=3.0):
+            result_stale = scorer.score_property(stale_dropped)
+            result_normal = scorer.score_property(normal)
+        assert result_stale["score"] == pytest.approx(result_normal["score"])
+
+    def test_no_appetite_or_bias_terms_in_scoring_code(self):
+        import re
+        with open("scoring/scorer.py", encoding="utf-8") as f:
+            src = f.read()
+        assert not re.search(r"appetite|\bbias\b|preference", src, re.IGNORECASE)

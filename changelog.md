@@ -6,6 +6,75 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.0] — 2026-07-04
+
+### Added
+
+- **Market/listing-signal confidence axis** (`scoring/scorer.py`). DOM ("Market Staleness") and
+  Price Drop % previously carried a fixed positive weight in the raw score (`json/score_weights.json`),
+  treating a long time-on-market or a big price cut as unconditionally good. Both signals actually
+  carry no fixed sign — the same listing can mean "motivated seller, negotiating room" or "something's
+  wrong, verify before you buy" depending on the rest of the deal. Both weights are now **0** in
+  `json/score_weights.json` — they never move the score on their own. Instead, new helpers
+  `_dom_band`, `_drop_band`, and `_liquidity_band` classify DOM (normal/aging/stale), Price Drop
+  (none/modest/large/severe), and market liquidity (liquid/moderate/thin — a config-weighted proxy
+  from `city_distances.json` distance-to-major-centre and `city_demographics.json`
+  population/growth). A stale or steeply-discounted listing **amplifies** the existing
+  `confidence_multiplier` haircut (bounded by `market_signal_confidence_floor`), but only when the
+  deal isn't already high-confidence (verified income, cap rate in range) *and* liquid — a clean,
+  fully-verified, liquid deal with the same signals scores exactly as it would without them.
+  Verified with targeted unit tests and against the live report: a high-confidence/liquid
+  stale+discounted property scores identically to a normal one; a low-confidence/thin-market
+  property with the same signals gets a deeper, floor-bounded haircut.
+- **"Deal Context" panel** (`reporting/property_report.py`). Every property's report modal now
+  shows a neutral, factual panel: Days on Market (with band), Price Change (with band), Market
+  liquidity band, Income verification %, and a "Read" line that states what the signals imply
+  without recommending for or against the deal — no buyer-appetite bias anywhere in the scoring
+  path (confirmed by a grep-based test).
+- **`config/underwriting.json` gains eighteen new keys** for the axis above: `dom_normal_days`,
+  `dom_stale_days`, `drop_modest_pct`, `drop_large_pct`, `drop_severe_pct`,
+  `market_signal_verified_income_threshold_pct`, `dom_stale_confidence_factor`,
+  `price_drop_confidence_factor`, `joint_signal_confidence_factor`,
+  `thin_market_confidence_factor`, `market_signal_confidence_floor`,
+  `liquidity_distance_reference_km`, `liquidity_population_reference`,
+  `liquidity_weight_distance`, `liquidity_weight_population`, `liquidity_weight_growth`,
+  `liquidity_liquid_threshold`, `liquidity_thin_threshold`.
+
+### Fixed
+
+- **Price/Sq Ft labeling ambiguity** (`analysis/metrics/pricing.py`, `reporting/property_report.py`).
+  A mixed-use property showed two different real Price/Sq Ft numbers under the same generic label:
+  the graded row used the ground-floor commercial area as the denominator (much higher $/sqft),
+  while the report modal's client-side figure used the whole building. Both were correct for what
+  they measured, but neither was labeled with its scope, so they looked like conflicting numbers
+  for the same metric. Now labeled explicitly — `"Price/Sq Ft (Mixed-Use, Ground Floor)"` when the
+  ground-floor-only denominator is used, and `"Price / Total Sq Ft"` for the whole-building figure
+  in the modal. Neither calculation changed.
+
+### Docs
+
+- Documented that **Seller Bleed** and **CELOC Speed Score** (`analysis/metrics/returns.py`,
+  `MarketMetrics`) are informational listing-economics rows computed from live per-property
+  inputs each analysis run — confirmed neither metric name is read anywhere in `scoring/scorer.py`,
+  so neither feeds the score.
+- `README.md` updated for the new config keys, the market-signal confidence axis, the Deal Context
+  panel, and corrected metrics glossary entries for CELOC (was documenting the wrong formula),
+  Price Drop, and DOM (removed the fixed-sign "higher discount/longer DOM = better" framing).
+
+### Tests
+
+- **`tests/test_scoring_scorer.py`** — `test_config_weights_sum_to_1` updated for the intentional
+  Price Drop/DOM zero-weighting; new `TestMarketSignalConfidence` class covers the high-confidence/
+  liquid no-penalty case, the low-confidence/thin-market amplified case, the "signals alone don't
+  move the score" invariant, and the appetite/bias grep check.
+- **`tests/test_scoring_scorer_branches.py`** — `_poor_record()` fixture updated with
+  `verified_income_pct`/`confidence_multiplier` so the pre-existing `solve_targets` bisect-lever
+  tests (which predate this feature and don't model income confidence) aren't penalized by the new
+  axis for a missing field a real analyzed property always sets.
+- Full suite (1291 tests) passes; coverage 95%.
+
+---
+
 ## [3.5.6] — 2026-07-04
 
 ### Added

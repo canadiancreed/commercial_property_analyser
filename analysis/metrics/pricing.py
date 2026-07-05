@@ -70,11 +70,18 @@ class PricingMetrics:
             self._sqft_good, self._sqft_poor = self._SQFT_THRESHOLDS.get(ptype, self._SQFT_DEFAULT)
         self._ptype_label   = prop.property_type or "Property"
         self._show_sqft     = ptype not in {"hotel", "residential", "multi-family"}
+        # Ground-floor-only denominator (comm_sq_ft) prices the commercial
+        # component alone, which reads much higher per sqft than a whole-
+        # building figure for the same asset — label the scope explicitly so
+        # it isn't mistaken for (or compared against) a whole-building
+        # Price/Sq Ft computed elsewhere (e.g. the report's asking/total_sq_ft).
+        self._floor_scoped  = bool(comm_sq_ft)
 
     def rows(self) -> list:
         rows = []
         if self._show_sqft:
-            rows.append(ReportRow(f"Price/Sq Ft ({self._ptype_label})",
+            scope_note = ", Ground Floor" if self._floor_scoped else ""
+            rows.append(ReportRow(f"Price/Sq Ft ({self._ptype_label}{scope_note})",
                                   f"${self.pp_sqft:.2f}",
                                   Grader.grade(self.pp_sqft, self._sqft_good, self._sqft_poor,
                                                higher_is_better=False,

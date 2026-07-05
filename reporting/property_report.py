@@ -812,6 +812,18 @@ function openModal(p) {{
     }}).join('');
 
   const notesHtml = p.notes ? `<div class="modal-notes">${{p.notes}}</div>` : '';
+
+  // Deal Context: neutral, factual read on DOM / price-drop / market liquidity
+  // / income verification. These signals amplify the confidence axis in the
+  // score — they carry no fixed +/- sign here either, just the facts.
+  const dealContextHtml = p.dom_band ? `<div class="modal-section" style="margin-top:1rem">
+      <h3>Deal Context</h3>
+      <div class="modal-metric-row"><span class="modal-metric-name">Days on Market</span><span class="modal-metric-val info">${{p.dom}} days (${{p.dom_band}})</span></div>
+      <div class="modal-metric-row"><span class="modal-metric-name">Price Change</span><span class="modal-metric-val info">${{fmt(p.price_drop)}}% from original (${{p.price_drop_band}})</span></div>
+      <div class="modal-metric-row"><span class="modal-metric-name">Market</span><span class="modal-metric-val info">${{p.liquidity_band}}</span></div>
+      ${{p.verified_income_pct != null ? `<div class="modal-metric-row"><span class="modal-metric-name">Income</span><span class="modal-metric-val info">${{p.verified_income_pct.toFixed(0)}}% verified / ${{(100-p.verified_income_pct).toFixed(0)}}% estimated</span></div>` : ''}}
+      <div class="modal-metric-row"><span class="modal-metric-name">Read</span><span class="modal-metric-val info">${{p.deal_context_read || ''}}</span></div>
+    </div>` : '';
   const rentHtml  = rentLines.length
     ? `<div class="modal-section" style="margin-top:1rem"><h3>Rent Detail</h3>
         ${{rentLines.map(l=>`<div class="modal-metric-row"><span class="modal-metric-name" style="color:var(--ink)">${{l}}</span></div>`).join('')}}
@@ -821,7 +833,7 @@ function openModal(p) {{
     <div class="modal-metric-row"><span class="modal-metric-name">MLS #</span><span class="modal-metric-val info">${{p.mls}}</span></div>
     <div class="modal-metric-row"><span class="modal-metric-name">Type</span><span class="modal-metric-val info">${{p.type}}</span></div>
     <div class="modal-metric-row"><span class="modal-metric-name">Total Sq Ft</span><span class="modal-metric-val info">${{p.sqft.toLocaleString()}}</span></div>
-    ${{ppSqft ? `<div class="modal-metric-row"><span class="modal-metric-name">Price / Sq Ft</span><span class="modal-metric-val info">${{fmt(ppSqft, 0, '$')}}</span></div>` : ''}}
+    ${{ppSqft ? `<div class="modal-metric-row"><span class="modal-metric-name">Price / Total Sq Ft</span><span class="modal-metric-val info">${{fmt(ppSqft, 0, '$')}}</span></div>` : ''}}
     <div class="modal-metric-row"><span class="modal-metric-name">Asking Price</span><span class="modal-metric-val info">${{fmtMoney(p.asking)}}</span></div>
     <div class="modal-metric-row"><span class="modal-metric-name">Original Price</span><span class="modal-metric-val info">${{fmtMoney(p.original)}}</span></div>
     ${{p.construction > 0 ? `<div class="modal-metric-row"><span class="modal-metric-name">Construction</span><span class="modal-metric-val info">+${{fmtMoney(p.construction)}}</span></div>` : ''}}
@@ -882,6 +894,7 @@ function openModal(p) {{
         </div>
       </div>
       ${{notesHtml}}
+      ${{dealContextHtml}}
       <div class="modal-grid">
         <div>
           <div class="modal-section"><h3>Property Details</h3>${{propDetails}}</div>
