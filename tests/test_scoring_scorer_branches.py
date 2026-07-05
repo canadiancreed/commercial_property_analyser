@@ -33,6 +33,12 @@ def _poor_record():
         "interest_rate": 0.07, "down_payment_pct": 0.20,
         "commercial_rent": 30_000, "residential_rent": 0,
         "annual_rent": None,
+        # Fully verified income / no confidence haircut — these tests isolate
+        # a single financial lever (price/rent/rate/down-pct), not the
+        # market-signal confidence axis, so DOM/Price Drop must not trigger
+        # an amplified haircut here.
+        "verified_income_pct": 100.0,
+        "confidence_multiplier": 1.0,
         "results": _full_results(cap=2.0, coc=0.0, dscr=0.5,
                                   irr=0.0, em=0.5, cf=-5000,
                                   drop=0.0, dom=0),

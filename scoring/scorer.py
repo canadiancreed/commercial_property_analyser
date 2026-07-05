@@ -2,10 +2,85 @@ import copy
 import os
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
 from analysis.metrics.income import INCOME_METRIC_NAMES
+from analysis.underwriting_config import load_underwriting_config
 
 SCORE_CONFIG_PATH = "json/score_weights.json"
 CITY_DISTANCES_PATH  = "json/city_distances.json"
 CITY_DEMOGRAPHICS_PATH = "json/city_demographics.json"
+
+
+def _dom_band(dom: float, cfg: dict) -> str:
+    if dom <= cfg["dom_normal_days"]:
+        return "normal"
+    if dom <= cfg["dom_stale_days"]:
+        return "aging"
+    return "stale"
+
+
+def _drop_band(drop_pct: float, cfg: dict) -> str:
+    if drop_pct >= cfg["drop_severe_pct"]:
+        return "severe"
+    if drop_pct >= cfg["drop_large_pct"]:
+        return "large"
+    if drop_pct >= cfg["drop_modest_pct"]:
+        return "modest"
+    return "none"
+
+
+def _liquidity_band(dist_km, demo: dict, cfg: dict) -> tuple:
+    """Config-weighted market-thinness proxy from distance to the nearest major
+    centre and city population/growth. Missing inputs default to the moderate
+    midpoint (0.5) rather than assuming either liquid or thin."""
+    dist_component = (
+        max(0.0, min(1.0, dist_km / cfg["liquidity_distance_reference_km"]))
+        if dist_km is not None else 0.5
+    )
+    population = demo.get("population") if demo else None
+    pop_component = (
+        max(0.0, min(1.0, (cfg["liquidity_population_reference"] - population)
+                     / cfg["liquidity_population_reference"]))
+        if population else 0.5
+    )
+    growth = demo.get("growth_pct_annual") if demo else None
+    growth_component = 1.0 if (growth is not None and growth < 0) else 0.0
+    thinness = (
+        cfg["liquidity_weight_distance"] * dist_component +
+        cfg["liquidity_weight_population"] * pop_component +
+        cfg["liquidity_weight_growth"] * growth_component
+    )
+    if thinness >= cfg["liquidity_thin_threshold"]:
+        band = "thin"
+    elif thinness <= cfg["liquidity_liquid_threshold"]:
+        band = "liquid"
+    else:
+        band = "moderate"
+    return band, thinness
+
+
+def _deal_context_read(dom_band: str, drop_band: str, liquidity_band: str,
+                        is_high_income_conf: bool) -> str:
+    """Neutral, factual synthesis of the market/listing signals — states what
+    the signals imply, never a buy/pass recommendation."""
+    dom_stale     = dom_band == "stale"
+    drop_notable  = drop_band in ("large", "severe")
+    if not (dom_stale or drop_notable):
+        return "No stale-listing or price-cut signal."
+    parts = []
+    if dom_stale:
+        parts.append("Stale listing")
+    if drop_notable:
+        parts.append(f"{drop_band} price cut")
+    signal_desc = " + ".join(parts)
+    clean_deal = is_high_income_conf and liquidity_band == "liquid"
+    if clean_deal:
+        return f"{signal_desc} on a clean, liquid deal — likely negotiating room."
+    caveats = []
+    if not is_high_income_conf:
+        caveats.append("unverified/imputed income or elevated cap rate")
+    if liquidity_band == "thin":
+        caveats.append("thin market")
+    caveat_desc = " and ".join(caveats) if caveats else "unverified fundamentals"
+    return f"{signal_desc} with {caveat_desc} — investigate why before treating it as a win."
 
 
 class PropertyScorer:
@@ -130,13 +205,59 @@ class PropertyScorer:
         # to the overall score only — every graded row above is unaffected.
         confidence_multiplier = p.get("confidence_multiplier")
         raw_score = round(score, 1)
-        adjusted_score = round(score * confidence_multiplier, 1) if confidence_multiplier is not None else raw_score
+
+        # Market/listing-signal confidence axis: DOM and Price Drop carry no
+        # fixed sign (a stale/discounted listing can be an opportunity or a
+        # warning) so they are NOT weighted into the raw score above (see
+        # json/score_weights.json — both weights are 0). Instead they AMPLIFY
+        # whatever confidence haircut already exists from income/cap-rate —
+        # they never create one on their own. That's what keeps a clean,
+        # liquid, fully-verified deal's score untouched even with a long DOM
+        # or a big price cut.
+        underwriting_cfg = load_underwriting_config()
+        verified_income_pct = p.get("verified_income_pct")
+        cap_rate_risk_threshold = underwriting_cfg["cap_rate_risk_threshold_pct"]
+        cap_rate_flagged = cap_rate > cap_rate_risk_threshold
+        is_high_income_conf = (
+            verified_income_pct is not None
+            and verified_income_pct >= underwriting_cfg["market_signal_verified_income_threshold_pct"]
+            and not cap_rate_flagged
+        )
+        demographics = self.load_city_demographics()
+        demo = demographics.get(city)
+        liquidity_band, liquidity_thinness = _liquidity_band(dist_km, demo, underwriting_cfg)
+        dom_band = _dom_band(dom, underwriting_cfg)
+        drop_band = _drop_band(price_drop, underwriting_cfg)
+        dom_stale = dom_band == "stale"
+        drop_triggered = drop_band in ("large", "severe")
+
+        market_signal_multiplier = 1.0
+        if (dom_stale or drop_triggered) and not (is_high_income_conf and liquidity_band == "liquid"):
+            factor = 1.0
+            if dom_stale:
+                factor *= underwriting_cfg["dom_stale_confidence_factor"]
+            if drop_triggered:
+                factor *= underwriting_cfg["price_drop_confidence_factor"]
+            if dom_stale and drop_triggered:
+                factor *= underwriting_cfg["joint_signal_confidence_factor"]
+            if liquidity_band == "thin":
+                factor *= underwriting_cfg["thin_market_confidence_factor"]
+            market_signal_multiplier = max(underwriting_cfg["market_signal_confidence_floor"], factor)
+
+        if confidence_multiplier is None and market_signal_multiplier == 1.0:
+            adjusted_score = raw_score
+        else:
+            combined_multiplier = (confidence_multiplier if confidence_multiplier is not None else 1.0) \
+                * market_signal_multiplier
+            adjusted_score = round(score * combined_multiplier, 1)
+
+        deal_context_read = _deal_context_read(dom_band, drop_band, liquidity_band, is_high_income_conf)
 
         return {
             "score":       adjusted_score,
             "raw_score":   raw_score,
             "confidence_multiplier": confidence_multiplier,
-            "verified_income_pct":   p.get("verified_income_pct"),
+            "verified_income_pct":   verified_income_pct,
             "breakdown":   {k: round(scores[k] * 10, 1) for k in scores},
             "weights":     weights,
             "income_confidence": p.get("income_confidence"),
@@ -150,6 +271,11 @@ class PropertyScorer:
             "dom":         int(dom),
             "dist_km":     dist_km,
             "dist_centre": dist_info["nearest_centre"] if dist_info else None,
+            "dom_band":                dom_band,
+            "price_drop_band":         drop_band,
+            "liquidity_band":          liquidity_band,
+            "market_signal_multiplier": round(market_signal_multiplier, 4),
+            "deal_context_read":       deal_context_read,
         }
 
     def solve_targets(self, p: dict, record_to_prop_fn, analyzer_class, resolver) -> dict:

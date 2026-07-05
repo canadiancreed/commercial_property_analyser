@@ -128,6 +128,18 @@ class ReturnMetrics:
 
 
 class MarketMetrics:
+    """
+    Seller Bleed and CELOC Speed Score are informational listing-economics
+    rows, not inputs to the property score (scoring/scorer.py reads neither
+    metric name). Both are computed fresh from live per-property figures —
+    est_noi/cash_invested/est_expenses/annual_mortgage/vacancy_rate from this
+    same analysis run, days_on_market from the listing date at analysis
+    time — so there is no stale/cached input feeding them.
+
+    celoc_score  = (est_noi / cash_invested) * 100
+    total_seller_bleed = ((est_expenses + annual_mortgage) / 12)
+                         * (days_on_market / 30) * vacancy_rate
+    """
 
     def __init__(self, est_noi: float, cash_invested: float, est_expenses: float,
                  annual_mortgage: float, days_on_market: int, vacancy_rate: float = 0.05):

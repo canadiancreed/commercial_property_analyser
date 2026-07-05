@@ -162,7 +162,7 @@ Plain dataclasses with no business logic or I/O.
 
 | File | Purpose |
 |---|---|
-| `underwriting.json` | House underwriting assumptions, loaded and validated by `analysis/underwriting_config.py` (missing file/keys are a hard error, not a silent fallback). Every tunable risk constant lives here — nothing is hardcoded in the Python: `noi_growth_default`, `exit_cap_spread_bps`, `exit_cap_aging_bps_per_year`, `inflation_rate`, `stress_rate_bump` / `stress_min_dscr` (rate-shock stress test), `confidence_uncertainty_start` / `confidence_steepness` / `confidence_floor` (data-confidence multiplier shape), `cap_rate_risk_threshold_pct` / `cap_rate_risk_confidence_factor` (high-cap-rate flag). |
+| `underwriting.json` | House underwriting assumptions, loaded and validated by `analysis/underwriting_config.py` (missing file/keys are a hard error, not a silent fallback). Every tunable risk constant lives here — nothing is hardcoded in the Python: `noi_growth_default`, `exit_cap_spread_bps`, `exit_cap_aging_bps_per_year`, `inflation_rate`, `stress_rate_bump` / `stress_min_dscr` (rate-shock stress test), `confidence_uncertainty_start` / `confidence_steepness` / `confidence_floor` (data-confidence multiplier shape), `cap_rate_risk_threshold_pct` / `cap_rate_risk_confidence_factor` (high-cap-rate flag), `dom_normal_days` / `dom_stale_days` / `drop_modest_pct` / `drop_large_pct` / `drop_severe_pct` (DOM/Price Drop bands), `market_signal_verified_income_threshold_pct` / `dom_stale_confidence_factor` / `price_drop_confidence_factor` / `joint_signal_confidence_factor` / `thin_market_confidence_factor` / `market_signal_confidence_floor` (market-signal confidence amplifier), `liquidity_distance_reference_km` / `liquidity_population_reference` / `liquidity_weight_distance` / `liquidity_weight_population` / `liquidity_weight_growth` / `liquidity_liquid_threshold` / `liquidity_thin_threshold` (market-liquidity proxy). |
 
 ---
 
@@ -183,8 +183,8 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 |---|---|
 | `income.py` | Gross Rent, Effective Gross Income, Estimated Expenses, NOI, Entry Cap Rate, Estimated Exit NOI, GRM, Cap Rate Risk Check (flags cap rates well above the regional norm), Income Verification / Confidence Multiplier (data-confidence axis — verified vs. imputed income share) |
 | `cash_flow.py` | Annual Cash Flow, Cash-on-Cash Return (CoCR), Cash Invested, DSCR, Stress Test (DSCR re-priced at `interest_rate + stress_rate_bump`, graded PASS/FAIL against `stress_min_dscr`) |
-| `returns.py` | IRR (`numpy_financial.irr`), Equity Multiple, CELOC |
-| `pricing.py` | Price per sqft, Original Price, Price Drop %, Loan-to-Value |
+| `returns.py` | IRR (`numpy_financial.irr`), Equity Multiple, CELOC Speed Score and Seller Bleed (informational listing-economics rows — not inputs to the property score), Market Staleness (DOM) |
+| `pricing.py` | Price/Sq Ft (labeled with its scope — e.g. "Ground Floor" when the mixed-use commercial component is priced separately from the whole building), Original Price, Price Drop %, Loan-to-Value |
 | `property_types.py` | **Hotel**: Rooms, ADR, Occupancy %, RevPAR, CPOR, Annual Revenue, GOP grade. **Industrial**: Warehouse/office/yard sqft, dock & drive-in door counts, clear height, blended rate, estimated annual rent. |
 | `grader.py` | `grade(metric, value)` — maps a numeric value to `"GOOD"`, `"FAIR"`, `"POOR"`, or `""` using per-metric thresholds. |
 
@@ -200,7 +200,7 @@ the real analyzer and asserts the metric groups stay internally consistent (e.g.
 debt service == monthly payment × 12, `exit_price × exit_cap == terminal NOI`), and locks
 the Canadian semi-annual compounding convention against a regression to US monthly.
 
-**Three independent risk axes.** Risk is deliberately kept on three separate signals rather
+**Independent risk axes.** Risk is deliberately kept on separate signals rather
 than collapsed into one opaque number:
 - **Structural/debt risk** — DSCR, Break-Even NOI/Occupancy, and the rate-shock **Stress Test**
   (`cash_flow.py`): the mortgage payment re-priced at `interest_rate + stress_rate_bump` (default
@@ -216,8 +216,20 @@ than collapsed into one opaque number:
   signal of illiquidity/vacancy/value-erosion risk rather than read as pure upside. It's a soft
   flag — it does not fail the deal — and feeds the same bounded confidence multiplier via
   `cap_rate_risk_confidence_factor`.
+- **Market/listing signals** — DOM ("Market Staleness") and Price Drop % (`scoring/scorer.py`)
+  carry no fixed sign: a long time-on-market or big price cut can mean opportunity (motivated
+  seller) or warning (something's wrong), depending on the rest of the deal. Both are weighted
+  **zero** in the raw score (`json/score_weights.json`) — they never move the score on their own.
+  Instead they **amplify** the existing confidence haircut above, and only when the deal *isn't*
+  already high-confidence (verified income, cap rate in range) **and** liquid (a config-weighted
+  proxy from distance-to-major-centre and city population/growth). A clean, liquid, fully-verified
+  deal with a stale, discounted listing scores exactly as it would without those signals; a
+  low-confidence or thin-market deal with the same signals gets a deeper, floor-bounded haircut.
+  Always surfaced as a neutral **Deal Context** panel (DOM/drop/liquidity bands, income
+  verification %, and a factual — never a buy/pass — "Read" line) in the property report modal, so
+  a human makes the final opportunity-vs-warning call.
 
-All thresholds/weights/shapes for these three axes live in `config/underwriting.json`.
+All thresholds/weights/shapes for these axes live in `config/underwriting.json`.
 
 ---
 
@@ -225,7 +237,7 @@ All thresholds/weights/shapes for these three axes live in `config/underwriting.
 
 | File | Purpose |
 |---|---|
-| `scorer.py` | **`PropertyScorer`** — produces a 0–100 investment score from a saved property record. Weights nine components (Cap Rate, CoCR, DSCR, IRR, Equity Multiple, Cash Flow, Price Drop, DOM, Location). Weights and floor/ceiling thresholds are configurable and persisted in `json/score_weights.json`. Also provides `solve_targets()` — binary search over each lever (asking price, rent, interest rate, down payment) to find the value that would push the score to ≥ 99.5/100. |
+| `scorer.py` | **`PropertyScorer`** — produces a 0–100 investment score from a saved property record. Weights nine components (Cap Rate, CoCR, DSCR, IRR, Equity Multiple, Cash Flow, Price Drop, DOM, Location); Price Drop and DOM default to **zero** weight in the shipped config (see "Market/listing signals" above) and instead amplify the confidence multiplier via `_dom_band` / `_drop_band` / `_liquidity_band`. Weights and floor/ceiling thresholds are configurable and persisted in `json/score_weights.json`. Also provides `solve_targets()` — binary search over each lever (asking price, rent, interest rate, down payment) to find the value that would push the score to ≥ 99.5/100. |
 | `city_ranker.py` | **`CityRanker`** — groups scored properties by city, computes per-city signals (avg score, best score, volume, cap rate, price drop, DOM, CoCR), applies configurable city-level signal weights, then adjusts the opportunity score toward a neutral 50 using a confidence factor `n / (n + k)` — cities with few properties are pulled toward the mean to avoid overconfident rankings on small samples. |
 
 ---
@@ -235,7 +247,7 @@ All thresholds/weights/shapes for these three axes live in `config/underwriting.
 | File | Purpose |
 |---|---|
 | `printer.py` | **`ReportPrinter`** — terminal-only output. `print_report(analyzer)` prints a formatted metric table to stdout. `list_properties(store)` prints a numbered property list sorted by city then street name/number. |
-| `property_report.py` | **`PropertyReportGenerator`** — renders a self-contained HTML file with a sortable, filterable table of all properties. Each row shows the investment score, per-component breakdown, financial metrics, and the target asking price / rent / interest rate / down payment that would achieve a near-perfect score. Opens in the default browser. |
+| `property_report.py` | **`PropertyReportGenerator`** — renders a self-contained HTML file with a sortable, filterable table of all properties. Each row shows the investment score, per-component breakdown, financial metrics, and the target asking price / rent / interest rate / down payment that would achieve a near-perfect score. The modal for each property includes a neutral **Deal Context** panel (DOM/price-drop/liquidity bands, income verification %, and a factual "Read" line). Opens in the default browser. |
 | `city_report.py` | **`CityReportGenerator`** — renders a self-contained HTML city opportunity report ranked by opportunity score (geometric mean of deal quality × market depth). Shows volume, avg/best scores, key financial signals, inactive-listing comparables, and demographic data where available. The per-city "Score contributions" breakdown is the actual factor contribution emitted by `CityRanker` (no recomputation), so it always matches the configured weights. Opens in the default browser. |
 | `price_check_report.py` | **`PriceCheckReportGenerator`** — renders the results of a realtor.ca price sweep: each stored property classified as price dropped / risen / unchanged / not found / not checked, with the stored vs found price and delta. |
 | `deal_watchlist_report.py` | **`DealWatchlistReportGenerator`** — an interactive table of **active**, scored deals. Embeds the deals as JSON and renders client-side: every column is click-to-sort and the list filters live by minimum score, cap rate, and price drop. Surfaces cap rate, cash-on-cash, IRR, annual cash flow, DSCR, days-on-market and price drop. |
@@ -268,9 +280,9 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
 | `properties.json` | Array of property records. Each record is the output of `CommercialPropertyAnalyzer.to_record()` — all input fields plus a `results` array of `{metric, value, grade}` objects. |
 | `commercial_rents.json` | `{ "cities": { "Ottawa": { "province": "ON", "types": { "Office": 22.5, "Retail": 28.0 } } } }` |
 | `residential_rents.json` | `{ "cities": { "Ottawa": { "province": "ON", "units": { "bachelor": 1400, "one_br": 1700, "two_br": 2100 } } } }` |
-| `score_weights.json` | Scoring weights (must sum to 1.0), floor/ceiling thresholds per metric, city-level signal weights, and confidence smoothing constant `k`. |
+| `score_weights.json` | Scoring weights (active, non-zero weights are renormalized to sum to 1.0 — Price Drop and DOM ship at zero, see "Market/listing signals" above), floor/ceiling thresholds per metric, city-level signal weights, and confidence smoothing constant `k`. |
 | `city_distances.json` | `{ "Cobourg": { "nearest_centre": "Toronto", "distance_km": 100 } }` |
-| `city_demographics.json` | `{ "cobourg": { "population": 20000, "population_2016": 19000, "growth_pct_annual": 1.02, "source": "Stats Canada 2021 Census" } }` — census population growth, used only by `scoring/city_ranker.py` for city opportunity depth. Not used as a rent/NOI growth assumption (see `config/underwriting.json`). |
+| `city_demographics.json` | `{ "cobourg": { "population": 20000, "population_2016": 19000, "growth_pct_annual": 1.02, "source": "Stats Canada 2021 Census" } }` — census population growth, used by `scoring/city_ranker.py` for city opportunity depth and by `scoring/scorer.py` (with `city_distances.json`) as one input to the market-liquidity proxy that gates the DOM/Price-Drop confidence amplifier. Not used as a rent/NOI growth assumption (see `config/underwriting.json`). |
 | `missing_rent_data.json` | Tracks which cities are missing commercial or residential rent data so the menu can prompt the user to fill them in. |
 
 ---
@@ -383,12 +395,16 @@ Coverage is enforced at 90% minimum by `.coveragerc`. The current suite achieves
 | **Equity Multiple** | Total positive cash returned ÷ Cash Invested, from the same cash-flow array (sale proceeds are **net** of the loan payoff). A value of 2.0× means you doubled your money over the hold period. |
 | **NOI Growth Assumption** | The flat annual NOI escalation used to project the cash-flow array and terminal (exit) NOI. Defaults to `noi_growth_default` in `config/underwriting.json` for every property; a property with a manual `noi_growth_rate` override uses that instead. Not derived from city population growth. |
 | **GRM** | Gross Rent Multiplier — Asking Price ÷ Annual Gross Rent. Lower is better. |
-| **CELOC** | Cash Equity Left Over on Close — (Exit Equity − Cash Invested) ÷ Cash Invested. |
+| **CELOC Speed Score** | (Est. NOI ÷ Cash Invested) × 100. Graded FAST CELOC / CELOC POSSIBLE / LENDER FRICTION / NO CELOC. Informational listing economics — not an input to the property score. |
+| **Seller Bleed** | Estimated cumulative carrying cost the seller has absorbed while the listing sat on market: `((Est. Expenses + Annual Mortgage) ÷ 12) × (Days on Market ÷ 30) × Vacancy Rate`. Informational — not an input to the property score. |
 | **RevPAR** | Revenue Per Available Room — ADR × Occupancy Rate. Hotel-specific. |
 | **CPOR** | Cost Per Occupied Room — Total Operating Cost ÷ Occupied Room-nights. Hotel-specific. |
-| **Price Drop** | (Original Price − Asking Price) ÷ Original Price. A higher discount signals motivated seller and negotiating room. |
-| **DOM** | Days on Market — from listing date to today. Longer time on market increases seller motivation. |
-| **Stress Test** | DSCR recomputed with the mortgage re-priced at `interest_rate + stress_rate_bump` (config, default +2 pp). PASS/FAIL against `stress_min_dscr` (config, default 1.20). A structural/debt-risk check — independent of the two rows below. |
+| **Price Drop** | (Original Price − Asking Price) ÷ Original Price. Carries no fixed sign — weighted zero in the raw score. A large/severe cut (config: `drop_large_pct` / `drop_severe_pct`) instead amplifies the confidence multiplier, but only when the deal isn't already high-confidence and liquid — see "Market/listing signals" above and the Deal Context panel. |
+| **DOM** | Days on Market — from listing date to today. Carries no fixed sign — weighted zero in the raw score. A stale listing (config: `dom_stale_days`) instead amplifies the confidence multiplier under the same condition as Price Drop above. |
+| **Stress Test** | DSCR recomputed with the mortgage re-priced at `interest_rate + stress_rate_bump` (config, default +2 pp). PASS/FAIL against `stress_min_dscr` (config, default 1.20). A structural/debt-risk check — independent of the confidence rows below. |
 | **Income Verification** | % of a property's income stated in the listing ("verified") vs. imputed from a city-wide bedroom-type average rent ("estimated"). Informational — does not alter DSCR, NOI, cap rate, or IRR. |
 | **Confidence Multiplier** | A small, bounded multiplier (config-shaped, floor `confidence_floor`) applied to the **overall property score only**, driven by measured income uncertainty (coefficient of variation of the same rent sample used for imputed lines) and, if flagged, the high-cap-rate signal below. 1.0× = fully verified income. |
 | **Cap Rate Risk Check** | Flags when Cap Rate exceeds `cap_rate_risk_threshold_pct` (config, default 10%) — a market signal of illiquidity/vacancy/value-erosion risk that a high cap rate alone doesn't otherwise surface. Soft flag; does not fail the deal. |
+| **Market Signal Multiplier** | The DOM/Price-Drop confidence amplifier described above (config: `dom_stale_confidence_factor` / `price_drop_confidence_factor` / `joint_signal_confidence_factor` / `thin_market_confidence_factor`, floor `market_signal_confidence_floor`). 1.0× when the signals don't trigger, or when they do but the deal is already high-confidence and liquid. |
+| **Market Liquidity** | A config-weighted thinness proxy (`liquidity_*` keys) from distance to the nearest major centre and city population/growth — bands to liquid / moderate / thin. The switch that decides whether a stale/discounted listing reads as opportunity or warning; never an independent score input. |
+| **Deal Context** | The property-report panel that surfaces DOM/price-drop/liquidity bands, income verification %, and a neutral, factual "Read" line (never a buy/pass recommendation) — the human-facing view of the market-signal confidence axis. |
