@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.1] — 2026-07-04
+
+### Fixed
+
+- **Cap rate was double-counted in the confidence path** (`scoring/scorer.py`). A flagged cap
+  rate previously reduced the score twice: once via its direct confidence haircut, and again
+  by proxy — `is_high_income_conf` required *both* verified income above threshold *and* an
+  unflagged cap rate, so a lone cap-rate flag forced income confidence to read "low" and opened
+  the DOM/Price Drop amplifier even when income itself was 100% verified. `is_high_income_conf`
+  now keys on verified income only. The amplifier's engage condition is now explicit and
+  config-driven: it fires when income confidence is genuinely low
+  (`low_income_conf_always_engages_amplifier`), or when at least `amplifier_engage_min_signals`
+  independent risk signals (e.g. flagged cap rate *and* thin market) are present together — a
+  lone cap-rate flag no longer opens it. Verified against the two reference properties: 40
+  Lindsay St S, Lindsay (100% verified income, 11.01% cap) rises from 82.1 to 96.5 now that its
+  clean income is no longer punished twice; 827 2nd Avenue E, Owen Sound (30.86% verified) still
+  engages the amplifier via its own low income confidence.
+- **High-cap-rate haircut was a binary cliff** (`analysis/metrics/income.py`,
+  `IncomeConfidenceMetrics`). A cap rate one basis point over `cap_rate_risk_threshold_pct` took
+  the full haircut; one basis point under took none, and every cap rate above the threshold took
+  the *same* haircut regardless of how far above it sat. Replaced with a graduated haircut: zero
+  at/below the threshold, growing linearly at `cap_rate_risk_slope` per point above it, capped at
+  `cap_rate_risk_max_haircut` so no cap rate — however extreme — can annihilate the score. Tuned
+  so an 11% cap rate continues to land close to the old fixed 0.97 factor (continuity), while
+  827 2nd Avenue E's 12.74% cap now takes a materially larger haircut (0.082) than 40 Lindsay St
+  S's 11.01% (0.030) — previously identical at 0.03. Confirmed smooth scaling at 9.9/10.1/11/
+  12.74/15/20% cap rates and that no property in the portfolio (522 scored) falls through the
+  score floor.
+- Replaces the removed `cap_rate_risk_confidence_factor` config key with
+  `cap_rate_risk_slope` / `cap_rate_risk_max_haircut`, and adds `amplifier_engage_min_signals` /
+  `low_income_conf_always_engages_amplifier`. All new values are config-driven, not hardcoded.
+  Structural rows (DSCR, cap rate, NOI, IRR) unchanged.
+
+---
+
 ## [3.6.0] — 2026-07-04
 
 ### Added

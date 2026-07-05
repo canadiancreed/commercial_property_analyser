@@ -88,7 +88,7 @@ class IncomeConfidenceMetrics:
     """
 
     def __init__(self, total_income: float, verified_income: float,
-                 imputed_lines: list, cap_rate_flagged: bool = False):
+                 imputed_lines: list, cap_rate: Optional[float] = None):
         cfg = load_underwriting_config()
         self.total_income   = total_income
         self.verified_income = verified_income
@@ -109,9 +109,19 @@ class IncomeConfidenceMetrics:
         # structural rows can't see (illiquidity, hidden vacancy/tenant risk). It
         # does not fail the deal — it feeds a small, bounded, config-driven
         # reduction into this same confidence axis rather than the graded rows.
-        self.cap_rate_flagged = cap_rate_flagged
-        if cap_rate_flagged:
-            multiplier *= cfg["cap_rate_risk_confidence_factor"]
+        # Graduated (not a binary cliff): scales linearly with how far the cap
+        # rate exceeds the risk threshold, then flattens at a bounded max so no
+        # single cap rate — however high — can annihilate the score.
+        threshold = cfg["cap_rate_risk_threshold_pct"]
+        self.cap_rate_flagged = cap_rate is not None and cap_rate > threshold
+        cap_rate_haircut = 0.0
+        if cap_rate is not None and cap_rate > threshold:
+            cap_rate_haircut = min(
+                cfg["cap_rate_risk_max_haircut"],
+                cfg["cap_rate_risk_slope"] * (cap_rate - threshold),
+            )
+        self.cap_rate_haircut = cap_rate_haircut
+        multiplier *= (1.0 - cap_rate_haircut)
         self.confidence_multiplier = max(floor, min(1.0, multiplier))
 
     def imputed_range(self) -> Optional[tuple]:
