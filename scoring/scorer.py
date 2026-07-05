@@ -60,27 +60,32 @@ def _liquidity_band(dist_km, demo: dict, cfg: dict) -> tuple:
 def _deal_context_read(dom_band: str, drop_band: str, liquidity_band: str,
                         is_high_income_conf: bool) -> str:
     """Neutral, factual synthesis of the market/listing signals — states what
-    the signals imply, never a buy/pass recommendation."""
-    dom_stale     = dom_band == "stale"
-    drop_notable  = drop_band in ("large", "severe")
+    the signals imply, never a buy/pass recommendation. Formal, single-sentence
+    summary; avoids terse "signal + signal" concatenation."""
+    dom_stale    = dom_band == "stale"
+    drop_notable = drop_band in ("large", "severe")
     if not (dom_stale or drop_notable):
-        return "No stale-listing or price-cut signal."
-    parts = []
-    if dom_stale:
-        parts.append("Stale listing")
-    if drop_notable:
-        parts.append(f"{drop_band} price cut")
-    signal_desc = " + ".join(parts)
-    clean_deal = is_high_income_conf and liquidity_band == "liquid"
-    if clean_deal:
-        return f"{signal_desc} on a clean, liquid deal — likely negotiating room."
-    caveats = []
+        return "No notable time-on-market or price-reduction signal."
+
+    if dom_stale and drop_notable:
+        signal_desc = "Extended time on market combined with a significant price reduction"
+    elif dom_stale:
+        signal_desc = "Extended time on market"
+    else:
+        signal_desc = f"A {drop_band} price reduction"
+
+    if is_high_income_conf and liquidity_band == "liquid":
+        return (f"{signal_desc} is consistent with a motivated seller in a liquid market; "
+                f"this may represent a genuine negotiating opportunity.")
+
+    reasons = []
     if not is_high_income_conf:
-        caveats.append("unverified/imputed income or elevated cap rate")
+        reasons.append("unverified or imputed income")
     if liquidity_band == "thin":
-        caveats.append("thin market")
-    caveat_desc = " and ".join(caveats) if caveats else "unverified fundamentals"
-    return f"{signal_desc} with {caveat_desc} — investigate why before treating it as a win."
+        reasons.append("limited market liquidity")
+    reason_desc = " and ".join(reasons) if reasons else "unverified underlying fundamentals"
+    return (f"{signal_desc} warrants further diligence given {reason_desc}; "
+            f"the discount should not be assumed favourable without verification.")
 
 
 class PropertyScorer:
