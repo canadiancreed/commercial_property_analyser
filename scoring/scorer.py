@@ -223,10 +223,13 @@ class PropertyScorer:
         verified_income_pct = p.get("verified_income_pct")
         cap_rate_risk_threshold = underwriting_cfg["cap_rate_risk_threshold_pct"]
         cap_rate_flagged = cap_rate > cap_rate_risk_threshold
+        # Income confidence is an INCOME-only axis — it must not be gated on cap
+        # rate. Cap-rate risk already gets its own direct, graduated haircut
+        # (see IncomeConfidenceMetrics); folding it in here would penalize it a
+        # second time by proxy, via the DOM/price-drop amplifier below.
         is_high_income_conf = (
             verified_income_pct is not None
             and verified_income_pct >= underwriting_cfg["market_signal_verified_income_threshold_pct"]
-            and not cap_rate_flagged
         )
         demographics = self.load_city_demographics()
         demo = demographics.get(city)
@@ -236,8 +239,19 @@ class PropertyScorer:
         dom_stale = dom_band == "stale"
         drop_triggered = drop_band in ("large", "severe")
 
+        # The market-signal amplifier only engages on genuine low confidence:
+        # either income itself is unverified/imputed below threshold, or at
+        # least `amplifier_engage_min_signals` independent risk signals stack
+        # up (e.g. high cap rate AND a thin market). A lone cap-rate flag by
+        # itself must not open the amplifier — that would double-count it.
+        risk_signal_count = int(cap_rate_flagged) + int(liquidity_band == "thin")
+        amplifier_should_engage = (
+            (underwriting_cfg["low_income_conf_always_engages_amplifier"] and not is_high_income_conf)
+            or risk_signal_count >= underwriting_cfg["amplifier_engage_min_signals"]
+        )
+
         market_signal_multiplier = 1.0
-        if (dom_stale or drop_triggered) and not (is_high_income_conf and liquidity_band == "liquid"):
+        if (dom_stale or drop_triggered) and amplifier_should_engage:
             factor = 1.0
             if dom_stale:
                 factor *= underwriting_cfg["dom_stale_confidence_factor"]

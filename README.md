@@ -162,7 +162,7 @@ Plain dataclasses with no business logic or I/O.
 
 | File | Purpose |
 |---|---|
-| `underwriting.json` | House underwriting assumptions, loaded and validated by `analysis/underwriting_config.py` (missing file/keys are a hard error, not a silent fallback). Every tunable risk constant lives here — nothing is hardcoded in the Python: `noi_growth_default`, `exit_cap_spread_bps`, `exit_cap_aging_bps_per_year`, `inflation_rate`, `stress_rate_bump` / `stress_min_dscr` (rate-shock stress test), `confidence_uncertainty_start` / `confidence_steepness` / `confidence_floor` (data-confidence multiplier shape), `cap_rate_risk_threshold_pct` / `cap_rate_risk_confidence_factor` (high-cap-rate flag), `dom_normal_days` / `dom_stale_days` / `drop_modest_pct` / `drop_large_pct` / `drop_severe_pct` (DOM/Price Drop bands), `market_signal_verified_income_threshold_pct` / `dom_stale_confidence_factor` / `price_drop_confidence_factor` / `joint_signal_confidence_factor` / `thin_market_confidence_factor` / `market_signal_confidence_floor` (market-signal confidence amplifier), `liquidity_distance_reference_km` / `liquidity_population_reference` / `liquidity_weight_distance` / `liquidity_weight_population` / `liquidity_weight_growth` / `liquidity_liquid_threshold` / `liquidity_thin_threshold` (market-liquidity proxy). |
+| `underwriting.json` | House underwriting assumptions, loaded and validated by `analysis/underwriting_config.py` (missing file/keys are a hard error, not a silent fallback). Every tunable risk constant lives here — nothing is hardcoded in the Python: `noi_growth_default`, `exit_cap_spread_bps`, `exit_cap_aging_bps_per_year`, `inflation_rate`, `stress_rate_bump` / `stress_min_dscr` (rate-shock stress test), `confidence_uncertainty_start` / `confidence_steepness` / `confidence_floor` (data-confidence multiplier shape), `cap_rate_risk_threshold_pct` / `cap_rate_risk_slope` / `cap_rate_risk_max_haircut` (graduated high-cap-rate haircut), `dom_normal_days` / `dom_stale_days` / `drop_modest_pct` / `drop_large_pct` / `drop_severe_pct` (DOM/Price Drop bands), `market_signal_verified_income_threshold_pct` / `dom_stale_confidence_factor` / `price_drop_confidence_factor` / `joint_signal_confidence_factor` / `thin_market_confidence_factor` / `market_signal_confidence_floor` / `amplifier_engage_min_signals` / `low_income_conf_always_engages_amplifier` (market-signal confidence amplifier), `liquidity_distance_reference_km` / `liquidity_population_reference` / `liquidity_weight_distance` / `liquidity_weight_population` / `liquidity_weight_growth` / `liquidity_liquid_threshold` / `liquidity_thin_threshold` (market-liquidity proxy). |
 
 ---
 
@@ -214,17 +214,24 @@ than collapsed into one opaque number:
 - **Pricing/cap-rate signal** — the **Cap Rate Risk Check** row (`income.py`): a cap rate above
   `cap_rate_risk_threshold_pct` (Canadian commercial prime trades ~5–7%) is flagged as a market
   signal of illiquidity/vacancy/value-erosion risk rather than read as pure upside. It's a soft
-  flag — it does not fail the deal — and feeds the same bounded confidence multiplier via
-  `cap_rate_risk_confidence_factor`.
+  flag — it does not fail the deal — and feeds the same bounded confidence multiplier via a
+  graduated (not cliff) haircut: 0 at/below the threshold, growing linearly at
+  `cap_rate_risk_slope` per point above it, capped at `cap_rate_risk_max_haircut` no matter how
+  high the cap rate goes.
 - **Market/listing signals** — DOM ("Market Staleness") and Price Drop % (`scoring/scorer.py`)
   carry no fixed sign: a long time-on-market or big price cut can mean opportunity (motivated
   seller) or warning (something's wrong), depending on the rest of the deal. Both are weighted
   **zero** in the raw score (`json/score_weights.json`) — they never move the score on their own.
-  Instead they **amplify** the existing confidence haircut above, and only when the deal *isn't*
-  already high-confidence (verified income, cap rate in range) **and** liquid (a config-weighted
-  proxy from distance-to-major-centre and city population/growth). A clean, liquid, fully-verified
-  deal with a stale, discounted listing scores exactly as it would without those signals; a
-  low-confidence or thin-market deal with the same signals gets a deeper, floor-bounded haircut.
+  Instead they **amplify** the existing confidence haircut above, but only when there's genuine
+  low confidence: income confidence (`is_high_income_conf`) is INCOME-only — verified income vs.
+  `market_signal_verified_income_threshold_pct` — and does not look at cap rate, since cap-rate
+  risk already gets its own direct haircut above and would otherwise be double-counted. The
+  amplifier engages when income confidence is low, or when at least
+  `amplifier_engage_min_signals` independent risk signals stack up together (e.g. a flagged cap
+  rate *and* a thin market) — a lone cap-rate flag on an otherwise clean, verified deal does not
+  open it. A clean, liquid, fully-verified deal with a stale, discounted listing scores exactly
+  as it would without those signals; a low-confidence or thin-market deal with the same signals
+  gets a deeper, floor-bounded haircut.
   Always surfaced as a neutral **Deal Context** panel (DOM/drop/liquidity bands, income
   verification %, and a factual — never a buy/pass — "Read" line) in the property report modal, so
   a human makes the final opportunity-vs-warning call.

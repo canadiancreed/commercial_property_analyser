@@ -175,7 +175,7 @@ class CommercialPropertyAnalyzer:
             imputed_total = sum(a for a, _ in imputed_lines)
             self.income_confidence = IncomeConfidenceMetrics(
                 annual_rent, annual_rent - imputed_total, imputed_lines,
-                cap_rate_flagged=self.income.cap_rate_flagged,
+                cap_rate=self.income.cap_rate,
             )
             self.exit     = ExitMetrics(prop, self.income.entry_cap, self.income.est_noi,
                                         self.mortgage.loan_balance,
