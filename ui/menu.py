@@ -6,6 +6,7 @@ from models.constants import PROP_SHORTCUTS, PROPERTY_TYPES, COMMERCIAL_TYPES_LO
 from data.store import DataStore
 from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
+from analysis.financing_config import load_financing_config
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
@@ -115,6 +116,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             print("  9  Import properties from CSV")
             print("  r  Re-analyze all properties")
             print("  s  Scoring formula & weights")
+            print("  f  Global financing defaults (down payment / rate / amortization / hold)")
             print("  0  Exit")
             print(self.DIVIDER)
 
@@ -139,6 +141,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             elif choice == "9": self._import_csv()
             elif choice == "r": self._reanalyze_all()
             elif choice == "s": self._edit_score_config()
+            elif choice == "f": self._edit_financing_defaults()
             elif choice == "0":
                 print("  Goodbye.\n")
                 break
@@ -279,11 +282,13 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         city, province = _parse_city_province(data.address)
         price          = data.asking_price or 0
         unit_mix       = UnitMix(floors=data.floors or 1)
+        fin            = load_financing_config()  # global financing defaults
         prop = PropertyInput(
             address=data.address, mls_number=data.mls_number, status="active",
             original_price=price, asking_price=price,
             total_sq_ft=data.total_sq_ft, property_taxes=data.property_taxes or 0,
-            down_payment_pct=0.20, interest_rate=0.045, term_years=25, hold_years=30,
+            down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
+            term_years=fin["term_years"], hold_years=fin["hold_years"],
             expense_ratio=None, lease_type="Normal", property_type=None,
             listing_date=data.listing_date or date.today().isoformat(),
             city=city, province=province, unit_mix=unit_mix,
@@ -344,25 +349,24 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             (16, "Residential rent / year",    "residential_rent", float, "optional"),
             (17, "Annual property taxes",      "property_taxes",   float, None),
             (18, "Construction cost",          "construction_cost",float, "optional"),
-            (19, "Down payment %",             "down_payment_pct", float, "pct"),
-            (20, "Interest rate %",            "interest_rate",    float, "pct"),
-            (21, "Loan term (years)",          "term_years",       int,   None),
-            (22, "Hold years",                 "hold_years",       int,   None),
-            (23, "Expense ratio %",            "expense_ratio",    float, "pct"),
-            (24, "Lease type (Normal/NNN)",    "lease_type",       str,   None),
-            (25, "Listing date (YYYY-MM-DD)", "listing_date",     str,   "date"),
-            (26, "Notes",                      "notes",            str,   "notes"),
-            (27, "Hotel rooms",                "hotel_rooms",      int,   "hotel"),
-            (28, "Hotel ADR ($/night)",        "hotel_adr",        float, "hotel"),
-            (29, "Hotel occupancy %",          "hotel_occupancy",  float, "hotel_pct"),
-            (30, "Industrial: warehouse sqft", "ind_warehouse_sqft", float, "optional"),
-            (31, "Industrial: office sqft",    "ind_office_sqft",    float, "optional"),
-            (32, "Industrial: yard sqft",      "ind_yard_sqft",      float, "optional"),
-            (33, "Industrial: dock doors",     "ind_dock_doors",     int,   "hotel"),
-            (34, "Industrial: drive-in doors", "ind_drive_in_doors", int,   "hotel"),
-            (35, "Industrial: clear height ft","ind_clear_height_ft",float, "optional"),
-            (36, "Industrial: office rate $/sqft","ind_office_rate", float, "optional"),
-            (37, "Industrial: yard rate $/sqft",  "ind_yard_rate",   float, "optional"),
+            # Down payment %, interest rate, amortization, and hold period are
+            # global settings (main menu 'f'), not per-property fields. Expense
+            # ratio is set globally by property type/lease (auto-derived), so it
+            # isn't editable per property either. None of them appear here.
+            (19, "Lease type (Normal/NNN)",    "lease_type",       str,   None),
+            (20, "Listing date (YYYY-MM-DD)", "listing_date",     str,   "date"),
+            (21, "Notes",                      "notes",            str,   "notes"),
+            (22, "Hotel rooms",                "hotel_rooms",      int,   "hotel"),
+            (23, "Hotel ADR ($/night)",        "hotel_adr",        float, "hotel"),
+            (24, "Hotel occupancy %",          "hotel_occupancy",  float, "hotel_pct"),
+            (25, "Industrial: warehouse sqft", "ind_warehouse_sqft", float, "optional"),
+            (26, "Industrial: office sqft",    "ind_office_sqft",    float, "optional"),
+            (27, "Industrial: yard sqft",      "ind_yard_sqft",      float, "optional"),
+            (28, "Industrial: dock doors",     "ind_dock_doors",     int,   "hotel"),
+            (29, "Industrial: drive-in doors", "ind_drive_in_doors", int,   "hotel"),
+            (30, "Industrial: clear height ft","ind_clear_height_ft",float, "optional"),
+            (31, "Industrial: office rate $/sqft","ind_office_rate", float, "optional"),
+            (32, "Industrial: yard rate $/sqft",  "ind_yard_rate",   float, "optional"),
         ]
 
         def current_display(key, special):
@@ -389,6 +393,14 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             created  = p.get("created_at",    p.get("listing_date", "—"))
             modified = p.get("last_modified", p.get("analyzed_on",  "—"))
             print(f"  Created: {created}   Last modified: {modified}")
+            _fin = load_financing_config()
+            print(f"  Financing (global): {_fin['down_payment_pct']*100:.0f}% down · "
+                  f"{_fin['interest_rate']*100:.2f}% · {_fin['term_years']}-yr amortization · "
+                  f"{_fin['hold_years']}-yr hold  (edit via main menu 'f')")
+            _er = p.get("expense_ratio")
+            _er_str = f"{_er*100:.0f}%" if isinstance(_er, (int, float)) else "auto"
+            print(f"  Expense ratio: {_er_str} — set globally by property type/lease "
+                  f"(change via type or lease, not per property)")
             print(self.THIN_DIVIDER)
             for num, label, key, _, special in FIELDS:
                 cur = current_display(key, special)
@@ -1107,10 +1119,17 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             except ValueError:
                 print("  Invalid number.")
         construction_cost  = ask("Construction cost (renos/build-out)", float, optional=True) or 0.0
-        down_payment_pct   = ask_pct("Down payment %", 20)
-        interest_rate      = ask_pct("Interest rate %", 4.5)
-        term_years         = ask("Loan term (years)", int, 25)
-        hold_years         = ask("Hold years", int, 30)
+        # Down payment, interest rate, amortization, and hold period are global
+        # settings — applied to every property, not entered per listing. Edit
+        # them via the main menu ('f'); shown here so it's clear what applies.
+        fin              = load_financing_config()
+        down_payment_pct = fin["down_payment_pct"]
+        interest_rate    = fin["interest_rate"]
+        term_years       = fin["term_years"]
+        hold_years       = fin["hold_years"]
+        print(f"  Financing (global): {down_payment_pct*100:.0f}% down · "
+              f"{interest_rate*100:.2f}% · {term_years}-yr amortization · "
+              f"{hold_years}-yr hold  (change via main menu 'f')")
         while True:
             _lt_raw = input("  Lease type (no=Normal / nn=NNN) [Normal]: ").strip().lower()
             if not _lt_raw:
@@ -1229,6 +1248,11 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             )
         else:
             unit_mix = UnitMix(floors=um_data.get("floors", p.get("floors", 1)))
+        # Down payment, interest rate, amortization, and hold period are global
+        # house-wide settings (config/financing.json), not per-property fields —
+        # so every re-analysis picks up the current global values. Any stale
+        # copies in the stored record are ignored here and refreshed on write.
+        fin = load_financing_config()
         return PropertyInput(
             address          = p["address"],
             mls_number       = p.get("mls_number", ""),
@@ -1237,10 +1261,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             asking_price     = p.get("asking_price", 0),
             total_sq_ft      = p.get("total_sq_ft", 0),
             property_taxes   = p.get("property_taxes", 0),
-            down_payment_pct = p.get("down_payment_pct", 0.20),
-            interest_rate    = p.get("interest_rate",    0.045),
-            term_years       = p.get("term_years",       25),
-            hold_years       = p.get("hold_years",       30),
+            down_payment_pct = fin["down_payment_pct"],
+            interest_rate    = fin["interest_rate"],
+            term_years       = fin["term_years"],
+            hold_years       = fin["hold_years"],
             expense_ratio    = p.get("expense_ratio",    None),
             lease_type       = p.get("lease_type",       "Normal"),
             construction_cost = p.get("construction_cost", 0) or 0,

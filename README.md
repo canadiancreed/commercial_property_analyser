@@ -316,13 +316,17 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
   9  Import properties from CSV
   r  Re-analyze all properties
   s  Scoring formula & weights
+  f  Global financing defaults (down payment / rate / amortization / hold)
   0  Exit
 ```
 
 ### Key Workflows
 
 **Adding your first property (option 3)**
-Enter the address (must include city and province, e.g. `123 Main St, Ottawa ON`), listing price, MLS number, property type, square footage, unit mix if residential, and financial assumptions (down payment %, interest rate, amortisation term, hold period, expense ratio). The analyser resolves rent from market data if available; otherwise it saves the property with partial results and prompts you to add rates via option 7 or 8.
+Enter the address (must include city and province, e.g. `123 Main St, Ottawa ON`), listing price, MLS number, property type, square footage, unit mix if residential, and the per-property numbers (taxes, construction cost, lease type). Down payment %, interest rate, amortisation term, and hold period are **global** — set once via option `f` and applied to every property — so they're not asked here; the current values are shown for reference. Expense ratio is set automatically from the property type and lease (research-backed defaults), so it isn't entered either. The analyser resolves rent from market data if available; otherwise it saves the property with partial results and prompts you to add rates via option 7 or 8.
+
+**Global financing defaults (option `f`)**
+Down payment %, interest rate, amortisation (loan term), and hold period are house-wide assumptions applied to every property rather than entered per listing — in practice they're identical across a portfolio. They live in `config/financing.json`; edit them here and the tool offers to re-analyse all properties so the change flows into every mortgage, cash-flow, and return figure. New properties (added via option 3, the realtor.ca URL importer, or CSV) inherit these values automatically. **Expense ratio is deliberately not one of these** — it's set globally *by property type and lease* (`models/constants.py`, e.g. NNN ≈ 8%, hotel ≈ 63%, multi-family ≈ 45%), so a single portfolio-wide number would be wrong. To change a property's expense ratio, change its type or lease; you can't (and don't need to) set it per listing.
 
 **Adding rent data (options 7 / 8)**
 Enter commercial rates in $/sqft/year, broken down by type (Office, Retail, Industrial, Mixed-Use). Enter residential rates in $/month by bedroom count (Bachelor through 4BR). After saving, every property in that city is automatically re-analysed with the new data.
