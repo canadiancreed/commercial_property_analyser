@@ -1,9 +1,106 @@
 """Config editor mixin — scoring weights, city distances, and demographics."""
 import os
 
+from analysis.financing_config import load_financing_config, save_financing_config
+
 
 class ConfigEditorMixin:
     """Mix-in providing score/city config editing methods for PropertyMenu."""
+
+    def _edit_financing_defaults(self):
+        """Edit the global financing defaults (down payment / rate / amortization).
+
+        These are house-wide settings applied to every property, not entered per
+        listing. Stored records keep a snapshot of the values used at their last
+        analysis, so a change here only moves the numbers once properties are
+        re-analyzed — which this method offers to do on exit.
+        """
+        changed = False
+        while True:
+            cfg = load_financing_config()
+            dp  = cfg["down_payment_pct"]
+            ir  = cfg["interest_rate"]
+            tm  = cfg["term_years"]
+            hy  = cfg["hold_years"]
+            print(f"\n{'GLOBAL FINANCING DEFAULTS':^75}")
+            print(self.DIVIDER)
+            print("  Applied to every property — not entered per listing.")
+            print("  Change a value, then re-analyze so stored results pick it up.")
+            print(self.DIVIDER)
+            print(f"  1  Down payment %       {dp * 100:>8.2f}%")
+            print(f"  2  Interest rate %      {ir * 100:>8.2f}%")
+            print(f"  3  Amortization (years) {tm:>8}")
+            print(f"  4  Hold period (years)  {hy:>8}")
+            print(self.DIVIDER)
+            print("  Note: expense ratio is set globally by property type/lease")
+            print("        (models/constants.py), not here — one number would be wrong.")
+            print(self.DIVIDER)
+            print("  0  Back")
+            print(self.DIVIDER)
+            choice = input("  Edit # (0 to finish): ").strip()
+            if choice == "0":
+                break
+            if choice == "1":
+                raw = input(f"  Down payment % (e.g. 20 or 0.20, currently {dp * 100:.2f}%, Enter to keep): ").strip()
+                if raw:
+                    try:
+                        v = float(raw)
+                        v = v / 100 if v > 1 else v
+                        if not (0 <= v < 1):
+                            print("  Invalid — must be ≥ 0 and < 100%.")
+                            continue
+                        save_financing_config(v, ir, tm, hy)
+                        changed = True
+                        print(f"  Saved — {v * 100:.2f}% down.")
+                    except ValueError:
+                        print("  Invalid number.")
+            elif choice == "2":
+                raw = input(f"  Interest rate % (e.g. 4.5, currently {ir * 100:.2f}%, Enter to keep): ").strip()
+                if raw:
+                    try:
+                        v = float(raw)
+                        v = v / 100 if v > 1 else v
+                        if v < 0:
+                            print("  Invalid — rate cannot be negative.")
+                            continue
+                        save_financing_config(dp, v, tm, hy)
+                        changed = True
+                        print(f"  Saved — {v * 100:.2f}% rate.")
+                    except ValueError:
+                        print("  Invalid number.")
+            elif choice == "3":
+                raw = input(f"  Amortization years (currently {tm}, Enter to keep): ").strip()
+                if raw:
+                    try:
+                        v = int(raw)
+                        if v <= 0:
+                            raise ValueError
+                        save_financing_config(dp, ir, v, hy)
+                        changed = True
+                        print(f"  Saved — {v}-year amortization.")
+                    except ValueError:
+                        print("  Invalid — enter a positive whole number of years.")
+            elif choice == "4":
+                raw = input(f"  Hold period years (currently {hy}, Enter to keep): ").strip()
+                if raw:
+                    try:
+                        v = int(raw)
+                        if v <= 0:
+                            raise ValueError
+                        save_financing_config(dp, ir, tm, v)
+                        changed = True
+                        print(f"  Saved — {v}-year hold period.")
+                    except ValueError:
+                        print("  Invalid — enter a positive whole number of years.")
+            else:
+                print("  Invalid choice.")
+
+        if changed:
+            apply = input("\n  Re-analyze all properties now to apply the new financing? (y/n): ").strip().lower()
+            if apply in ("y", "yes"):
+                self._reanalyze_all()
+            else:
+                print("  Not applied yet — run 'r' (re-analyze all) when ready.")
 
     def _edit_score_config(self):
         DESCRIPTIONS = {

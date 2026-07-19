@@ -5,6 +5,7 @@ from datetime import date
 
 from models.property_input import PropertyInput, UnitMix
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
+from analysis.financing_config import load_financing_config
 
 
 class CsvHandlerMixin:
@@ -84,12 +85,6 @@ class CsvHandlerMixin:
                 return float(v) if v else default
             except ValueError:
                 return default
-
-        def to_pct(row, key, default_pct):
-            v = to_float(row, key)
-            if v is None:
-                return default_pct / 100
-            return v / 100 if v > 1 else v
 
         PROVINCES = {"AB","BC","MB","NB","NL","NS","NT","NU","ON","PE","QC","SK","YT"}
         COMMERCIAL_TYPES = {"office", "retail", "industrial", "mixed-use", "retail-office", "hotel"}
@@ -175,10 +170,14 @@ class CsvHandlerMixin:
                 ind_office_rate     = to_float(row, "ind_office_rate")     or None
                 ind_yard_rate       = to_float(row, "ind_yard_rate")       or None
                 property_taxes   = to_float(row, "property_taxes", 0)
-                down_payment_pct = to_pct(row, "down_payment_pct", 20)
-                interest_rate    = to_pct(row, "interest_rate",    4.5)
-                term_years       = to_int(row, "term_years",  25)
-                hold_years       = to_int(row, "hold_years",  30)
+                # Down payment, rate, amortization, and hold period are global
+                # settings (config/financing.json), not per-row — any CSV columns
+                # for them are ignored so imports match the rest of the portfolio.
+                _fin             = load_financing_config()
+                down_payment_pct = _fin["down_payment_pct"]
+                interest_rate    = _fin["interest_rate"]
+                term_years       = _fin["term_years"]
+                hold_years       = _fin["hold_years"]
                 _er_raw = to_float(row, "expense_ratio")
                 expense_ratio = (_er_raw / 100 if _er_raw > 1 else _er_raw) if _er_raw is not None else None
                 lease_type_raw   = cell(row, "lease_type", "Normal").lower()

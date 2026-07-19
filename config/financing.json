@@ -1,0 +1,7 @@
+{
+  "_comment": "Global financing defaults applied to every property. Down payment, interest rate, amortization (loan term), and hold period are house-wide assumptions — set once here, not entered per listing (in practice they're identical across the portfolio). Change a value and re-analyze all properties (main menu 'f' offers to do this) to move every mortgage, cash-flow, and return figure. Nothing here is hardcoded in the Python. (Expense ratio is NOT here: it is set globally BY PROPERTY TYPE / lease via models/constants.py EXPENSE_RATIO_DEFAULTS, so a single number would be wrong.)",
+  "down_payment_pct": 0.20,
+  "interest_rate": 0.045,
+  "term_years": 25,
+  "hold_years": 30
+}

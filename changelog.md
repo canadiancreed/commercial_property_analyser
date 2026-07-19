@@ -6,6 +6,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.2] — 2026-07-19
+
+### Changed
+
+- **Down payment, interest rate, amortization, and hold period are now global settings**, not
+  per-property fields. In practice every property in the portfolio carried the identical values
+  (20% down / 4.5% / 25-yr amortization / 30-yr hold), so entering them on each add/edit was
+  redundant. They now live in one file, `config/financing.json`, loaded via
+  `analysis/financing_config.py` (same hard-fail-on-missing-key philosophy as `underwriting.json`).
+  - New main-menu option **`f` — Global financing defaults** edits the four values and offers to
+    re-analyze all properties so the change flows into every mortgage, cash-flow, and return
+    figure. (`ui/config_editor.py::_edit_financing_defaults`.)
+  - `_record_to_prop` now sources these four values from the global config, ignoring any stale
+    per-record copies — so a global change propagates to every property on the next re-analysis,
+    exactly like NOI growth and the other house assumptions. Stored records still keep a snapshot
+    of the values used at their last analysis (for display), refreshed on re-analysis.
+  - The Add (option 3), realtor.ca URL importer (`u`), and CSV import (option 9) paths no longer
+    prompt for these; they inherit the global values. The Add and Edit screens show the current
+    global financing for reference. The per-property Down payment / Interest rate / Loan term /
+    Hold years rows were removed from the Edit menu (remaining fields renumbered).
+  - No changes to `PropertyInput`, `MortgageCalculator`, or the returns math — the globalization
+    happens at the UI/record layer, so all existing analysis and scoring behaviour is unchanged.
+- **Expense ratio removed from the per-property Edit menu.** It is *not* a flat global (that
+  would be wrong: NNN ≈ 8%, hotel ≈ 63%, multi-family ≈ 45%). It is already set globally **by
+  property type and lease** via `models/constants.py::EXPENSE_RATIO_DEFAULTS`, so exposing it as a
+  per-listing editable field was misleading. It now always derives from type/lease (and still
+  re-derives automatically when a property's type or lease is changed). Existing stored values are
+  preserved until such a change; no property's expense ratio is silently altered by this release.
+
+---
+
 ## [3.6.1] — 2026-07-04
 
 ### Fixed
