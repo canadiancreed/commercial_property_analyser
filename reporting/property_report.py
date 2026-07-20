@@ -748,8 +748,9 @@ function openModal(p) {{
   const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${{addrEnc}}`;
 
   const SECTIONS = [
-    {{ label: "Mortgage & Financing", keys: ["Loan Amount","Down Payment","Construction Cost","Total Cash In","Monthly Payment","Annual Debt Svc","Max LTV","LTV Max Loan","DSCR Max Loan","Max Supportable Loan","Binding Constraint"] }},
+    {{ label: "Mortgage & Financing", keys: ["Loan Amount","Down Payment","Construction Cost","Total Cash In","Monthly Payment","Annual Debt Svc","Max LTV","LTV Max Loan","DSCR Max Loan","Max Supportable Loan","Binding Constraint","Refi Headroom"] }},
     {{ label: "Units & CMHC",         keys: ["Units","Price / Door","Avg Rent / Door","MLI Eligible","MLI Max Loan (Standard)","MLI Max Loan (Select)","MLI Amortization","MLI Note","MLI Small-Balance Flag"] }},
+    {{ label: "Components",           keys: ["Commercial Share of GPR","Commercial Majority","Commercial Lease Expiry"] }},
     {{ label: "Pricing",              keys: ["Price/Sq Ft (*","GRM","Tax Load","Price Drop %","Loan to Value"] }},
     {{ label: "Income",               keys: ["Gross Potential Rent","Vacancy Rate","Effective Gross Income","Expense Ratio","NOI","Cap Rate","Op Expense Ratio"] }},
     {{ label: "Exit",                 keys: ["Exit Cap Rate","Exit Cap Ratio","Exit Price"] }},

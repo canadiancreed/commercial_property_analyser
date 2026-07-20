@@ -6,6 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.5] — 2026-07-20
+
+_Based on 3.6.3 (per-type financing). 3.6.4 is reserved for the pending
+re-analyze error-logging patch, which merges independently._
+
+### Fixed
+
+- **Mixed-use NOI was materially overstated when a listing carried a net/NNN lease tag.**
+  The engine applied one lease-derived expense ratio building-wide, but under the Ontario RTA
+  (2006) residential maintenance obligations are non-waivable and can't be passed to residential
+  tenants — a net/NNN tag can only describe the *commercial* lease. Mixed-use now uses a
+  **per-component income/expense engine** (`analysis/metrics/income.py::MixedUseComponents`): the
+  commercial expense ratio is looked up by lease type (NNN → the NNN default; gross → the gross
+  commercial default) while the **residential component always uses the residential default,
+  regardless of the tag**. EGI, opex, NOI, cap, DSCR, cash flow, BEO, and all financing math derive
+  from the component rollups; Vacancy Rate and Expense Ratio now display the blended effective
+  values (the latter labeled "(blended)"). On the Bayside NNN regression this cut NOI from an
+  overstated $88,240.88 to $69,870.40 (~21%). Applies to property type `mixed_use` **only**; every
+  other type keeps its existing single-ratio behavior byte-for-byte.
+- **A net/NNN lease tag no longer collapses a pure residential property's expense ratio to the
+  ~0.08 NNN default** (`PropertyInput.__post_init__`) — same non-waivable-obligations principle;
+  residential/multi-family keep their residential default whatever the tag says.
+- **The card no longer prints internal config prose.** Config blocks that surface on a card now
+  carry a card-facing `display` key alongside internal `notes`; the renderer reads `display` only
+  and renders nothing when it's absent (never falls back to `notes`). Fixes the MLI small-balance
+  flag, which had been printing routing instructions and the internal `min_practical_loan` variable
+  name. New copy: "Loan under $1M — CMHC costs/timeline rarely pencil at this size; shown as
+  secondary option."
+
+### Added
+
+- **New mixed-use card fields** (`Components` section): `Commercial Share of GPR`, a
+  commercial-majority warning when that share exceeds `commercial_majority_threshold` (config,
+  default 0.50 — "lenders may classify and price this as commercial, not mixed-use"), and
+  `Commercial Lease Expiry` (a passthrough field, never fetched; renders "unknown ⚠" when absent,
+  since an unknown single-tenant term is itself a binary-vacancy signal).
+- **`Refi Headroom`** on the card for any DSCR-floor type whose **LTV** constraint binds:
+  `DSCR Max Loan − Max Supportable Loan` — the additional debt income supports at the current NOI.
+  Omitted when DSCR binds or there's no DSCR floor. Purely derived from existing fields.
+- **New config** (`config/screener_config.json`): `component_vacancy` (residential 0.04 /
+  commercial 0.125, mixed-use only), `mixed_use_commercial_gross_expense_ratio` (0.40), and
+  `commercial_majority_threshold` (0.50). A `commercial_lease_expiry` passthrough field on
+  `PropertyInput` / the record.
+
+### Changed
+
+- The single NOI Growth Assumption blends two regimes on mixed-use (guideline-capped residential
+  vs. contractual commercial escalations) — documented in-code as acceptable for a screener and
+  flagged for a future per-component growth pass. No card change.
 ## [3.6.4] — 2026-07-20
 
 ### Changed
