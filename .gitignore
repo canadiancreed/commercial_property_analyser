@@ -11,3 +11,4 @@ __pycache__/
 *.json.tmp
 properties - Copy.json
 properties copy_v1.json
+json/reanalyze_errors.log
