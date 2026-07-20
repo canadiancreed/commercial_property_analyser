@@ -10,6 +10,9 @@ from analysis.metrics.returns import ReturnMetrics, MarketMetrics
 from analysis.metrics.property_types import HotelMetrics, IndustrialMetrics
 from analysis.industrial_config import industrial_confidence
 from analysis.underwriting_config import load_underwriting_config
+from analysis.screener_config import load_screener_config
+from analysis.financing_config import resolve_financing
+from analysis.deal_financing import DealFinancing
 
 
 def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
@@ -153,6 +156,13 @@ class CommercialPropertyAnalyzer:
                         f"details entered (confidence: {self._income_confidence})."
                     ]
 
+        # Resolve the per-type financing block (down payment / rate / amort were
+        # already set on `prop` from this same block in _record_to_prop; here we
+        # keep the rich block — max_ltv, dscr_floor, fixed_expense_fraction, CMHC
+        # — for the additive DealFinancing rows and the break-even-occupancy split).
+        self._units     = prop.unit_mix.total_units if prop.unit_mix else 0
+        self._financing = resolve_financing(prop.asking_price, prop.property_type, self._units)
+
         self.mortgage = MortgageCalculator(
             prop.asking_price, prop.down_payment_pct,
             prop.interest_rate, prop.term_years, prop.hold_years,
@@ -173,8 +183,17 @@ class CommercialPropertyAnalyzer:
             self.income   = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate)
             imputed_lines = getattr(rent_resolver, "_imputed_lines", [])
             imputed_total = sum(a for a, _ in imputed_lines)
+            # Verified/estimated split counts advertised/in-place ([A]) dollars as
+            # verified; any market-rate placeholder ([M]) — a $/sqft or city-average
+            # unit rent — is estimated (Issue 5: fixes market placeholders reading
+            # as 100% verified). Falls back to the imputed-only measure if the
+            # resolver didn't record provenance.
+            advertised = getattr(rent_resolver, "_advertised_income", None)
+            verified_income = (min(advertised, annual_rent)
+                               if isinstance(advertised, (int, float))
+                               else annual_rent - imputed_total)
             self.income_confidence = IncomeConfidenceMetrics(
-                annual_rent, annual_rent - imputed_total, imputed_lines,
+                annual_rent, verified_income, imputed_lines,
                 cap_rate=self.income.cap_rate,
             )
             self.exit     = ExitMetrics(prop, self.income.entry_cap, self.income.est_noi,
@@ -185,6 +204,7 @@ class CommercialPropertyAnalyzer:
                 prop.construction_cost or 0
             )
             _underwriting = load_underwriting_config()
+            _screener     = load_screener_config()
             self.debt     = DebtMetrics(
                 self.income.est_noi, prop.expense_ratio,
                 self.mortgage.annual_mortgage, annual_rent,
@@ -194,6 +214,17 @@ class CommercialPropertyAnalyzer:
                 compounding=self.mortgage.compounding,
                 stress_rate_bump=_underwriting["stress_rate_bump"],
                 stress_min_dscr=_underwriting["stress_min_dscr"],
+                egi=self.income.egi,
+                total_operating_expenses=self.income.est_expenses,
+                fixed_expense_fraction=self._financing.get("fixed_expense_fraction"),
+                beo_display_cap=_screener["beo_display_cap"],
+                beo_warning_threshold=_screener["beo_warning_threshold"],
+            )
+            # Additive per-type financing analysis (loan ceilings + which binds,
+            # per-door economics, CMHC/MLI panel) — sourced from the resolved block.
+            self.deal_financing = DealFinancing(
+                self._financing, prop.asking_price, self.income.est_noi,
+                gpr=annual_rent, units=self._units, compounding=self.mortgage.compounding,
             )
             self.returns  = ReturnMetrics(prop, self.income.est_noi, self.mortgage.annual_mortgage,
                                           self.cashflow.cash_invested, self.exit.exit_price,
@@ -212,13 +243,14 @@ class CommercialPropertyAnalyzer:
             self.income_confidence = None
             self.hotel      = None
             self.industrial = None
+            self.deal_financing = None
             self._income_confidence = None
 
     def report(self) -> list:
         rows = []
-        for group in (self.mortgage, self.pricing, self.income, self.income_confidence,
-                      self.exit, self.cashflow, self.debt, self.returns, self.market, self.hotel,
-                      self.industrial):
+        for group in (self.mortgage, self.deal_financing, self.pricing, self.income,
+                      self.income_confidence, self.exit, self.cashflow, self.debt,
+                      self.returns, self.market, self.hotel, self.industrial):
             if group is not None:
                 rows.extend(group.rows())
         return rows

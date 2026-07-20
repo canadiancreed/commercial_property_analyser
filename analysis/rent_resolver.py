@@ -39,6 +39,14 @@ class RentResolver:
         # build that average, so the uncertainty is measured, not invented.
         self._verified_income: float = 0.0
         self._imputed_lines: list = []  # list of (amount, cov)
+        # Rent-line provenance (Issue 5): every dollar is either advertised/in-place
+        # from the listing ([A]) or a market-rate placeholder ([M]). This is a
+        # broader cut than _imputed_lines (which is only the sub-set carrying a
+        # measured spread): a $/sqft market rent or a city-average unit rent is a
+        # verified figure for confidence-multiplier purposes but is NOT advertised
+        # income, so the verified/estimated SPLIT must count it as estimated.
+        self._advertised_income: float = 0.0
+        self._estimated_income: float = 0.0
         # Industrial provenance (set only when an industrial market rate is used).
         self._industrial_base_rate: float | None = None
         self._industrial_size_band: str | None = None
@@ -62,15 +70,15 @@ class RentResolver:
             self._res_rent  = res
             self._verified_income = comm + res
             parts = []
-            if comm: parts.append(f"Commercial rent provided directly: ${comm:,.2f}/yr")
-            if res:  parts.append(f"Residential rent provided directly: ${res:,.2f}/yr")
-            return comm + res, parts or ["Rent provided directly"]
+            if comm: parts.append(self._tag(True, comm, f"Commercial rent provided directly: ${comm:,.2f}/yr"))
+            if res:  parts.append(self._tag(True, res,  f"Residential rent provided directly: ${res:,.2f}/yr"))
+            return comm + res, parts or [self._tag(True, comm + res, "Rent provided directly")]
 
         if prop.annual_rent is not None:
             self._comm_rent = prop.annual_rent
             self._res_rent  = 0.0
             self._verified_income = prop.annual_rent
-            return prop.annual_rent, ["Rent provided directly"]
+            return prop.annual_rent, [self._tag(True, prop.annual_rent, "Rent provided directly")]
 
         ptype           = (prop.property_type or "").strip().lower()
         has_commercial  = ptype in COMMERCIAL_TYPES_LOWER
@@ -83,15 +91,15 @@ class RentResolver:
                 self._comm_rent = prop.commercial_rent
                 self._res_rent  = 0.0
                 self._verified_income = prop.commercial_rent
-                return prop.commercial_rent, [f"Commercial rent provided directly: ${prop.commercial_rent:,.2f}/yr"]
+                return prop.commercial_rent, [self._tag(True, prop.commercial_rent,
+                    f"Commercial rent provided directly: ${prop.commercial_rent:,.2f}/yr")]
             rooms     = prop.hotel_rooms or 0
             adr       = prop.hotel_adr or 0.0
             occupancy = prop.hotel_occupancy or 0.0
             if rooms and adr and occupancy:
                 revenue   = rooms * adr * occupancy * 365
-                breakdown = [
-                    f"Hotel: {rooms} rooms × ${adr:.0f} ADR × {occupancy*100:.0f}% occ × 365 = ${revenue:,.0f}/yr"
-                ]
+                breakdown = [self._tag(True, revenue,
+                    f"Hotel: {rooms} rooms × ${adr:.0f} ADR × {occupancy*100:.0f}% occ × 365 = ${revenue:,.0f}/yr")]
                 self._comm_rent = revenue
                 self._res_rent  = 0.0
                 self._verified_income = revenue
@@ -100,7 +108,7 @@ class RentResolver:
                 self._comm_rent = prop.annual_rent
                 self._res_rent  = 0.0
                 self._verified_income = prop.annual_rent
-                return prop.annual_rent, ["Hotel revenue provided directly"]
+                return prop.annual_rent, [self._tag(True, prop.annual_rent, "Hotel revenue provided directly")]
             else:
                 raise ValueError(
                     "Hotel requires hotel_rooms, hotel_adr, and hotel_occupancy "
@@ -128,7 +136,8 @@ class RentResolver:
             floor_sq_ft = prop.total_sq_ft / mix.floors
             if comm_frozen:
                 comm_total = prop.commercial_rent
-                breakdown.append(f"Commercial rent provided directly: ${comm_total:,.2f}/yr")
+                breakdown.append(self._tag(True, comm_total,
+                    f"Commercial rent provided directly: ${comm_total:,.2f}/yr"))
             else:
                 comm_rate = self._commercial.get_rent_per_sqft(city, province, prop.property_type)
                 if comm_rate is None:
@@ -140,13 +149,13 @@ class RentResolver:
                     comm_total = comm_rate * floor_sq_ft
                     self._city_rent_per_sqft = comm_rate
                     self._comm_sq_ft = floor_sq_ft
-                    breakdown.append(
+                    breakdown.append(self._tag(False, comm_total,
                         f"Commercial (ground floor {floor_sq_ft:,.0f} sq ft "
-                        f"@ ${comm_rate}/sq ft): ${comm_total:,.2f}/yr"
-                    )
+                        f"@ ${comm_rate}/sq ft): ${comm_total:,.2f}/yr"))
             if res_frozen:
                 res_total = prop.residential_rent
-                breakdown.append(f"Residential rent provided directly: ${res_total:,.2f}/yr")
+                breakdown.append(self._tag(True, res_total,
+                    f"Residential rent provided directly: ${res_total:,.2f}/yr"))
             else:
                 res_total, res_lines = self._resolve_residential(city, province, mix)
                 breakdown.extend(res_lines)
@@ -154,7 +163,8 @@ class RentResolver:
         elif has_residential:
             if res_frozen:
                 res_total = prop.residential_rent
-                breakdown.append(f"Residential rent provided directly: ${res_total:,.2f}/yr")
+                breakdown.append(self._tag(True, res_total,
+                    f"Residential rent provided directly: ${res_total:,.2f}/yr"))
             else:
                 res_total, res_lines = self._resolve_residential(city, province, prop.unit_mix)
                 breakdown.extend(res_lines)
@@ -162,7 +172,8 @@ class RentResolver:
         elif ptype == "retail-office":
             if comm_frozen:
                 comm_total = prop.commercial_rent
-                breakdown.append(f"Commercial rent provided directly: ${comm_total:,.2f}/yr")
+                breakdown.append(self._tag(True, comm_total,
+                    f"Commercial rent provided directly: ${comm_total:,.2f}/yr"))
             else:
                 floors      = (prop.unit_mix.floors if prop.unit_mix else 1) or 1
                 floor_sq_ft = prop.total_sq_ft / floors
@@ -181,19 +192,18 @@ class RentResolver:
                 office_floors = floors - 1
                 office_total  = office_rate * floor_sq_ft * office_floors if office_floors > 0 else 0
                 comm_total    = ground_total + office_total
-                breakdown.append(
-                    f"Ground floor Retail ({floor_sq_ft:,.0f} sq ft @ ${retail_rate}/sq ft): ${ground_total:,.2f}/yr"
-                )
+                breakdown.append(self._tag(False, ground_total,
+                    f"Ground floor Retail ({floor_sq_ft:,.0f} sq ft @ ${retail_rate}/sq ft): ${ground_total:,.2f}/yr"))
                 if office_floors > 0:
-                    breakdown.append(
+                    breakdown.append(self._tag(False, office_total,
                         f"Upper {office_floors} floor{'s' if office_floors > 1 else ''} Office "
-                        f"({floor_sq_ft * office_floors:,.0f} sq ft @ ${office_rate}/sq ft): ${office_total:,.2f}/yr"
-                    )
+                        f"({floor_sq_ft * office_floors:,.0f} sq ft @ ${office_rate}/sq ft): ${office_total:,.2f}/yr"))
 
         else:
             if comm_frozen:
                 comm_total = prop.commercial_rent
-                breakdown.append(f"Commercial rent provided directly: ${comm_total:,.2f}/yr")
+                breakdown.append(self._tag(True, comm_total,
+                    f"Commercial rent provided directly: ${comm_total:,.2f}/yr"))
             else:
                 rate = self._commercial.get_rent_per_sqft(city, province, prop.property_type)
                 if rate is None:
@@ -218,20 +228,29 @@ class RentResolver:
                     self._city_rent_per_sqft          = effective
                     comm_total = effective * prop.total_sq_ft
                     note = " — multi-tenant signal, confidence lowered" if downgrade else ""
-                    breakdown.append(
+                    breakdown.append(self._tag(False, comm_total,
                         f"Industrial {band}: ${rate}/sq ft × {mult:.2f} = ${effective:.2f}/sq ft "
-                        f"× {prop.total_sq_ft:,.0f} sq ft{note}"
-                    )
+                        f"× {prop.total_sq_ft:,.0f} sq ft{note}"))
                 else:
                     self._city_rent_per_sqft = rate
-                    breakdown.append(f"{prop.property_type} @ ${rate}/sq ft × {prop.total_sq_ft:,.0f} sq ft")
                     comm_total = rate * prop.total_sq_ft
+                    breakdown.append(self._tag(False, comm_total,
+                        f"{prop.property_type} @ ${rate}/sq ft × {prop.total_sq_ft:,.0f} sq ft"))
 
         self._comm_rent = comm_total
         self._res_rent  = res_total
         imputed_total = sum(amount for amount, _ in self._imputed_lines)
         self._verified_income = comm_total + res_total - imputed_total
         return comm_total + res_total, breakdown
+
+    def _tag(self, advertised: bool, amount: float, line: str) -> str:
+        """Prefix a rent-detail line with its provenance tag and accumulate the
+        dollars into the advertised ([A]) or estimated ([M]) bucket."""
+        if advertised:
+            self._advertised_income += amount
+        else:
+            self._estimated_income += amount
+        return f"{'[A]' if advertised else '[M]'} {line}"
 
     def _log_missing(self, city, province, missing_type, property_types=None):
         if self._store:
@@ -248,9 +267,8 @@ class RentResolver:
                 if override is not None:
                     annual = override * count * 12
                     total += annual
-                    lines.append(
-                        f"{self.UNIT_LABELS[unit_key]} × {count} @ ${override:,.0f}/mo (specified): ${annual:,.2f}/yr"
-                    )
+                    lines.append(self._tag(True, annual,
+                        f"{self.UNIT_LABELS[unit_key]} × {count} @ ${override:,.0f}/mo (specified): ${annual:,.2f}/yr"))
                 else:
                     lines.append(
                         f"{self.UNIT_LABELS[unit_key]} × {count} — ⚠ no rate for {city} (skipped)"
@@ -300,7 +318,9 @@ class RentResolver:
             total  += annual
             if imputed:
                 self._imputed_lines.append((annual, rate_cov))
-            lines.append(
-                f"{self.UNIT_LABELS[unit_key]} × {count} @ ${monthly:,.0f}/mo ({source}): ${annual:,.2f}/yr"
-            )
+            # Advertised only when the owner specified the rent; a city market
+            # rate (whether a known bedroom type or an imputed average) is [M].
+            advertised = (source == "specified")
+            lines.append(self._tag(advertised, annual,
+                f"{self.UNIT_LABELS[unit_key]} × {count} @ ${monthly:,.0f}/mo ({source}): ${annual:,.2f}/yr"))
         return total, lines
