@@ -1,7 +1,104 @@
 {
-  "_comment": "Global financing defaults applied to every property. Down payment, interest rate, amortization (loan term), and hold period are house-wide assumptions — set once here, not entered per listing (in practice they're identical across the portfolio). Change a value and re-analyze all properties (main menu 'f' offers to do this) to move every mortgage, cash-flow, and return figure. Nothing here is hardcoded in the Python. (Expense ratio is NOT here: it is set globally BY PROPERTY TYPE / lease via models/constants.py EXPENSE_RATIO_DEFAULTS, so a single number would be wrong.)",
-  "down_payment_pct": 0.20,
-  "interest_rate": 0.045,
-  "term_years": 25,
-  "hold_years": 30
+  "_comment": "Global financing assumptions. TWO LAYERS: 'defaults' holds the house-wide down payment / interest rate / amortization / hold period (edited via main menu 'f'); 'property_types' optionally overrides down payment (via max_ltv), rate (band midpoint), and amortization (amort_years) PER PROPERTY TYPE — the same logic PR #55 applied to expense ratio (one number would be wrong across asset classes). Resolution = a per-type block shallow-merged over defaults (analysis/financing_config.py get_financing). hold_years lives in 'defaults' ONLY — never per type. A missing/empty 'property_types' map reproduces pre-per-type behavior exactly (defaults apply to everything). Nothing here is hardcoded in the Python. Change a value and re-analyze (menu 'f' offers to) to move every mortgage / cash-flow / return figure.",
+  "defaults": {
+    "down_payment_pct": 0.2,
+    "interest_rate": 0.045,
+    "term_years": 25,
+    "hold_years": 30
+  },
+  "stress_test_bump": 0.02,
+  "verified_date": "2026-07",
+  "property_types": {
+    "multi_family_1_4": {
+      "max_ltv": 0.8,
+      "rate_low": 0.045,
+      "rate_high": 0.055,
+      "amort_years": 30,
+      "dscr_floor": null,
+      "fixed_expense_fraction": 0.65,
+      "cmhc_eligible": false,
+      "notes": "Residential mortgage rules; qualified on borrower income with rental offsets"
+    },
+    "multi_family_5plus": {
+      "max_ltv": 0.75,
+      "rate_low": 0.05,
+      "rate_high": 0.065,
+      "amort_years": 25,
+      "dscr_floor": 1.2,
+      "fixed_expense_fraction": 0.65,
+      "cmhc_eligible": true,
+      "cmhc": {
+        "mli_select": {
+          "max_ltv": 0.95,
+          "rate_low": 0.0425,
+          "rate_high": 0.0525,
+          "amort_years": 50,
+          "dscr_floor": 1.1
+        },
+        "mli_standard": {
+          "max_ltv": 0.85,
+          "rate_low": 0.045,
+          "rate_high": 0.0525,
+          "amort_years": 40,
+          "dscr_floor": 1.3
+        },
+        "min_practical_loan": 1000000,
+        "notes": "Below min_practical_loan, CMHC fixed costs and processing time rarely pencil; use conventional settings and flag CMHC as a secondary option"
+      },
+      "notes": "Conventional/credit-union commercial multifamily"
+    },
+    "mixed_use": {
+      "max_ltv": 0.75,
+      "rate_low": 0.055,
+      "rate_high": 0.0675,
+      "amort_years": 25,
+      "dscr_floor": 1.25,
+      "fixed_expense_fraction": 0.55,
+      "cmhc_eligible": false,
+      "notes": "No CMHC access. 20-30% down typical."
+    },
+    "office": {
+      "max_ltv": 0.65,
+      "rate_low": 0.06,
+      "rate_high": 0.07,
+      "amort_years": 20,
+      "dscr_floor": 1.3,
+      "fixed_expense_fraction": 0.35,
+      "cmhc_eligible": false,
+      "notes": "Tightest lender appetite; short amortizations"
+    },
+    "retail": {
+      "max_ltv": 0.7,
+      "rate_low": 0.0575,
+      "rate_high": 0.0675,
+      "amort_years": 25,
+      "dscr_floor": 1.25,
+      "fixed_expense_fraction": 0.35,
+      "cmhc_eligible": false,
+      "notes": ""
+    },
+    "industrial": {
+      "max_ltv": 0.75,
+      "rate_low": 0.055,
+      "rate_high": 0.065,
+      "amort_years": 25,
+      "dscr_floor": 1.25,
+      "fixed_expense_fraction": 0.4,
+      "cmhc_eligible": false,
+      "notes": "Strongest conventional commercial class"
+    },
+    "hotel": {
+      "max_ltv": 0.6,
+      "rate_low": 0.07,
+      "rate_high": 0.085,
+      "amort_years": 20,
+      "dscr_floor": 1.4,
+      "fixed_expense_fraction": 0.5,
+      "cmhc_eligible": false,
+      "notes": "Specialized lenders; underwritten on operations, not rent roll"
+    },
+    "retail_office": {
+      "alias": "office"
+    }
+  }
 }

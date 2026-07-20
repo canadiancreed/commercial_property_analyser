@@ -75,9 +75,12 @@ class TestDebtMetrics:
 
     def test_break_even_point(self):
         m = DebtMetrics(36_000, 0.40, 24_000, 60_000)
-        # BEO = mortgage / (gross_rent * (1 - expense_ratio)) * 100
-        #     = 24000 / (60000 * 0.60) * 100 = 66.67%
-        assert m.break_even_point == pytest.approx(66.67, rel=0.01)
+        # Fixed/variable break-even occupancy (default f=0.65, GPR=EGI=60000,
+        # total_opex = 60000*0.40 = 24000):
+        #   FE    = 0.65 * 24000 = 15600
+        #   v_exp = (0.35 * 24000) / 60000 = 0.14
+        #   BEO   = (24000 + 15600) / (60000 * (1 - 0.14)) = 39600 / 51600 = 76.74%
+        assert m.break_even_point == pytest.approx(76.74, rel=0.01)
 
     def test_stressed_dscr_pass(self):
         # NOI=50k well above stressed payment on a small mortgage → PASS
@@ -204,8 +207,10 @@ class TestBreakEvenOccupancyGrade:
     """
     Inputs chosen so be_ratio (GOOD) and break_even_point (POOR) diverge:
       be_ratio         = (mortgage / noi) × 100  = 50/100k × 100 = 50   → GOOD  (< 75)
-      break_even_point = mortgage / (rent × (1 − expense_ratio)) × 100
-                       = 50k / (100k × 0.50) × 100 = 100%               → POOR  (> 85)
+      break_even_point = fixed/variable BEO (default f=0.65, GPR=EGI=100k,
+                         total_opex = 100k×0.50 = 50k):
+                         FE=32500, v_exp=(0.35·50k)/100k=0.175,
+                         BEO=(50k+32500)/(100k·0.825)=82500/82500=100% → POOR (> 85)
     """
 
     @staticmethod
@@ -237,5 +242,6 @@ class TestBreakEvenOccupancyGrade:
             val = float(rows["Break-Even NOI %"].value.replace("%", ""))
             assert val == pytest.approx(m.be_ratio, rel=1e-2)
         if "Break-Even Occupancy %" in rows:
-            val = float(rows["Break-Even Occupancy %"].value.replace("%", ""))
+            # Value may carry a trailing " ⚠" warning marker when BEO > 85%.
+            val = float(rows["Break-Even Occupancy %"].value.split("%")[0])
             assert val == pytest.approx(m.break_even_point, rel=1e-2)

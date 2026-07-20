@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.3] — 2026-07-19
+
+### Added
+
+- **Per-property-type financing** — the same logic [3.6.2] applied to make financing global now
+  refines it by asset class, because one down-payment / rate / amortization across office, hotel,
+  and multifamily would be as wrong as one expense ratio. `config/financing.json` gains a second
+  layer: `defaults` (the four house-wide scalars, unchanged, still edited via menu `f`) plus an
+  optional `property_types` map. `analysis/financing_config.py::get_financing(property_type, units,
+  loan_estimate)` shallow-merges the resolved type block over `defaults`, deriving down payment from
+  `max_ltv`, interest rate from the `rate_low`/`rate_high` midpoint, and amortization from
+  `amort_years`. `hold_years` stays house-wide. **All routing lives in this module**: the
+  `retail_office → office` alias, the multi-family 1-4/5+ split by unit count, and the
+  multi_family_5plus small-balance decision (below `min_practical_loan`, conventional is primary and
+  CMHC is flagged secondary; at or above it, CMHC MLI Select is primary). An absent/empty
+  `property_types` map reproduces pre-per-type behavior exactly (asserted by a regression test).
+- **Financing analysis on the card** (new `analysis/deal_financing.py`, additive alongside the
+  type-agnostic `MortgageCalculator`): LTV-constrained and DSCR-constrained loan ceilings, which one
+  binds (`Binding Constraint: LTV | DSCR | n/a (GDS/TDS)`), per-door economics (`Units`,
+  `Price / Door`, `Avg Rent / Door`), and a CMHC / MLI Select panel for 5+ unit multifamily
+  (eligibility, 85%/95% LTV loan sizes, up-to-50-yr amortization, small-balance flag). Rendered in
+  new **Mortgage & Financing** and **Units & CMHC** sections of the report modal.
+- **Rent-line provenance tags** — every rent-detail line now carries `[A]` (advertised/in-place
+  from the listing) or `[M]` (market-rate placeholder). Any `[M]` dollars count as *estimated* in
+  the Income verified/estimated split, fixing the bug where a `$/sqft` or city-average rent could
+  display as 100% verified.
+- **Price-drop-velocity read** — the Deal Context "Read" now fires a motivated-seller signal on a
+  fast cut (≥10% off at ≤60 days on market, regardless of staleness) and reads monthly seller bleed
+  to distinguish circumstantial motivation (low carrying-cost pressure) from financial distress. It
+  fires independently of, and alongside, the existing staleness read.
+- **`config/screener_config.json`** (loaded via `analysis/screener_config.py`, hard-fail on missing
+  key) holds all new thresholds: break-even-occupancy display cap / 85% warning, and the
+  price-drop-velocity trigger (10% / 60 days / $1,000 monthly bleed).
+
+### Changed
+
+- **Break-even occupancy** now uses a fixed/variable expense split
+  (`fixed_expense_fraction` per type): `BEO = (ADS + f·opex) / (GPR · (1 − ((1−f)·opex / EGI)))`,
+  capped at 100% with a `⚠` marker above 85%. The old formula assumed *all* expenses scale with
+  occupancy, understating break-even. (`analysis/metrics/cash_flow.py::DebtMetrics`; the two BEO
+  unit tests were rebaselined to the new formula.)
+- Financing resolution is per-type at a single layer (`_record_to_prop` and `_prompt_property`);
+  `PropertyInput`, `MortgageCalculator`, and the returns math are untouched — they still receive
+  resolved scalars, so the calculator never learns property types exist. Scoring weights and
+  formulas are unchanged; score *outputs* shift where financing inputs shifted (per-type LTV/rate
+  and the corrected verified-income split).
+
 ## [3.6.2] — 2026-07-19
 
 ### Changed

@@ -3,6 +3,9 @@ import os
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from analysis.underwriting_config import load_underwriting_config
+from analysis.screener_config import load_screener_config
+
+METRIC_SELLER_BLEED = "Seller Bleed"
 
 SCORE_CONFIG_PATH = "json/score_weights.json"
 CITY_DISTANCES_PATH  = "json/city_distances.json"
@@ -57,15 +60,39 @@ def _liquidity_band(dist_km, demo: dict, cfg: dict) -> tuple:
     return band, thinness
 
 
-def _deal_context_read(dom_band: str, drop_band: str, liquidity_band: str,
-                        is_high_income_conf: bool) -> str:
-    """Neutral, factual synthesis of the market/listing signals — states what
-    the signals imply, never a buy/pass recommendation. Formal, single-sentence
-    summary; avoids terse "signal + signal" concatenation."""
+def price_drop_velocity(price_drop_pct: float, dom_days: float):
+    """% reduction per day on market. None when there's no elapsed time to divide by."""
+    return (price_drop_pct / dom_days) if dom_days and dom_days > 0 else None
+
+
+def _motivated_seller_read(price_drop_pct: float, dom_days: float,
+                           monthly_bleed, cfg: dict):
+    """Fast-price-cut read — fires when a large reduction lands early in the
+    listing (regardless of staleness), then reads the seller's carrying-cost
+    pressure to distinguish circumstantial motivation from financial distress."""
+    if cfg is None or dom_days is None or dom_days <= 0:
+        return None
+    if not (price_drop_pct >= cfg["motivated_price_drop_pct"]
+            and dom_days <= cfg["motivated_max_dom_days"]):
+        return None
+    if monthly_bleed is not None and monthly_bleed < cfg["low_monthly_bleed_threshold"]:
+        return ("Large fast price reduction with minimal carrying-cost pressure "
+                "suggests circumstantial motivation (estate/retirement/relocation); "
+                "aggressive offers may be entertained.")
+    return ("Large fast price reduction alongside significant monthly carrying costs "
+            "points to financial pressure on the seller; the discount likely reflects "
+            "urgency to exit and is more defensible in negotiation.")
+
+
+def _staleness_read(dom_band: str, drop_band: str, liquidity_band: str,
+                    is_high_income_conf: bool):
+    """Neutral, factual synthesis of the time-on-market / large-discount signals —
+    states what they imply, never a buy/pass recommendation. Returns None when
+    neither a stale listing nor a notable (large/severe) reduction is present."""
     dom_stale    = dom_band == "stale"
     drop_notable = drop_band in ("large", "severe")
     if not (dom_stale or drop_notable):
-        return "No notable time-on-market or price-reduction signal."
+        return None
 
     if dom_stale and drop_notable:
         signal_desc = "Extended time on market combined with a significant price reduction"
@@ -86,6 +113,22 @@ def _deal_context_read(dom_band: str, drop_band: str, liquidity_band: str,
     reason_desc = " and ".join(reasons) if reasons else "unverified underlying fundamentals"
     return (f"{signal_desc} warrants further diligence given {reason_desc}; "
             f"the discount should not be assumed favourable without verification.")
+
+
+def _deal_context_read(dom_band: str, drop_band: str, liquidity_band: str,
+                       is_high_income_conf: bool, price_drop_pct: float = 0.0,
+                       dom_days: float = 0.0, monthly_bleed=None,
+                       screener_cfg: dict = None) -> str:
+    """Combined Deal Context read. The fast-price-cut (velocity) trigger and the
+    staleness/large-discount trigger are independent — both can fire, and their
+    sentences are concatenated. Falls back to a neutral no-signal line."""
+    reads = [
+        r for r in (
+            _motivated_seller_read(price_drop_pct, dom_days, monthly_bleed, screener_cfg),
+            _staleness_read(dom_band, drop_band, liquidity_band, is_high_income_conf),
+        ) if r
+    ]
+    return " ".join(reads) if reads else "No notable time-on-market or price-reduction signal."
 
 
 class PropertyScorer:
@@ -270,7 +313,17 @@ class PropertyScorer:
                 * market_signal_multiplier
             adjusted_score = round(score * combined_multiplier, 1)
 
-        deal_context_read = _deal_context_read(dom_band, drop_band, liquidity_band, is_high_income_conf)
+        # Monthly seller bleed = the per-month carrying cost of the vacant share,
+        # recovered from the stored cumulative "Seller Bleed" (which spans the full
+        # DOM) so the Read can gauge financial pressure. None when DOM is 0.
+        seller_bleed_total = val(METRIC_SELLER_BLEED, 0.0)
+        monthly_bleed = (seller_bleed_total * 30.0 / dom) if dom > 0 else None
+        screener_cfg = load_screener_config()
+        deal_context_read = _deal_context_read(
+            dom_band, drop_band, liquidity_band, is_high_income_conf,
+            price_drop_pct=price_drop, dom_days=dom, monthly_bleed=monthly_bleed,
+            screener_cfg=screener_cfg,
+        )
 
         return {
             "score":       adjusted_score,

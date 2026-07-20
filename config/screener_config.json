@@ -1,0 +1,8 @@
+{
+  "_comment": "Deal-screener thresholds. Every tunable introduced by the deal-screener upgrades lives here, never hardcoded in Python (analysis/screener_config.py loads it, hard-fail on missing key like the other config loaders). Break-even-occupancy display/warn are used by DebtMetrics; the price-drop-velocity + seller-bleed triggers by the Deal Context 'Read' (scoring/scorer.py).",
+  "beo_display_cap": 1.0,
+  "beo_warning_threshold": 0.85,
+  "motivated_price_drop_pct": 10.0,
+  "motivated_max_dom_days": 60,
+  "low_monthly_bleed_threshold": 1000.0
+}

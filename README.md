@@ -29,8 +29,10 @@ commercial_property_analyser_v2/
 ├── .coveragerc                # Coverage source/omit/threshold rules
 ├── requirements.txt           # numpy-financial (runtime), pytest, pytest-cov
 │
-├── config/                    # House underwriting assumptions (editable, no code changes needed)
-│   └── underwriting.json      # NOI growth default, exit cap spread/aging bps, inflation rate
+├── config/                    # House assumptions (editable, no code changes needed)
+│   ├── underwriting.json      # NOI growth default, exit cap spread/aging bps, inflation rate
+│   ├── financing.json         # Two-layer: defaults + per-type property_types (down/rate/amort)
+│   └── screener_config.json   # Break-even-occupancy + price-drop-velocity thresholds
 │
 ├── models/                    # Plain data containers (no logic)
 │   ├── property_input.py      # PropertyInput, UnitMix dataclasses
@@ -39,20 +41,23 @@ commercial_property_analyser_v2/
 ├── data/                      # JSON persistence layer
 │   └── store.py               # DataStore, CommercialRentLoader, ResidentialRentLoader
 │
-├── config/                    # House underwriting assumptions (editable, no code changes needed)
-│   └── underwriting.json      # NOI growth, exit-cap spread, stress test, data-confidence shape
+├── config/                    # House assumptions (editable, no code changes needed)
+│   ├── underwriting.json      # NOI growth, exit-cap spread, stress test, data-confidence shape
+│   ├── financing.json         # Two-layer: defaults (down/rate/amort/hold) + per-type property_types
+│   └── screener_config.json   # Break-even-occupancy + price-drop-velocity thresholds
 │
 ├── analysis/                  # Core financial analysis engine
 │   ├── analyzer.py            # CommercialPropertyAnalyzer — orchestrates all metric groups
-│   ├── mortgage.py            # MortgageCalculator, DaysOnMarketCalculator
-│   ├── rent_resolver.py       # RentResolver — derives annual rent from inputs or market data;
-│   │                          #   flags residential lines priced at a city-wide average as imputed
+│   ├── mortgage.py            # MortgageCalculator (type-agnostic), DaysOnMarketCalculator
+│   ├── financing_config.py    # get_financing/resolve_financing — per-type resolution + all routing
+│   ├── deal_financing.py      # DealFinancing — loan ceilings, binding constraint, MLI panel, per-door
+│   ├── rent_resolver.py       # RentResolver — derives annual rent; tags each line [A] advertised / [M] market
 │   ├── underwriting_config.py # load_underwriting_config() — loader/validator for config/underwriting.json
-│   ├                          # Loads config/underwriting.json (NOI growth, exit cap spread, inflation)
+│   ├── screener_config.py     # load_screener_config() — loader/validator for config/screener_config.json
 │   └── metrics/               # Individual metric calculators
 │       ├── income.py          # NOI, Cap Rate, Gross/Effective Rent, GRM, Cap Rate Risk Check,
-│       │                      #   IncomeConfidenceMetrics (verified vs. imputed income, confidence multiplier)
-│       ├── cash_flow.py       # Annual Cash Flow, CoCR, Cash Invested, DSCR, rate-shock Stress Test
+│       │                      #   IncomeConfidenceMetrics (verified vs. estimated income, confidence multiplier)
+│       ├── cash_flow.py       # Annual Cash Flow, CoCR, DSCR, Stress Test, fixed/variable Break-Even Occupancy
 │       ├── returns.py         # IRR, Equity Multiple, CELOC
 │       ├── pricing.py         # Price/sqft, Price Drop %, Loan-to-Value
 │       ├── property_types.py  # HotelMetrics (RevPAR, ADR, GOP), IndustrialMetrics
@@ -136,6 +141,8 @@ commercial_property_analyser_v2/
 | File | Purpose |
 |---|---|
 | `underwriting.json` | House underwriting assumptions, loaded by `analysis/underwriting_config.py`: `noi_growth_default` (flat annual NOI growth applied to every property unless a property has a manual `noi_growth_rate` override), `exit_cap_spread_bps` / `exit_cap_aging_bps_per_year` (feed `ExitCapEstimator`), and `inflation_rate` (bands the NOI Growth Assumption grade). Missing file/keys raise `UnderwritingConfigError` rather than falling back to a hardcoded literal — change a value here and every property's returns move on the next analysis, no code edit required. |
+| `financing.json` | Global financing assumptions, loaded by `analysis/financing_config.py`. **Two layers:** `defaults` (the four house-wide scalars — `down_payment_pct`, `interest_rate`, `term_years`, `hold_years` — edited via main menu `f`) plus an optional `property_types` map that refines down payment (`max_ltv`), rate (`rate_low`/`rate_high` midpoint), amortization (`amort_years`), DSCR floor, and fixed-expense fraction **per asset class** (office, retail, industrial, mixed-use, hotel, multi_family_1_4, multi_family_5plus, and the `retail_office → office` alias). `hold_years` is house-wide only. `multi_family_5plus` carries a `cmhc` block (MLI Select / Standard) with a `min_practical_loan` routing threshold. Missing `defaults` keys are a hard error; a missing/empty `property_types` map reproduces pre-per-type behavior exactly. |
+| `screener_config.json` | Deal-screener thresholds, loaded by `analysis/screener_config.py` (hard-fail on missing key): `beo_display_cap` / `beo_warning_threshold` (break-even occupancy cap + warning), and `motivated_price_drop_pct` / `motivated_max_dom_days` / `low_monthly_bleed_threshold` (the price-drop-velocity Deal Context read). |
 
 ---
 
@@ -170,10 +177,13 @@ Plain dataclasses with no business logic or I/O.
 
 | File | Purpose |
 |---|---|
-| `analyzer.py` | **`CommercialPropertyAnalyzer`** — the central analysis orchestrator. Takes a `PropertyInput` and a `RentResolver`, resolves rent, constructs all metric groups, and exposes `report()` (list of `ReportRow`) and `to_record()` (dict ready for `DataStore`). `_resolve_noi_growth` picks a property's manual `noi_growth_rate` override if set, else the flat `noi_growth_default` house assumption from `config/underwriting.json` — no per-city rate; `json/city_demographics.json` population growth is not used here (only by `scoring/`). |
-| `mortgage.py` | **`MortgageCalculator`** — monthly payment, annual payment, down payment, loan balance, and outstanding principal at end of hold period. Compounding is province-aware: every Canadian jurisdiction (all 10 provinces + 3 territories, matched by 2-letter code **or** spelled-out name, e.g. "Ontario"/"Québec") uses semi-annual compounding per the Interest Act s. 6; anything else falls back to monthly. **`DaysOnMarketCalculator`** — days between the listing date and today. |
-| `rent_resolver.py` | **`RentResolver`** — determines effective annual rent in priority order: explicit `annual_rent` on the property → market commercial rates × sqft → market residential rates × unit mix. Logs cities with missing market data to `DataStore` for follow-up. |
+| `analyzer.py` | **`CommercialPropertyAnalyzer`** — the central analysis orchestrator. Takes a `PropertyInput` and a `RentResolver`, resolves rent, constructs all metric groups (including the additive `DealFinancing` rows), and exposes `report()` (list of `ReportRow`) and `to_record()` (dict ready for `DataStore`). `_resolve_noi_growth` picks a property's manual `noi_growth_rate` override if set, else the flat `noi_growth_default` house assumption from `config/underwriting.json` — no per-city rate; `json/city_demographics.json` population growth is not used here (only by `scoring/`). |
+| `mortgage.py` | **`MortgageCalculator`** — monthly payment, annual payment, down payment, loan balance, and outstanding principal at end of hold period. Compounding is province-aware: every Canadian jurisdiction (all 10 provinces + 3 territories, matched by 2-letter code **or** spelled-out name, e.g. "Ontario"/"Québec") uses semi-annual compounding per the Interest Act s. 6; anything else falls back to monthly. **`DaysOnMarketCalculator`** — days between the listing date and today. This module is deliberately **type-agnostic** — it receives resolved scalars and never learns property types exist. |
+| `financing_config.py` | Loads/validates `config/financing.json` (two-layer). **`get_financing(property_type, units, loan_estimate)`** / **`resolve_financing(price, …)`** merge the resolved per-type block over `defaults` and derive the four scalars the pipeline consumes. **All financing routing lives here and nowhere else:** the `retail_office → office` alias, the multi-family 1-4/5+ split by unit count, and the `multi_family_5plus` small-balance decision (below `min_practical_loan` → conventional primary + CMHC flagged secondary; at/above → CMHC MLI Select primary). `load_financing_config()` still returns the `defaults` block (backward-compatible); `save_financing_config()` (menu `f`) rewrites `defaults` while preserving the `property_types` map. |
+| `deal_financing.py` | **`DealFinancing`** — the additive per-type financing rows, sitting alongside `MortgageCalculator`: LTV- and DSCR-constrained loan ceilings, which one binds (`Binding Constraint`), per-door economics (`Units`, `Price / Door`, `Avg Rent / Door`), and the CMHC / MLI Select panel for 5+ unit multifamily. `loan_from_payment()` inverts the semi-annual payment formula to size the DSCR-constrained loan at the qualifying rate (`contract + stress_test_bump`). |
+| `rent_resolver.py` | **`RentResolver`** — determines effective annual rent in priority order: explicit `annual_rent` on the property → market commercial rates × sqft → market residential rates × unit mix. Every rent-detail line is tagged `[A]` (advertised/in-place from the listing) or `[M]` (market-rate placeholder); `[M]` dollars count as *estimated* in the Income verified/estimated split. Logs cities with missing market data to `DataStore` for follow-up. |
 | `underwriting_config.py` | Loads and caches `config/underwriting.json`. Hard-fails (`UnderwritingConfigError`) if the file or a required key (`noi_growth_default`, `exit_cap_spread_bps`, `inflation_rate`) is missing, rather than silently falling back to a hardcoded default. |
+| `screener_config.py` | Loads and caches `config/screener_config.json`. Hard-fails (`ScreenerConfigError`) on a missing file/key — same philosophy as the other config loaders. |
 
 #### `analysis/metrics/`
 
@@ -182,7 +192,8 @@ Each module exposes a class whose `rows()` method returns a list of `ReportRow` 
 | File | Metrics Produced |
 |---|---|
 | `income.py` | Gross Rent, Effective Gross Income, Estimated Expenses, NOI, Entry Cap Rate, Estimated Exit NOI, GRM, Cap Rate Risk Check (flags cap rates well above the regional norm), Income Verification / Confidence Multiplier (data-confidence axis — verified vs. imputed income share) |
-| `cash_flow.py` | Annual Cash Flow, Cash-on-Cash Return (CoCR), Cash Invested, DSCR, Stress Test (DSCR re-priced at `interest_rate + stress_rate_bump`, graded PASS/FAIL against `stress_min_dscr`) |
+| `cash_flow.py` | Annual Cash Flow, Cash-on-Cash Return (CoCR), Cash Invested, DSCR, Stress Test (DSCR re-priced at `interest_rate + stress_rate_bump`, graded PASS/FAIL against `stress_min_dscr`), Break-Even NOI / NOI %, and **Break-Even Occupancy** — a fixed/variable expense split using the property type's `fixed_expense_fraction`: `BEO = (ADS + f·opex) / (GPR · (1 − ((1−f)·opex / EGI)))`, capped at 100% with a `⚠` marker above the `beo_warning_threshold`. |
+| `deal_financing.py` (in `analysis/`) | Max LTV, LTV Max Loan, DSCR Max Loan (@ qualifying rate), Max Supportable Loan, Binding Constraint (`LTV` / `DSCR` / `n/a (GDS/TDS)`); for multifamily: Units, Price / Door, Avg Rent / Door, and the CMHC / MLI Select panel (eligibility, 85%/95% LTV loan sizes, up-to-50-yr amortization, small-balance flag). |
 | `returns.py` | IRR (`numpy_financial.irr`), Equity Multiple, CELOC Speed Score and Seller Bleed (informational listing-economics rows — not inputs to the property score), Market Staleness (DOM) |
 | `pricing.py` | Price/Sq Ft (labeled with its scope — e.g. "Ground Floor" when the mixed-use commercial component is priced separately from the whole building), Original Price, Price Drop %, Loan-to-Value |
 | `property_types.py` | **Hotel**: Rooms, ADR, Occupancy %, RevPAR, CPOR, Annual Revenue, GOP grade. **Industrial**: Warehouse/office/yard sqft, dock & drive-in door counts, clear height, blended rate, estimated annual rent. |
@@ -206,11 +217,13 @@ than collapsed into one opaque number:
   (`cash_flow.py`): the mortgage payment re-priced at `interest_rate + stress_rate_bump` (default
   +2 percentage points, config-driven), graded PASS/FAIL against `stress_min_dscr`.
 - **Data confidence** — `IncomeConfidenceMetrics` (`income.py`): how much of a property's income
-  is stated in the listing versus imputed from a city-wide bedroom-type average (the "Unknown"
-  unit-type bucket is the imputed signal). Imputed lines carry the coefficient of variation of the
-  *same* city rent sample used to build the average — no invented risk premium. Feeds a small,
-  bounded `confidence_multiplier` onto the overall property score only; DSCR/cap rate/NOI/IRR are
-  never touched.
+  is advertised/in-place versus a market-rate estimate. Every rent line is tagged `[A]`
+  (advertised) or `[M]` (market placeholder) in `rent_resolver.py`; the **verified/estimated split**
+  counts all `[M]` dollars as estimated — a `$/sqft` or city-average unit rent no longer displays as
+  "100% verified". A narrower subset (imputed lines from the "Unknown" unit-type bucket) additionally
+  carries the coefficient of variation of the *same* city rent sample used to build the average — no
+  invented risk premium — and feeds a small, bounded `confidence_multiplier` onto the overall
+  property score only; DSCR/cap rate/NOI/IRR are never touched.
 - **Pricing/cap-rate signal** — the **Cap Rate Risk Check** row (`income.py`): a cap rate above
   `cap_rate_risk_threshold_pct` (Canadian commercial prime trades ~5–7%) is flagged as a market
   signal of illiquidity/vacancy/value-erosion risk rather than read as pure upside. It's a soft
@@ -234,9 +247,15 @@ than collapsed into one opaque number:
   gets a deeper, floor-bounded haircut.
   Always surfaced as a neutral **Deal Context** panel (DOM/drop/liquidity bands, income
   verification %, and a factual — never a buy/pass — "Read" line) in the property report modal, so
-  a human makes the final opportunity-vs-warning call.
+  a human makes the final opportunity-vs-warning call. The "Read" also carries a **price-drop-velocity**
+  trigger (`config/screener_config.json`): a fast cut (≥ `motivated_price_drop_pct` off at ≤
+  `motivated_max_dom_days`, regardless of staleness) fires a motivated-seller read, and the monthly
+  seller bleed distinguishes *circumstantial* motivation (carrying cost below
+  `low_monthly_bleed_threshold` — estate/retirement/relocation) from *financial pressure*. It fires
+  independently of, and alongside, the existing staleness read.
 
-All thresholds/weights/shapes for these axes live in `config/underwriting.json`.
+Most thresholds/weights/shapes for these axes live in `config/underwriting.json`; the
+price-drop-velocity and break-even-occupancy thresholds live in `config/screener_config.json`.
 
 ---
 
@@ -323,10 +342,10 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
 ### Key Workflows
 
 **Adding your first property (option 3)**
-Enter the address (must include city and province, e.g. `123 Main St, Ottawa ON`), listing price, MLS number, property type, square footage, unit mix if residential, and the per-property numbers (taxes, construction cost, lease type). Down payment %, interest rate, amortisation term, and hold period are **global** — set once via option `f` and applied to every property — so they're not asked here; the current values are shown for reference. Expense ratio is set automatically from the property type and lease (research-backed defaults), so it isn't entered either. The analyser resolves rent from market data if available; otherwise it saves the property with partial results and prompts you to add rates via option 7 or 8.
+Enter the address (must include city and province, e.g. `123 Main St, Ottawa ON`), listing price, MLS number, property type, square footage, unit mix if residential, and the per-property numbers (taxes, construction cost, lease type). Down payment %, interest rate, and amortisation term resolve **automatically from the financing config by property type** (and unit count, for the multi-family 1-4/5+ split); hold period is house-wide. None of them are asked or shown here — they're not per-listing fields. Expense ratio is likewise set automatically from the property type and lease (research-backed defaults). The analyser resolves rent from market data if available; otherwise it saves the property with partial results and prompts you to add rates via option 7 or 8.
 
 **Global financing defaults (option `f`)**
-Down payment %, interest rate, amortisation (loan term), and hold period are house-wide assumptions applied to every property rather than entered per listing — in practice they're identical across a portfolio. They live in `config/financing.json`; edit them here and the tool offers to re-analyse all properties so the change flows into every mortgage, cash-flow, and return figure. New properties (added via option 3, the realtor.ca URL importer, or CSV) inherit these values automatically. **Expense ratio is deliberately not one of these** — it's set globally *by property type and lease* (`models/constants.py`, e.g. NNN ≈ 8%, hotel ≈ 63%, multi-family ≈ 45%), so a single portfolio-wide number would be wrong. To change a property's expense ratio, change its type or lease; you can't (and don't need to) set it per listing.
+Down payment %, interest rate, amortisation (loan term), and hold period live in `config/financing.json`. That file has **two layers**: a `defaults` block (the four house-wide scalars — what option `f` edits) and an optional `property_types` map that refines down payment / rate / amortization / DSCR floor / fixed-expense fraction **per asset class** (the same reasoning that keeps expense ratio per-type — one office-and-hotel-and-multifamily number would be wrong). At analysis time the tool resolves the per-type block, merges it over `defaults`, and derives each property's scalars; `hold_years` is always house-wide. All routing (the `retail_office → office` alias, the multi-family 1-4/5+ split, and the `multi_family_5plus` conventional-vs-CMHC-MLI decision) lives in `analysis/financing_config.py`. Option `f` edits the `defaults` layer only and offers to re-analyse all properties so the change flows into every mortgage, cash-flow, and return figure; the `property_types` blocks are edited in the JSON directly (per-type menu editing is out of scope for now). **Expense ratio is not one of these** — it's set *by property type and lease* (`models/constants.py`, e.g. NNN ≈ 8%, hotel ≈ 63%, multi-family ≈ 45%). To change either a property's financing or its expense ratio, change its type/lease; you can't (and don't need to) set them per listing.
 
 **Adding rent data (options 7 / 8)**
 Enter commercial rates in $/sqft/year, broken down by type (Office, Retail, Industrial, Mixed-Use). Enter residential rates in $/month by bedroom count (Bachelor through 4BR). After saving, every property in that city is automatically re-analysed with the new data.
@@ -413,7 +432,12 @@ Coverage is enforced at 90% minimum by `.coveragerc`. The current suite achieves
 | **Price Drop** | (Original Price − Asking Price) ÷ Original Price. Carries no fixed sign — weighted zero in the raw score. A large/severe cut (config: `drop_large_pct` / `drop_severe_pct`) instead amplifies the confidence multiplier, but only when the deal isn't already high-confidence and liquid — see "Market/listing signals" above and the Deal Context panel. |
 | **DOM** | Days on Market — from listing date to today. Carries no fixed sign — weighted zero in the raw score. A stale listing (config: `dom_stale_days`) instead amplifies the confidence multiplier under the same condition as Price Drop above. |
 | **Stress Test** | DSCR recomputed with the mortgage re-priced at `interest_rate + stress_rate_bump` (config, default +2 pp). PASS/FAIL against `stress_min_dscr` (config, default 1.20). A structural/debt-risk check — independent of the confidence rows below. |
-| **Income Verification** | % of a property's income stated in the listing ("verified") vs. imputed from a city-wide bedroom-type average rent ("estimated"). Informational — does not alter DSCR, NOI, cap rate, or IRR. |
+| **Break-Even Occupancy** | The occupancy at which income exactly covers fixed costs plus debt service, using a fixed/variable expense split: `(ADS + f·opex) ÷ (GPR · (1 − ((1−f)·opex ÷ EGI)))`, where `f` is the property type's `fixed_expense_fraction`. Displayed value is capped at 100% and carries a `⚠` marker above `beo_warning_threshold` (config, default 0.85). |
+| **Binding Constraint** | Which ceiling limits the loan: `LTV` (price × `max_ltv`) or `DSCR` (the largest loan whose stressed debt service at the qualifying rate — `contract + stress_test_bump` — holds DSCR at `dscr_floor`). Shows `n/a (GDS/TDS)` for 1-4 unit residential, which qualifies on borrower income rather than a DSCR floor. |
+| **Max Supportable Loan** | `min(LTV-constrained loan, DSCR-constrained loan)` — the largest loan the property can actually carry, and the figure the Binding Constraint names. |
+| **Price / Door · Avg Rent / Door** | Multi-family per-unit economics: Price ÷ Units, and monthly GPR ÷ Units. |
+| **MLI Select panel** | For 5+ unit multifamily (`multi_family_5plus`): CMHC MLI eligibility, max loan at 85% (Standard) and 95% (Select) LTV, up-to-50-yr amortization, and a small-balance flag when the loan is below `min_practical_loan` (where CMHC fixed costs rarely pencil and conventional is the primary scenario). |
+| **Income Verification** | % of a property's income that is advertised/in-place from the listing (`[A]`, "verified") vs. a market-rate estimate (`[M]`, "estimated"). A `$/sqft` or city-average unit rent is `[M]` and counts as estimated. Informational — does not alter DSCR, NOI, cap rate, or IRR. |
 | **Confidence Multiplier** | A small, bounded multiplier (config-shaped, floor `confidence_floor`) applied to the **overall property score only**, driven by measured income uncertainty (coefficient of variation of the same rent sample used for imputed lines) and, if flagged, the high-cap-rate signal below. 1.0× = fully verified income. |
 | **Cap Rate Risk Check** | Flags when Cap Rate exceeds `cap_rate_risk_threshold_pct` (config, default 10%) — a market signal of illiquidity/vacancy/value-erosion risk that a high cap rate alone doesn't otherwise surface. Soft flag; does not fail the deal. |
 | **Market Signal Multiplier** | The DOM/Price-Drop confidence amplifier described above (config: `dom_stale_confidence_factor` / `price_drop_confidence_factor` / `joint_signal_confidence_factor` / `thin_market_confidence_factor`, floor `market_signal_confidence_floor`). 1.0× when the signals don't trigger, or when they do but the deal is already high-confidence and liquid. |
