@@ -43,7 +43,8 @@
           "dscr_floor": 1.3
         },
         "min_practical_loan": 1000000,
-        "notes": "Below min_practical_loan, CMHC fixed costs and processing time rarely pencil; use conventional settings and flag CMHC as a secondary option"
+        "notes": "Below min_practical_loan, CMHC fixed costs and processing time rarely pencil; use conventional settings and flag CMHC as a secondary option",
+        "display": "Loan under $1M — CMHC costs/timeline rarely pencil at this size; shown as secondary option."
       },
       "notes": "Conventional/credit-union commercial multifamily"
     },

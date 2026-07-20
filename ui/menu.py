@@ -1266,6 +1266,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             hold_years       = fin["hold_years"],
             expense_ratio    = p.get("expense_ratio",    None),
             lease_type       = p.get("lease_type",       "Normal"),
+            commercial_lease_expiry = p.get("commercial_lease_expiry"),
             construction_cost = p.get("construction_cost", 0) or 0,
             listing_date     = p.get("listing_date",     date.today().isoformat()),
             commercial_rent  = p.get("commercial_rent") or None,

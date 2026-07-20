@@ -16,16 +16,27 @@ INCOME_METRIC_NAMES: frozenset = frozenset({
 class IncomeMetrics:
 
     def __init__(self, prop, annual_rent: float, rent_breakdown: list,
-                 vacancy_rate: float = None):
+                 vacancy_rate: float = None, rollup=None):
         self.annual_rent    = annual_rent
         self.rent_breakdown = rent_breakdown
-        self.vacancy_rate   = vacancy_rate if vacancy_rate is not None else (prop.vacancy_rate or 0.0)
-        self.egi            = annual_rent * (1 - self.vacancy_rate)  # Effective Gross Income
-        self.est_expenses   = self.egi * prop.expense_ratio
-        self.est_noi        = self.egi - self.est_expenses
+        # ``rollup`` (a MixedUseComponents) replaces the single building-wide
+        # vacancy/expense-ratio path with a per-component computation — EGI, opex,
+        # and NOI are already blended in it. Only mixed_use passes one; every other
+        # property type keeps the exact original single-ratio behavior.
+        self._rollup = rollup
+        if rollup is not None:
+            self.vacancy_rate = rollup.blended_vacancy
+            self.egi          = rollup.egi
+            self.est_expenses = rollup.total_opex
+            self.est_noi      = rollup.noi
+        else:
+            self.vacancy_rate = vacancy_rate if vacancy_rate is not None else (prop.vacancy_rate or 0.0)
+            self.egi          = annual_rent * (1 - self.vacancy_rate)  # Effective Gross Income
+            self.est_expenses = self.egi * prop.expense_ratio
+            self.est_noi      = self.egi - self.est_expenses
         self._cost_basis    = prop.asking_price + (prop.construction_cost or 0)
         self.cap_rate       = (self.est_noi / self._cost_basis) * 100
-        self.oer_ratio      = (self.est_expenses / self.egi) * 100
+        self.oer_ratio      = (self.est_expenses / self.egi) * 100 if self.egi else 0.0
         self.entry_cap      = self.est_noi / self._cost_basis
         self._prop          = prop
         self._cap_rate_risk_threshold = load_underwriting_config()["cap_rate_risk_threshold_pct"]
@@ -58,7 +69,10 @@ class IncomeMetrics:
             *([] if (self._prop.property_type or "").strip().lower() == "hotel" else
               [ReportRow("Vacancy Rate", f"{self.vacancy_rate * 100:.1f}%", "INFO")]),
             ReportRow("Effective Gross Income", f"${self.egi:,.2f}",      "INFO"),
-            ReportRow("Expense Ratio",    f"{p.expense_ratio * 100}%",   self._expense_grade()),
+            (ReportRow("Expense Ratio",
+                       f"{self._rollup.blended_expense_ratio * 100:.2f}% (blended)", "INFO")
+             if self._rollup is not None else
+             ReportRow("Expense Ratio", f"{p.expense_ratio * 100}%", self._expense_grade())),
             ReportRow("NOI",              f"${self.est_noi:,.2f}",
                       Grader.grade(self.entry_cap, 0.07, 0.05)),
             ReportRow("Cap Rate",         f"{self.cap_rate:.2f}%",
@@ -72,6 +86,63 @@ class IncomeMetrics:
             ),
             ReportRow("Op Expense Ratio", f"{self.oer_ratio:.2f}%",      self._oer_grade()),
         ]
+        return rows
+
+
+class MixedUseComponents:
+    """Per-component income/expense engine for mixed_use ONLY.
+
+    A single building-wide expense ratio overstates NOI whenever a mixed-use
+    listing carries a net/NNN lease tag: under the Ontario RTA (2006) residential
+    maintenance obligations are non-waivable and costs cannot be passed to
+    residential tenants, so a net/NNN tag can only describe the COMMERCIAL lease.
+    This splits the rollup by component and applies the lease tag to the
+    commercial expense-ratio lookup alone; the residential component always uses
+    the residential default, no matter the tag. That guard is the point of the
+    class. EGI / opex / NOI here become the figures the rest of the card derives
+    from (cap, DSCR, cash flow, BEO, financing) — unchanged downstream.
+    """
+
+    def __init__(self, comm_gpr: float, res_gpr: float, lease_type: str, *,
+                 comm_vacancy: float, res_vacancy: float,
+                 comm_gross_ratio: float, comm_nnn_ratio: float, res_ratio: float,
+                 majority_threshold: float, commercial_lease_expiry: Optional[str] = None):
+        self.comm_gpr = comm_gpr or 0.0
+        self.res_gpr  = res_gpr or 0.0
+        self.gpr      = self.comm_gpr + self.res_gpr
+
+        self.comm_egi = self.comm_gpr * (1 - comm_vacancy)
+        self.res_egi  = self.res_gpr * (1 - res_vacancy)
+        self.egi      = self.comm_egi + self.res_egi
+
+        self._is_nnn    = (lease_type or "").strip().upper() == "NNN"
+        self.comm_ratio = comm_nnn_ratio if self._is_nnn else comm_gross_ratio
+        self.res_ratio  = res_ratio                       # ALWAYS residential default
+        self.comm_opex  = self.comm_egi * self.comm_ratio
+        self.res_opex   = self.res_egi * self.res_ratio
+        self.total_opex = self.comm_opex + self.res_opex
+        self.noi        = self.egi - self.total_opex
+
+        self.blended_vacancy       = (1 - self.egi / self.gpr) if self.gpr else 0.0
+        self.blended_expense_ratio = (self.total_opex / self.egi) if self.egi else 0.0
+        self.commercial_share      = (self.comm_gpr / self.gpr) if self.gpr else 0.0
+        self._majority_threshold   = majority_threshold
+        self.commercial_majority   = self.commercial_share > majority_threshold
+        self._lease_expiry         = commercial_lease_expiry
+
+    def rows(self) -> list:
+        rows = [ReportRow("Commercial Share of GPR", f"{self.commercial_share * 100:.2f}%", "INFO")]
+        if self.commercial_majority:
+            rows.append(ReportRow(
+                "Commercial Majority",
+                "Commercial-majority income — lenders may classify and price this as "
+                "commercial, not mixed-use.",
+                "CAUTION",
+            ))
+        if self._lease_expiry:
+            rows.append(ReportRow("Commercial Lease Expiry", str(self._lease_expiry), "INFO"))
+        else:
+            rows.append(ReportRow("Commercial Lease Expiry", "unknown ⚠", "CAUTION"))
         return rows
 
 

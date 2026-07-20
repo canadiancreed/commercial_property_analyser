@@ -1,8 +1,11 @@
 {
-  "_comment": "Deal-screener thresholds. Every tunable introduced by the deal-screener upgrades lives here, never hardcoded in Python (analysis/screener_config.py loads it, hard-fail on missing key like the other config loaders). Break-even-occupancy display/warn are used by DebtMetrics; the price-drop-velocity + seller-bleed triggers by the Deal Context 'Read' (scoring/scorer.py).",
+  "_comment": "Deal-screener thresholds. Every tunable introduced by the deal-screener upgrades lives here, never hardcoded in Python (analysis/screener_config.py loads it, hard-fail on missing key like the other config loaders). Break-even-occupancy display/warn are used by DebtMetrics; the price-drop-velocity + seller-bleed triggers by the Deal Context 'Read' (scoring/scorer.py). The mixed_use_* / component_vacancy / commercial_majority_threshold keys drive the mixed-use per-component income engine (analysis/metrics/income.py MixedUseComponents) and apply to property type mixed_use ONLY.",
   "beo_display_cap": 1.0,
   "beo_warning_threshold": 0.85,
   "motivated_price_drop_pct": 10.0,
   "motivated_max_dom_days": 60,
-  "low_monthly_bleed_threshold": 1000.0
+  "low_monthly_bleed_threshold": 1000.0,
+  "component_vacancy": { "residential": 0.04, "commercial": 0.125 },
+  "mixed_use_commercial_gross_expense_ratio": 0.40,
+  "commercial_majority_threshold": 0.50
 }

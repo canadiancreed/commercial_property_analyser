@@ -1,10 +1,12 @@
 from datetime import date
 from models.property_input import PropertyInput
-from models.constants import VACANCY_RATE_DEFAULTS
+from models.constants import VACANCY_RATE_DEFAULTS, EXPENSE_RATIO_DEFAULTS
 from analysis.mortgage import MortgageCalculator, DaysOnMarketCalculator
 from analysis.rent_resolver import RentResolver
 from analysis.metrics.pricing import PricingMetrics
-from analysis.metrics.income import IncomeMetrics, ExitMetrics, IncomeConfidenceMetrics
+from analysis.metrics.income import (
+    IncomeMetrics, ExitMetrics, IncomeConfidenceMetrics, MixedUseComponents,
+)
 from analysis.metrics.cash_flow import CashFlowMetrics, DebtMetrics
 from analysis.metrics.returns import ReturnMetrics, MarketMetrics
 from analysis.metrics.property_types import HotelMetrics, IndustrialMetrics
@@ -47,6 +49,7 @@ def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
         "hold_years":       prop.hold_years,
         "expense_ratio":    prop.expense_ratio,
         "lease_type":       prop.lease_type,
+        "commercial_lease_expiry": prop.commercial_lease_expiry,
         "construction_cost": prop.construction_cost or 0,
         "annual_rent":      prop.annual_rent,
         "commercial_rent":      prop.commercial_rent or 0.0,
@@ -178,9 +181,33 @@ class CommercialPropertyAnalyzer:
         if annual_rent and annual_rent > 0:
             self._has_rent = True
             noi_growth_rate, noi_growth_source = _resolve_noi_growth(prop)
+            # NOTE: the single NOI Growth Assumption blends two regimes on
+            # mixed_use — Ontario residential rent increases are guideline-capped
+            # (~2.5%/yr for covered units) while commercial escalations are
+            # contractual. Acceptable for a screener; flagged here for a future
+            # per-component growth pass.
             self._noi_growth_rate = noi_growth_rate
-            vacancy_rate = _resolve_vacancy_rate(prop)
-            self.income   = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate)
+            # Mixed-use uses a per-component income/expense engine (see
+            # MixedUseComponents); every other type keeps the single-ratio path.
+            is_mixed_use = (prop.property_type or "").strip().lower() in ("mixed-use", "mixed_use")
+            self.mixed_use = None
+            if is_mixed_use:
+                _sc = load_screener_config()
+                self.mixed_use = MixedUseComponents(
+                    self._comm_rent or 0.0, self._res_rent or 0.0, prop.lease_type,
+                    comm_vacancy=_sc["component_vacancy"]["commercial"],
+                    res_vacancy=_sc["component_vacancy"]["residential"],
+                    comm_gross_ratio=_sc["mixed_use_commercial_gross_expense_ratio"],
+                    comm_nnn_ratio=EXPENSE_RATIO_DEFAULTS["nnn"],
+                    res_ratio=EXPENSE_RATIO_DEFAULTS["residential"],
+                    majority_threshold=_sc["commercial_majority_threshold"],
+                    commercial_lease_expiry=prop.commercial_lease_expiry,
+                )
+                self.income  = IncomeMetrics(prop, annual_rent, breakdown, rollup=self.mixed_use)
+                vacancy_rate = self.mixed_use.blended_vacancy
+            else:
+                vacancy_rate = _resolve_vacancy_rate(prop)
+                self.income  = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate)
             imputed_lines = getattr(rent_resolver, "_imputed_lines", [])
             imputed_total = sum(a for a, _ in imputed_lines)
             # Verified/estimated split counts advertised/in-place ([A]) dollars as
@@ -244,13 +271,14 @@ class CommercialPropertyAnalyzer:
             self.hotel      = None
             self.industrial = None
             self.deal_financing = None
+            self.mixed_use  = None
             self._income_confidence = None
 
     def report(self) -> list:
         rows = []
         for group in (self.mortgage, self.deal_financing, self.pricing, self.income,
-                      self.income_confidence, self.exit, self.cashflow, self.debt,
-                      self.returns, self.market, self.hotel, self.industrial):
+                      self.mixed_use, self.income_confidence, self.exit, self.cashflow,
+                      self.debt, self.returns, self.market, self.hotel, self.industrial):
             if group is not None:
                 rows.extend(group.rows())
         return rows
@@ -280,6 +308,7 @@ class CommercialPropertyAnalyzer:
             "hold_years":       p.hold_years,
             "expense_ratio":    p.expense_ratio,
             "lease_type":       p.lease_type,
+            "commercial_lease_expiry": p.commercial_lease_expiry,
             "construction_cost": p.construction_cost or 0,
             "annual_rent":      self.income.annual_rent if self.income else p.annual_rent,
             "commercial_rent":      self._comm_rent if self._comm_rent else 0.0,

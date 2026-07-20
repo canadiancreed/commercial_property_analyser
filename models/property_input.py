@@ -82,15 +82,26 @@ class PropertyInput:
     vacancy_rate:              Optional[float] = None  # None = resolve from property type
     commercial_rent_user_entered:  bool        = False
     residential_rent_user_entered: bool        = False
+    # Optional commercial-tenant lease expiry (mixed-use / commercial). Passthrough
+    # only — populated from listing data if present, never fetched externally. When
+    # absent the card renders "unknown ⚠" (an unknown single-tenant term is itself a
+    # binary-vacancy signal).
+    commercial_lease_expiry:   Optional[str]   = None
 
     @property
     def rent_manually_entered(self) -> bool:
         return self.commercial_rent_user_entered or self.residential_rent_user_entered
 
+    # Residential asset classes whose maintenance obligations are non-waivable
+    # (Ontario RTA 2006): a net/NNN lease tag can only describe a commercial lease,
+    # so it must NOT collapse a residential property's expense ratio to the NNN
+    # near-zero default. (Mixed-use handles this per-component in MixedUseComponents.)
+    _RESIDENTIAL_TYPES = frozenset({"multi-family", "residential"})
+
     def __post_init__(self):
         ptype = (self.property_type or "").strip().lower()
         if self.expense_ratio is None:
-            if self.lease_type.upper() == "NNN":
+            if self.lease_type.upper() == "NNN" and ptype not in self._RESIDENTIAL_TYPES:
                 self.expense_ratio = EXPENSE_RATIO_DEFAULTS["nnn"]
             else:
                 self.expense_ratio = EXPENSE_RATIO_DEFAULTS.get(ptype, 0.40)

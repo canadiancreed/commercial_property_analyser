@@ -18,6 +18,9 @@ _REQUIRED_KEYS = (
     "motivated_price_drop_pct",
     "motivated_max_dom_days",
     "low_monthly_bleed_threshold",
+    "component_vacancy",
+    "mixed_use_commercial_gross_expense_ratio",
+    "commercial_majority_threshold",
 )
 
 _cache = None

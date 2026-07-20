@@ -80,6 +80,15 @@ class DealFinancing:
             self.max_supportable_loan = self.ltv_max_loan
             self.binding_constraint = "n/a (GDS/TDS)"
 
+        # Refi headroom: when LTV binds, this is the additional debt income could
+        # support at the current NOI before hitting the DSCR floor. Only meaningful
+        # for a DSCR-floor type whose LTV ceiling binds first; omitted (None)
+        # otherwise (DSCR-binding, or 1-4 unit residential with no floor).
+        if self.dscr_max_loan is not None and self.binding_constraint == "LTV":
+            self.refi_headroom = self.dscr_max_loan - self.max_supportable_loan
+        else:
+            self.refi_headroom = None
+
         self.is_multifamily = self.type_key in _MF_TYPES
         self.price_per_door = (self._price / self._units) if self._units else None
         self.avg_rent_per_door = (self._gpr / 12 / self._units) if self._units else None
@@ -101,6 +110,12 @@ class DealFinancing:
             ReportRow("Max Supportable Loan", f"${self.max_supportable_loan:,.2f}", "INFO"),
             ReportRow("Binding Constraint", self.binding_constraint, "INFO"),
         ]
+        if self.refi_headroom is not None:
+            rows.append(ReportRow(
+                "Refi Headroom",
+                f"${self.refi_headroom:,.2f} — income supports this much additional debt at current NOI",
+                "INFO",
+            ))
         return rows
 
     def _unit_rows(self) -> list:
@@ -136,9 +151,13 @@ class DealFinancing:
             ReportRow("MLI Note", "CMHC processing: months, not weeks.", "INFO"),
         ]
         if self._fin.get("small_balance_flag"):
-            note = (cmhc.get("notes")
-                    or "Below the practical minimum loan, CMHC fixed costs rarely pencil.")
-            rows.append(ReportRow("MLI Small-Balance Flag", note, "CAUTION"))
+            # Card-facing copy comes from the config `display` key ONLY. `notes` is
+            # internal documentation (variable names, routing instructions) and is
+            # never rendered — if `display` is absent, render nothing rather than
+            # leak internal prose.
+            display = cmhc.get("display")
+            if display:
+                rows.append(ReportRow("MLI Small-Balance Flag", display, "CAUTION"))
         return rows
 
     def rows(self) -> list:
