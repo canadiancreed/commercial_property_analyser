@@ -310,6 +310,7 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
 | `city_distances.json` | `{ "Cobourg": { "nearest_centre": "Toronto", "distance_km": 100 } }` |
 | `city_demographics.json` | `{ "cobourg": { "population": 20000, "population_2016": 19000, "growth_pct_annual": 1.02, "source": "Stats Canada 2021 Census" } }` — census population growth, used by `scoring/city_ranker.py` for city opportunity depth and by `scoring/scorer.py` (with `city_distances.json`) as one input to the market-liquidity proxy that gates the DOM/Price-Drop confidence amplifier. Not used as a rent/NOI growth assumption (see `config/underwriting.json`). |
 | `missing_rent_data.json` | Tracks which cities are missing commercial or residential rent data so the menu can prompt the user to fill them in. |
+| `reanalyze_errors.log` | Plain-text log written by **Re-analyze all** (`r`) when a property fails to analyze: a timestamp header plus the full traceback for each failed record (address · MLS · type). Overwritten each run; deleted automatically when a run completes with no errors. Not JSON — a debugging aid so an error count is never a dead end. |
 
 ---
 
@@ -346,6 +347,9 @@ Enter the address (must include city and province, e.g. `123 Main St, Ottawa ON`
 
 **Global financing defaults (option `f`)**
 Down payment %, interest rate, amortisation (loan term), and hold period live in `config/financing.json`. That file has **two layers**: a `defaults` block (the four house-wide scalars — what option `f` edits) and an optional `property_types` map that refines down payment / rate / amortization / DSCR floor / fixed-expense fraction **per asset class** (the same reasoning that keeps expense ratio per-type — one office-and-hotel-and-multifamily number would be wrong). At analysis time the tool resolves the per-type block, merges it over `defaults`, and derives each property's scalars; `hold_years` is always house-wide. All routing (the `retail_office → office` alias, the multi-family 1-4/5+ split, and the `multi_family_5plus` conventional-vs-CMHC-MLI decision) lives in `analysis/financing_config.py`. Option `f` edits the `defaults` layer only and offers to re-analyse all properties so the change flows into every mortgage, cash-flow, and return figure; the `property_types` blocks are edited in the JSON directly (per-type menu editing is out of scope for now). **Expense ratio is not one of these** — it's set *by property type and lease* (`models/constants.py`, e.g. NNN ≈ 8%, hotel ≈ 63%, multi-family ≈ 45%). To change either a property's financing or its expense ratio, change its type/lease; you can't (and don't need to) set them per listing.
+
+**Re-analyzing all properties (option `r`)**
+Re-runs the full analysis over every saved property — the propagation path for a config change (financing type blocks, underwriting assumptions, screener thresholds). It reports `updated / skipped / errors`: *skipped* means the city has no market rent rates yet (add them via 7/8), and *errors* are genuine failures. When any error occurs, each failed property is listed on the console (address · MLS · type · exception) and full tracebacks are written to `json/reanalyze_errors.log`; a clean run deletes that log.
 
 **Adding rent data (options 7 / 8)**
 Enter commercial rates in $/sqft/year, broken down by type (Office, Retail, Industrial, Mixed-Use). Enter residential rates in $/month by bedroom count (Bachelor through 4BR). After saving, every property in that city is automatically re-analysed with the new data.

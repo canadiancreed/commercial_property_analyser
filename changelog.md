@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.4] — 2026-07-20
+
+### Changed
+
+- **Re-analyze all (menu `r`) now surfaces its errors instead of swallowing them.** Previously
+  `_reanalyze_all` caught every non-`ValueError` exception as a bare `errors += 1` count with no
+  message, traceback, or log — so a run reporting "20 errors" gave no way to see *which* properties
+  failed or *why*. It now prints a one-line summary per failed property (address · MLS · type ·
+  exception) to the console and writes full tracebacks to `json/reanalyze_errors.log`. A clean run
+  clears any stale log so it can't mislead. (`ValueError`/missing-rate cases are still counted as
+  "skipped", unchanged — that path already has an obvious cause.) (`ui/menu.py`.)
+
 ## [3.6.3] — 2026-07-19
 
 ### Added

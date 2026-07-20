@@ -1,4 +1,6 @@
-from datetime import date
+import os
+import traceback
+from datetime import date, datetime
 
 from core.address import _display_address, _parse_address_sort
 from models.property_input import PropertyInput, UnitMix
@@ -947,12 +949,15 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
 
     # ── Bulk re-analysis ──────────────────────────────────────────────────
 
+    REANALYZE_ERROR_LOG = "json/reanalyze_errors.log"
+
     def _reanalyze_all(self):
         props = self._store.load_properties()
         if not props:
             print("\n  No properties on file.")
             return
-        updated = skipped = errors = 0
+        updated = skipped = 0
+        errors  = []   # (address, mls, property_type, exc_repr, traceback_str)
         for i, p in enumerate(props):
             try:
                 prop     = self._record_to_prop(p)
@@ -963,14 +968,46 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
                 self._store.update_property(i, record)
                 updated += 1
             except ValueError:
+                # Expected: no market rent rates for this city yet — partial record.
                 skipped += 1
-            except Exception:
-                errors += 1
+            except Exception as e:
+                errors.append((
+                    p.get("address", "?"), p.get("mls_number", "?"),
+                    p.get("property_type", "?"), repr(e), traceback.format_exc(),
+                ))
         total = len(props)
         print(f"\n  Re-analysis complete — {updated}/{total} updated", end="")
         if skipped: print(f", {skipped} skipped (missing rates)", end="")
-        if errors:  print(f", {errors} errors", end="")
+        if errors:  print(f", {len(errors)} errors", end="")
         print(".")
+        self._report_reanalyze_errors(errors)
+
+    def _report_reanalyze_errors(self, errors: list):
+        """Surface the errors `_reanalyze_all` used to swallow: a one-line summary
+        per failed property to the console, plus full tracebacks to a log file so
+        a bare "N errors" count is never a dead end. A clean run clears any stale
+        log so it can't mislead."""
+        if not errors:
+            if os.path.exists(self.REANALYZE_ERROR_LOG):
+                try:
+                    os.remove(self.REANALYZE_ERROR_LOG)
+                except OSError:
+                    pass
+            return
+        noun = "property" if len(errors) == 1 else "properties"
+        print(f"\n  {len(errors)} {noun} errored (not updated):")
+        for addr, mls, ptype, exc, _tb in errors:
+            print(f"    • {_display_address(addr)} [{mls}] ({ptype or '—'}) — {exc}")
+        try:
+            os.makedirs(os.path.dirname(self.REANALYZE_ERROR_LOG) or ".", exist_ok=True)
+            with open(self.REANALYZE_ERROR_LOG, "w", encoding="utf-8") as f:
+                f.write(f"Re-analysis errors — {datetime.now().isoformat(timespec='seconds')}\n")
+                f.write(f"{len(errors)} {noun} failed.\n\n")
+                for addr, mls, ptype, _exc, tb in errors:
+                    f.write(f"{'=' * 72}\n{addr} [{mls}] ({ptype or '—'})\n{tb}\n")
+            print(f"  Full tracebacks: {self.REANALYZE_ERROR_LOG}")
+        except OSError as e:
+            print(f"  (Could not write error log: {e})")
 
     def _reanalyze_city(self, city: str, province: str):
         props   = self._store.load_properties()
