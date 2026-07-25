@@ -4,6 +4,7 @@ from analysis.metrics.returns import METRIC_MARKET_STALENESS
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from analysis.underwriting_config import load_underwriting_config
 from analysis.screener_config import load_screener_config
+from analysis.financing_config import resolve_financing
 
 METRIC_SELLER_BLEED = "Seller Bleed"
 
@@ -221,6 +222,13 @@ class PropertyScorer:
         irr        = val_prefix("IRR (", default=None)
         em         = val("Equity Multiple")
         cf_annual  = val("Annual Cash Flow")
+        # Fix 2: score cash flow as a SIZE-RELATIVE measure (% of asking price),
+        # not absolute dollars. Absolute $ let a $20M deal trivially clear a $50k
+        # bar a $5M deal never could — the factor rewarded size, not performance.
+        # The ramp [-6, 8]% is symmetric enough to preserve rank order for the
+        # negative (money-losing) tail instead of clamping it all to one 0.
+        asking_price = p.get("asking_price") or 0
+        cf_pct_price = (cf_annual / asking_price * 100.0) if asking_price else 0.0
         price_drop = val("Price Drop %")
         dom        = val(METRIC_MARKET_STALENESS, 0)
 
@@ -230,19 +238,42 @@ class PropertyScorer:
         dist_km   = dist_info["distance_km"] if dist_info else None
         s_loc     = component("Location", dist_km, invert=True) if dist_km is not None else 0.0
 
+        # Financing Robustness (Fix 6): a pre-normalised 0-100 sub-score computed
+        # in the analyzer (rate + amortization break-even margins vs the per-type
+        # covenant), stored top-level. It takes the scoring weight vacated by DSCR
+        # and Cash Flow — CoCR / DSCR / Cash Flow are three views of the same
+        # NOI-minus-debt-service relationship, so the model scores CoCR and this
+        # robustness factor and DISPLAYS DSCR / Cash Flow (weight 0).
+        #
+        # A record analysed BEFORE this factor existed has NO stored value. That is
+        # "not yet measured", not a real 0 — substituting 0 would silently dock the
+        # deal ~20%. When it is absent (pending) we DROP the factor and renormalise
+        # the remaining ones to their original relative weights (see active_w
+        # below), and flag it so the breakdown reads "Pending re-analysis" instead
+        # of a fake 0.0 bar. A stored 0.0 is a genuine measurement and is kept.
+        robustness = p.get("financing_robustness")
+        robustness_pending = robustness is None
+        s_robust = 0.0 if robustness_pending else clamp(robustness / 10.0, 0, 10)
+
         scores = {
             "Cap Rate":        component("Cap Rate",        cap_rate),
             "CoCR":            component("CoCR",            coc),
             "DSCR":            component("DSCR",            dscr),
             "IRR":             component("IRR", irr) if irr is not None else 0.0,
             "Equity Multiple": component("Equity Multiple", em),
-            "Cash Flow":       component("Cash Flow",       cf_annual),
+            "Cash Flow":       component("Cash Flow",       cf_pct_price),
+            "Financing Robustness": s_robust,
             "Price Drop":      component("Price Drop",      price_drop),
             "DOM":             component("DOM",             dom),
             "Location":        s_loc,
         }
 
         active_w = {k: w for k, w in weights.items() if w > 0}
+        if robustness_pending:
+            # Un-measured factor excluded; the weighted average over what remains
+            # renormalises the other factors to their original relative weights,
+            # so the stale record scores on the factors it actually has.
+            active_w.pop("Financing Robustness", None)
         total_w  = sum(active_w.values())
         score    = 0.0
         if total_w > 0:
@@ -325,12 +356,52 @@ class PropertyScorer:
             screener_cfg=screener_cfg,
         )
 
+        # ── Covenant score cap (post-hoc GATE, applied LAST) ─────────────────
+        # Covenant compliance is a gate, not a factor strong returns can outweigh:
+        # a deal whose current (unstressed) DSCR is below its per-asset-type
+        # covenant cannot cover debt service at today's rates, so its final score
+        # is capped — it must not present as mid-tier-or-better on projected IRR/EM.
+        # This is NOT a return to weighted DSCR scoring (DSCR stays display-only,
+        # weight 0 — the collinearity fix is intact); it only clamps the ceiling.
+        # The covenant is resolved from config (financing.json per-type
+        # `covenant_dscr`), never hardcoded. The cap FLOORS nothing (min only). A
+        # missing / "N/A (no debt)" DSCR reads as None and is skipped, so an absent
+        # value can never trigger a false cap on a pending/stale record.
+        covenant_cap = cfg.get("covenant_score_cap", 60.0)
+        _dscr_row = results.get("DSCR")
+        current_dscr = None
+        if _dscr_row:
+            _dc = "".join(c for c in str(_dscr_row.get("value", "")) if c.isdigit() or c in ".-")
+            current_dscr = float(_dc) if _dc else None
+        covenant_dscr = None
+        covenant_capped = False
+        if current_dscr is not None:
+            _um = p.get("unit_mix") or {}
+            _units = sum(_um.get(k, 0) or 0 for k in
+                         ("bachelor", "one_br", "two_br", "three_br", "four_br", "unknown"))
+            covenant_dscr = resolve_financing(
+                p.get("asking_price") or 0, p.get("property_type"), _units
+            ).get("covenant_dscr")
+            if (covenant_dscr is not None and current_dscr < covenant_dscr
+                    and adjusted_score > covenant_cap):
+                adjusted_score = covenant_cap
+                covenant_capped = True
+
+        # A pending robustness factor is rendered as None (not 0.0) so the score
+        # breakdown can show "Pending re-analysis" instead of a fake zero bar.
+        breakdown = {k: round(scores[k] * 10, 1) for k in scores}
+        if robustness_pending:
+            breakdown["Financing Robustness"] = None
+
         return {
             "score":       adjusted_score,
             "raw_score":   raw_score,
             "confidence_multiplier": confidence_multiplier,
             "verified_income_pct":   verified_income_pct,
-            "breakdown":   {k: round(scores[k] * 10, 1) for k in scores},
+            "breakdown":   breakdown,
+            "robustness_pending": robustness_pending,
+            "covenant_capped": covenant_capped,
+            "covenant_dscr":   covenant_dscr,
             "weights":     weights,
             "income_confidence": p.get("income_confidence"),
             "cap_rate":    cap_rate,
@@ -339,6 +410,7 @@ class PropertyScorer:
             "irr":         irr,
             "em":          em,
             "cf_annual":   cf_annual,
+            "cf_pct_price": round(cf_pct_price, 4),
             "price_drop":  price_drop,
             "dom":         int(dom),
             "dist_km":     dist_km,
@@ -372,7 +444,10 @@ class PropertyScorer:
                 prop     = record_to_prop_fn(rec)
                 analyzer = analyzer_class(prop, resolver)
                 new_rec  = analyzer.to_record(existing=rec)
-                rec.update({k: v for k, v in new_rec.items() if k == "results"})
+                # Carry BOTH the re-scored results and the recomputed robustness
+                # sub-score (Fix 6) so the lever search reflects financing fragility.
+                rec.update({k: v for k, v in new_rec.items()
+                            if k in ("results", "financing_robustness")})
                 return self.score_property(rec).get("score") or 0.0
             except Exception:
                 return 0.0

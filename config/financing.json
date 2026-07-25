@@ -4,10 +4,12 @@
     "down_payment_pct": 0.2,
     "interest_rate": 0.045,
     "term_years": 25,
-    "hold_years": 30
+    "hold_years": 10
   },
   "stress_test_bump": 0.02,
   "verified_date": "2026-07",
+  "_covenant_comment": "Financing-robustness covenant DSCR (Fix 6) is the per-type lending dscr_floor above — ONE source of truth, so loan sizing and robustness stay consistent. Types that qualify on borrower GDS/TDS rather than a project DSCR (multi_family_1_4, and any type with a null dscr_floor) fall back to residential_covenant_dscr.",
+  "residential_covenant_dscr": 1.1,
   "property_types": {
     "multi_family_1_4": {
       "max_ltv": 0.8,

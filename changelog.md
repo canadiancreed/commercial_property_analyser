@@ -6,6 +6,90 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.6] — 2026-07-25
+
+_Scoring engine redesign. Seven structural fixes plus a financing-robustness
+factor and a covenant gate, validated on the live 639-property / 109-city data
+set and documented in full in `docs/scoring-design.md`. Config/code changes
+require a re-analysis (menu `f`) to persist the new results into stored records._
+
+### Added
+
+- **Financing Robustness — a new scored factor** (`analysis/metrics/financing_robustness.py`).
+  Measures how much rate and amortization stress a deal absorbs before its per-type
+  DSCR covenant is breached and before cash flow hits zero, reported as **two
+  separate readings** — rate risk is scheduled/certain (the term matures and renews
+  at market), amortization risk is conditional on a forced refinance — plus the
+  spread between the covenant-breach and cash-flow-zero points. Rate margin is
+  weighted more heavily (0.7 / 0.3). The 0–100 sub-score takes the scoring weight
+  vacated by DSCR and Cash Flow (see Changed); its reference denominators (250 bps,
+  10 yr) live in `config/underwriting.json`. Output reads, e.g., "covenant breach
+  +158bps · cash flow zero +441bps · amortization tolerance +6.3yr".
+- **Break-even financing diagnostic** (same module) — the financing terms a deal
+  needs to reach positive cash flow and DSCR ≥ its covenant (e.g. "DSCR≥1.25 up to
+  7.71% · cash-flow-positive up to 10.54% at 25yr"), with a verdict flagging deals
+  that fail under **all** realistic terms as a distinct category from those that
+  merely miss current assumptions.
+- **Covenant score cap** — a post-hoc gate: a property whose current (unstressed)
+  DSCR is below its per-type covenant cannot score above `covenant_score_cap`
+  (`json/score_weights.json`, default 60). Covenant compliance is a gate, not a
+  factor strong projected returns can average away. The cap resolves the covenant
+  from config, floors nothing (it only lowers), and skips records with no numeric
+  DSCR (no-debt / pending) so a missing value never triggers a false cap.
+- **Per-type covenant DSCR** (`config/financing.json`): each asset class carries a
+  `covenant_dscr` (= its lending `dscr_floor`; residential 1-4 uses the new
+  top-level `residential_covenant_dscr` fallback, 1.10), shared by the robustness
+  margins and the covenant cap so the two configurations stay consistent.
+- **"Pending re-analysis" marker.** A stored record analysed before the robustness
+  factor existed has no stored value; it now reads as *pending* — the factor is
+  dropped and the remaining factors renormalize to their original relative weights
+  — instead of silently scoring a real 0 and docking the deal ~20%. The marker
+  rides on the property card, the city view's Deal Score card, and the detail
+  modal's score breakdown.
+- **New design document** `docs/scoring-design.md` — records every change, the
+  rejected alternative, the score-interpretation impact, and the deliberate,
+  non-standard choices.
+
+### Changed
+
+- **City metric factors normalize per-listing, then average** (`scoring/city_ranker.py`).
+  Previously the raw metric was averaged across active listings and only the single
+  city mean was normalized — but the normalization ramp's clamp is non-linear, so
+  average-then-normalize erased real signal (Jensen's inequality): a Kingston
+  listing at 8.19% IRR scored 0 because the market mean (5.8%) sat below the floor.
+  Normalizing each listing first fixes it. Cities scoring exactly 0 on the collinear
+  factors fell sharply — CoCR 71→36, IRR 66→44, DSCR 68→57, Cash-Flow 69→27 of 109.
+- **Scoring floors extended into negative territory.** CoCR ramp `[0,12]` →
+  `[-10,15]`; Cash Flow is rebased from absolute dollars (`[0,50000]`) to **% of
+  asking price** on `[-6,8]`, removing the deal-size bias where a $20M deal
+  trivially cleared a fixed-dollar bar a $5M deal never could. Rank order is now
+  preserved below break-even (a −0.8% CoCR sorts above a −50% one). **A negative
+  CoCR remains a failing deal** — the floors only restore ranking resolution.
+- **Modelled hold shortened 30 → 10 years** (`config/financing.json`; matches ARGUS
+  and major-brokerage underwriting). Equity Multiple had been pinned near 100/100
+  for almost every deal (a 30-yr hold makes 3× trivial — 10% of scoring weight
+  acting as a constant); a 10-yr hold restores its discrimination (median EM
+  8.45× → 1.96×, factor σ 5.1 → 36.9). IRR shifts with the horizon, so the IRR ramp
+  was recalibrated `[4,20]` → `[0,18]` (property and city `act_irr`).
+- **CoCR / DSCR / Cash Flow de-collinearized.** These are three views of the same
+  NOI-minus-debt-service relationship. The model now **scores CoCR** and makes
+  **DSCR and Cash Flow display-only** (weight 0), freeing 0.20 of weight for the
+  robustness factor. DSCR and Cash Flow are still computed and shown on the card —
+  just no longer triple-counted; covenant compliance is enforced by the cap above.
+- **Card and city labels reconciled to the scoring ramps** (`reporting/property_report.py`,
+  `reporting/city_report.py`). The cards had advertised "≥7% cap strong / ≥10% CoCR
+  / ≥15% IRR / ≥1.5 DSCR" while the engine scored on entirely different boundaries;
+  metric colours and captions now track the actual ramp (green at/above the ceiling,
+  red below the floor, amber on the ramp).
+
+### Fixed
+
+- **`solve_targets` now carries the recomputed robustness sub-score** through each
+  bisection step (`scoring/scorer.py`), so the "what would make this a 100/100"
+  lever search reflects financing fragility instead of a stale value.
+
+---
+
 ## [3.6.5] — 2026-07-20
 
 _Based on 3.6.3 (per-type financing). 3.6.4 is reserved for the pending

@@ -23,6 +23,18 @@ class CityRanker:
             return 0.0
         return max(0.0, min(1.0, (v - lo) / (hi - lo)))
 
+    def _norm_avg(self, entries, key, lo, hi):
+        """Fix 1 (Jensen): normalise EACH listing's metric, then average the
+        normalised 0..1 strengths — the correct order for a non-linear ramp.
+
+        Average-then-normalise (the old path) let the clamp erase real signal:
+        one listing at 8.19% IRR against a floor of 8.0 scored 0 because the
+        market MEAN (5.8%) sat below the floor. Per-listing keeps its strength.
+        Listings whose metric is None (LOW-confidence / implausible income
+        dropped upstream) are excluded, matching `_avg`."""
+        vals = [self._norm(e[key], lo, hi) for e in entries if e.get(key) is not None]
+        return sum(vals) / len(vals) if vals else 0.0
+
     def rank(self, properties: list) -> list:
         """
         Score every property and aggregate by city.
@@ -60,12 +72,19 @@ class CityRanker:
                 "irr":        None if drop_income else scored.get("irr"),
                 "dscr":       None if drop_income else scored.get("dscr"),
                 "cf_annual":  None if drop_income else scored.get("cf_annual"),
+                # Fix 2: cash flow as % of price is what the factor now scores
+                # (size-neutral); cf_annual stays for the displayed dollar average.
+                "cf_pct_price": None if drop_income else scored.get("cf_pct_price"),
                 "price_drop": scored.get("price_drop"),  # 0 = no reduction (valid)
                 "dom":        scored.get("dom"),          # 0 = listed today (valid)
                 "asking":     p.get("asking_price") or None,
                 "status":     (p.get("status") or "active").lower(),
                 "address":    p.get("address", ""),
                 "type":       p.get("property_type", ""),
+                # True when the record predates the robustness factor, so its score
+                # is provisional (renormalised) — counted per city so the city view
+                # can flag that its aggregate rests on un-refreshed scores.
+                "robustness_pending": scored.get("robustness_pending", False),
             })
 
         # Opportunity rewards being good on BOTH axes at once: profitable deals
@@ -85,6 +104,8 @@ class CityRanker:
             active    = [e for e in entries if e["status"] == "active"]
             inactive  = [e for e in entries if e["status"] != "active"]
             n_active  = len(active)
+            # Active records still awaiting the robustness factor (provisional score).
+            pending_active = sum(1 for e in active if e.get("robustness_pending"))
             n_total   = len(entries)
 
             active_cap_rate       = self._avg(active, "cap_rate")
@@ -153,23 +174,27 @@ class CityRanker:
             # config key for its weight/threshold and a label + source. Listing
             # volume is NOT here — depth is a separate premium (below) so a city's
             # quality is judged independently of its size.
+            # Per-listing-then-average factors (Fix 1). Each normalises every
+            # qualifying listing individually via _norm_avg, then averages the
+            # normalised strengths. The displayed city means (active_cap_rate …)
+            # are still computed above for the report and the trend maths.
             factor_specs = [
                 ("act_cap",         "Cap Rate (Active)",    "active",
-                 self._norm(active_cap_rate     or 0, *_t("act_cap",   3,    10))),
+                 self._norm_avg(active,   "cap_rate", *_t("act_cap",   3,    10))),
                 ("act_coc",         "CoCR (Active)",        "active",
-                 self._norm(active_cash_on_cash or 0, *_t("act_coc",   0,    15))),
+                 self._norm_avg(active,   "coc",      *_t("act_coc",   0,    15))),
                 ("act_irr",         "IRR (Active)",         "active",
-                 self._norm(active_irr          or 0, *_t("act_irr",   8,    20))),
+                 self._norm_avg(active,   "irr",      *_t("act_irr",   8,    20))),
                 ("act_dscr",        "DSCR (Active)",        "active",
-                 self._norm(active_dscr         or 0, *_t("act_dscr",  1,   1.5))),
+                 self._norm_avg(active,   "dscr",     *_t("act_dscr",  1,   1.5))),
                 ("act_cf",          "Cash Flow (Active)",   "active",
-                 self._norm(active_cash_flow    or 0, *_t("act_cf",    0, 50000))),
+                 self._norm_avg(active,   "cf_pct_price", *_t("act_cf", -6, 8))),
                 ("act_drop",        "Price Drop (Active)",  "active",
-                 self._norm(active_price_drop   or 0, *_t("act_drop",  0,    15))),
+                 self._norm_avg(active,   "price_drop", *_t("act_drop", 0,   15))),
                 ("act_dom",         "Days Listed (Active)", "active",
-                 self._norm(active_days_on_market or 0, *_t("act_dom", 30,  180))),
+                 self._norm_avg(active,   "dom",      *_t("act_dom",  30,  180))),
                 ("inact_cap",       "Inactive Cap Rate",    "inactive",
-                 self._norm(inactive_cap_rate   or 0, *_t("inact_cap", 3,    10))),
+                 self._norm_avg(inactive, "cap_rate", *_t("inact_cap", 3,    10))),
                 ("cap_trend",       "Cap Rate Trend",       "cross",
                  self._norm(cap_rate_trend,           *_t("cap_trend", -3,    3))),
                 ("absorption_rate", "Absorption (Inactive Share)", "cross",
@@ -226,6 +251,7 @@ class CityRanker:
             cities.append(dict(
                 city=key, total=n_total,
                 active=n_active, inactive=len(inactive),
+                pending_reanalysis=pending_active,
                 confidence=round(confidence, 2),
                 active_deal_score=round(active_deal_score or 0, 1),
                 # True when no active property had a scorable income figure, so

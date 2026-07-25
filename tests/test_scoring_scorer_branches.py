@@ -39,6 +39,7 @@ def _poor_record():
         # an amplified haircut here.
         "verified_income_pct": 100.0,
         "confidence_multiplier": 1.0,
+        "financing_robustness": 0.0,
         "results": _full_results(cap=2.0, coc=0.0, dscr=0.5,
                                   irr=0.0, em=0.5, cf=-5000,
                                   drop=0.0, dom=0),
@@ -60,9 +61,9 @@ class TestSolveTargetsBinarySearch:
                 pass
             def to_record(self, existing=None):
                 return {"results": _full_results(
-                    cap=9.0, coc=12.0, dscr=2.0, irr=20.0,
+                    cap=9.0, coc=15.0, dscr=2.0, irr=20.0,
                     em=3.0, cf=50_000, drop=15.0, dom=180
-                )}
+                ), "financing_robustness": 100.0}
 
         return record_to_prop, FakeAnalyzer
 
@@ -149,13 +150,13 @@ class TestBisectLeverBody:
                 good = (val < trigger_threshold) if invert else (val > trigger_threshold)
                 if good:
                     return {"results": _full_results(
-                        cap=9.0, coc=12.0, dscr=2.0, irr=20.0,
+                        cap=9.0, coc=15.0, dscr=2.0, irr=20.0,
                         em=3.0, cf=50_000, drop=15.0, dom=180
-                    )}
+                    ), "financing_robustness": 100.0}
                 return {"results": _full_results(
                     cap=2.0, coc=0.0, dscr=0.5, irr=0.0,
                     em=0.5, cf=-5000, drop=0.0, dom=0
-                )}
+                ), "financing_robustness": 0.0}
 
         return record_to_prop, SmartAnalyzer
 
@@ -368,9 +369,10 @@ class TestSolveTargetsBisectFalseBranch:
         class CapturingAnalyzer:
             def __init__(self, prop, resolver): pass
             def to_record(self, existing=None):
-                return {"results": _full_results(cap=9.0, coc=12.0, dscr=2.0,
+                return {"results": _full_results(cap=9.0, coc=15.0, dscr=2.0,
                                                   irr=20.0, em=3.0, cf=50_000,
-                                                  drop=15.0, dom=180)}
+                                                  drop=15.0, dom=180),
+                        "financing_robustness": 100.0}
 
         p = _poor_record()
         p["commercial_rent"] = 30_000

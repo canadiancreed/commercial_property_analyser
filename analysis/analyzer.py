@@ -15,6 +15,7 @@ from analysis.underwriting_config import load_underwriting_config
 from analysis.screener_config import load_screener_config
 from analysis.financing_config import resolve_financing
 from analysis.deal_financing import DealFinancing
+from analysis.metrics.financing_robustness import FinancingRobustness
 
 
 def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
@@ -253,6 +254,20 @@ class CommercialPropertyAnalyzer:
                 self._financing, prop.asking_price, self.income.est_noi,
                 gpr=annual_rent, units=self._units, compounding=self.mortgage.compounding,
             )
+            # Break-even financing diagnostic (Fix 5) + scored robustness (Fix 6):
+            # how much rate / amortization stress the deal absorbs before covenant
+            # breach and before cash flow zero, on the per-type covenant DSCR.
+            self.financing_robustness = FinancingRobustness(
+                self.income.est_noi, self.mortgage.loan_amount,
+                prop.interest_rate, prop.term_years,
+                self._financing.get("covenant_dscr"),
+                compounding=self.mortgage.compounding,
+                rate_low=self._financing.get("rate_low"),
+                rate_high=self._financing.get("rate_high"),
+                rate_ref_bps=_underwriting.get("robustness_rate_ref_bps", 250.0),
+                amort_ref_years=_underwriting.get("robustness_amort_ref_years", 10.0),
+                rate_weight=_underwriting.get("robustness_rate_weight", 0.7),
+            )
             self.returns  = ReturnMetrics(prop, self.income.est_noi, self.mortgage.annual_mortgage,
                                           self.cashflow.cash_invested, self.exit.exit_price,
                                           self.mortgage.loan_balance,
@@ -271,12 +286,14 @@ class CommercialPropertyAnalyzer:
             self.hotel      = None
             self.industrial = None
             self.deal_financing = None
+            self.financing_robustness = None
             self.mixed_use  = None
             self._income_confidence = None
 
     def report(self) -> list:
         rows = []
-        for group in (self.mortgage, self.deal_financing, self.pricing, self.income,
+        for group in (self.mortgage, self.deal_financing, self.financing_robustness,
+                      self.pricing, self.income,
                       self.mixed_use, self.income_confidence, self.exit, self.cashflow,
                       self.debt, self.returns, self.market, self.hotel, self.industrial):
             if group is not None:
@@ -346,6 +363,12 @@ class CommercialPropertyAnalyzer:
             ),
             "verified_income_pct": (
                 self.income_confidence.verified_income_pct if self.income_confidence else None
+            ),
+            # Fix 6: the 0-100 financing-robustness sub-score, stored top-level so
+            # the scorer reads a clean numeric (the displayed row carries a rich
+            # human-readable string that would not parse as a metric value).
+            "financing_robustness": (
+                self.financing_robustness.score if self.financing_robustness else None
             ),
             "results":          [row.to_dict() for row in self.report() if row.grade != ""],
         }

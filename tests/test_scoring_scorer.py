@@ -7,8 +7,8 @@ from analysis.underwriting_config import load_underwriting_config
 
 
 def _scored_record(cap=7.0, coc=8.0, dscr=1.4, irr=12.0, em=1.8,
-                   cf=15_000, drop=5.0, dom=90):
-    return {
+                   cf=15_000, drop=5.0, dom=90, robustness=60.0):
+    rec = {
         "city": "Ottawa",
         "province": "ON",
         "asking_price": 500_000,
@@ -30,6 +30,11 @@ def _scored_record(cap=7.0, coc=8.0, dscr=1.4, irr=12.0, em=1.8,
             {"metric": "NOI",             "value": "$36,000.00",        "grade": "GOOD"},
         ],
     }
+    # Fix 6: financing-robustness is stored top-level. robustness=None simulates a
+    # stored record analysed BEFORE the factor existed (the key is truly absent).
+    if robustness is not None:
+        rec["financing_robustness"] = robustness
+    return rec
 
 
 # ── Config ────────────────────────────────────────────────────────────────────
@@ -72,9 +77,9 @@ class TestScoreProperty:
 
     def test_score_in_range(self, make_store):
         scorer = PropertyScorer(make_store())
-        result = scorer.score_property(_scored_record(cap=9.0, coc=12.0, dscr=2.0,
+        result = scorer.score_property(_scored_record(cap=9.0, coc=15.0, dscr=2.0,
                                                        irr=20.0, em=3.0, cf=50_000,
-                                                       drop=15.0, dom=180))
+                                                       drop=15.0, dom=180, robustness=100.0))
         assert result["score"] >= 95.0
 
     def test_poor_metrics_low_score(self, make_store):
@@ -90,6 +95,85 @@ class TestScoreProperty:
         for key in ("Cap Rate", "CoCR", "DSCR", "IRR", "Equity Multiple",
                     "Cash Flow", "Price Drop", "DOM"):
             assert key in result["breakdown"]
+
+    # ── Financing Robustness: pending vs measured ────────────────────────────
+    def test_missing_robustness_reads_as_pending_not_zero(self, make_store):
+        """A stored record with no financing_robustness field is 'pending', not a
+        real 0: the breakdown renders None (→ 'Pending re-analysis'), not 0.0."""
+        scorer = PropertyScorer(make_store())
+        result = scorer.score_property(_scored_record(robustness=None))
+        assert result["robustness_pending"] is True
+        assert result["breakdown"]["Financing Robustness"] is None
+
+    def test_missing_robustness_renormalises_remaining_factors(self, make_store):
+        """A pending record scores the SAME as if the robustness weight never
+        existed (renormalised over the other factors) — never silently docked."""
+        scorer = PropertyScorer(make_store())
+        pending = scorer.score_property(_scored_record(robustness=None))
+        silent0 = scorer.score_property(_scored_record(robustness=0.0))
+        # Excluding-and-renormalising must NOT match substituting a real 0.
+        assert pending["score"] > silent0["score"]
+        # Manual renormalisation over the non-robustness active factors.
+        W = scorer.load_config()["weights"]
+        aw = {k: w for k, w in W.items() if w > 0 and k != "Financing Robustness"}
+        bd = pending["breakdown"]
+        manual = round(sum((bd[k] / 10.0) * w for k, w in aw.items()) / sum(aw.values()) * 10, 1)
+        assert pending["raw_score"] == pytest.approx(manual, abs=0.05)
+
+    def test_stored_zero_robustness_is_a_real_measurement(self, make_store):
+        """A stored 0.0 is a genuine 'maximally fragile' measurement — kept, scored,
+        and NOT flagged pending."""
+        scorer = PropertyScorer(make_store())
+        result = scorer.score_property(_scored_record(robustness=0.0))
+        assert result["robustness_pending"] is False
+        assert result["breakdown"]["Financing Robustness"] == 0.0
+
+    # ── Covenant score cap (post-hoc gate) ───────────────────────────────────
+    def test_covenant_cap_binds_on_below_covenant_high_scorer(self, make_store):
+        """A deal below its covenant (DSCR 1.0 < default 1.10) but strong on
+        returns is capped at 60 — projected IRR/EM can't lift it past the gate."""
+        scorer = PropertyScorer(make_store())
+        p = _scored_record(cap=9.0, coc=15.0, dscr=1.0, irr=20.0, em=3.0,
+                           cf=50_000, drop=15.0, dom=180, robustness=100.0)
+        result = scorer.score_property(p)
+        assert result["covenant_capped"] is True
+        assert result["score"] <= 60.0
+
+    def test_covenant_cap_ignores_compliant_deal(self, make_store):
+        """A covenant-compliant strong deal (DSCR 1.4 ≥ 1.10) keeps its high score."""
+        scorer = PropertyScorer(make_store())
+        p = _scored_record(cap=9.0, coc=15.0, dscr=1.4, irr=20.0, em=3.0,
+                           cf=50_000, drop=15.0, dom=180, robustness=100.0)
+        result = scorer.score_property(p)
+        assert result["covenant_capped"] is False
+        assert result["score"] > 60.0
+
+    def test_covenant_cap_floors_nothing(self, make_store):
+        """Below covenant but already weak (< 60): the cap does not bind and does
+        not raise the score."""
+        scorer = PropertyScorer(make_store())
+        p = _scored_record(cap=2.0, coc=0.0, dscr=1.0, irr=0.0, em=0.5,
+                           cf=-10_000, drop=0.0, dom=0, robustness=0.0)
+        result = scorer.score_property(p)
+        assert result["score"] < 60.0
+        assert result["covenant_capped"] is False
+
+    def test_covenant_cap_skips_missing_or_na_dscr(self, make_store):
+        """A non-numeric DSCR ('N/A (no debt)') or an absent DSCR row must NOT
+        trigger a cap — a missing value is not a covenant breach."""
+        scorer = PropertyScorer(make_store())
+        for mutate in (
+            lambda p: [r.update({"value": "N/A (no debt)"})
+                       for r in p["results"] if r["metric"] == "DSCR"],
+            lambda p: p.__setitem__("results",
+                                    [r for r in p["results"] if r["metric"] != "DSCR"]),
+        ):
+            p = _scored_record(cap=9.0, coc=15.0, dscr=2.0, irr=20.0, em=3.0,
+                               cf=50_000, drop=15.0, dom=180, robustness=100.0)
+            mutate(p)
+            result = scorer.score_property(p)
+            assert result["covenant_capped"] is False
+            assert result["score"] > 60.0
 
     def test_metric_values_returned(self, make_store):
         scorer = PropertyScorer(make_store())
@@ -143,7 +227,7 @@ class TestSolveTargets:
 
     def test_returns_empty_when_score_perfect(self, make_store):
         scorer = PropertyScorer(make_store())
-        p = _scored_record(cap=9.0, coc=12.0, dscr=2.0, irr=20.0, em=3.0,
+        p = _scored_record(cap=9.0, coc=15.0, dscr=2.0, irr=20.0, em=3.0,
                            cf=50_000, drop=15.0, dom=180)
         from unittest.mock import patch
         with patch.object(scorer, "score_property", return_value={"score": 100.0}):

@@ -231,6 +231,15 @@ class PropertyReportGenerator:
   .score-grade.fair      {{ background: #fef3cd; color: var(--amber); }}
   .score-grade.poor      {{ background: #f8d7da; color: var(--red); }}
   .score-grade.none      {{ background: var(--cream); color: var(--muted); }}
+  .score-pending {{
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: 0.06em;
+    color: var(--amber);
+    font-style: italic;
+    margin-top: 0.15rem;
+    cursor: help;
+  }}
   .card-body {{ padding: 1rem 1.2rem; }}
   .card-address {{
     font-family: 'DM Serif Display', serif;
@@ -564,19 +573,27 @@ function scoreGradeLabel(s) {{
 }}
 function metricClass(metric, value) {{
   if (value === null || value === undefined) return 'info';
-  if (metric === 'cap_rate') return value >= 7.5 ? 'good' : value >= 5.5 ? 'fair' : 'poor';
-  if (metric === 'coc')      return value >= 10  ? 'good' : value >= 5   ? 'fair' : 'poor';
-  if (metric === 'dscr')     return value >= 1.5 ? 'good' : value >= 1.25? 'fair' : 'poor';
-  if (metric === 'irr')      return value >= 15  ? 'good' : value >= 10  ? 'fair' : 'poor';
-  if (metric === 'em')       return value >= 2.0 ? 'good' : value >= 1.5 ? 'fair' : 'poor';
-  if (metric === 'cf_annual')return value > 0    ? (value >= 10000 ? 'good' : 'fair') : 'poor';
+  // Colours track the PROPERTY scoring ramps (json/score_weights.json thresholds):
+  // green at/above the ramp ceiling ("strong"), red below the floor ("failing"),
+  // amber on the ramp between. A green here means the engine also rewards it —
+  // previously the card could show green where the engine scored a metric mid-ramp.
+  if (metric === 'cap_rate') return value >= 9   ? 'good' : value >= 3   ? 'fair' : 'poor';  // [3,9]
+  if (metric === 'coc')      return value >= 15  ? 'good' : value >= -10 ? 'fair' : 'poor';  // [-10,15]
+  if (metric === 'dscr')     return value >= 2.0 ? 'good' : value >= 0.8 ? 'fair' : 'poor';  // [0.8,2.0]
+  if (metric === 'irr')      return value >= 18  ? 'good' : value >= 0   ? 'fair' : 'poor';  // [0,18]
+  if (metric === 'em')       return value >= 3.0 ? 'good' : value >= 1.0 ? 'fair' : 'poor';  // [1,3]
+  // Cash flow is SCORED as % of price on [-6,8] (Fix 2); colour the displayed
+  // dollar figure by that same relative ramp, not an absolute-dollar cutoff.
+  if (metric === 'cf_pct')   return value >= 8   ? 'good' : value >= -6  ? 'fair' : 'poor';  // [-6,8]%
   return 'info';
 }}
 function gradeFromLabel(label) {{
   const l = (label || '').toLowerCase();
-  if (l.includes('good') || l.includes('excellent') || l.includes('pass') || l.includes('celoc')) return 'good';
-  if (l.includes('fair') || l.includes('friction')) return 'fair';
-  if (l.includes('poor') || l.includes('bleed') || l.includes('fail') || l.includes('risk') || l.includes('no celoc')) return 'poor';
+  // 'fail'/'no celoc' are checked first so "FAIL: fails all realistic terms" and
+  // the robustness FRAGILE/MODERATE/ROBUST labels colour correctly.
+  if (l.includes('poor') || l.includes('bleed') || l.includes('fail') || l.includes('risk') || l.includes('no celoc') || l.includes('fragile')) return 'poor';
+  if (l.includes('fair') || l.includes('friction') || l.includes('moderate') || l.includes('caution')) return 'fair';
+  if (l.includes('good') || l.includes('excellent') || l.includes('pass') || l.includes('celoc') || l.includes('robust')) return 'good';
   return 'info';
 }}
 
@@ -613,7 +630,7 @@ function renderCard(p) {{
       </div>
       <div class="metric-chip">
         <span class="m-label">Annual CF</span>
-        <span class="m-value ${{metricClass('cf_annual', p.cf_annual)}}">${{fmtMoney(p.cf_annual)}}</span>
+        <span class="m-value ${{metricClass('cf_pct', p.asking ? p.cf_annual / p.asking * 100 : null)}}">${{fmtMoney(p.cf_annual)}}</span>
       </div>
       ${{p.price_drop > 0 ? `<div class="metric-chip">
         <span class="m-label">Price Drop</span>
@@ -630,6 +647,7 @@ function renderCard(p) {{
       ${{scoreDisplay}}
       <div class="score-label">Investment Score</div>
       <div class="score-grade ${{gradeClass}}">${{gradeLabel}}</div>
+      ${{p.robustness_pending && p.score !== null ? `<div class="score-pending" title="Financing-robustness factor not yet computed on this stored record — score omits it (renormalised). Re-analyze to refresh.">⟳ re-analysis pending</div>` : ''}}
     </div>
     <div class="card-body">
       <div class="card-address">${{p.address}}</div>
@@ -756,6 +774,7 @@ function openModal(p) {{
     {{ label: "Exit",                 keys: ["Exit Cap Rate","Exit Cap Ratio","Exit Price"] }},
     {{ label: "Cash Flow",            keys: ["Annual Cash Flow","Monthly Cash Flow","CoCR"] }},
     {{ label: "Debt",                 keys: ["DSCR","Break-Even NOI","Break-Even NOI %","Break-Even Occupancy %","Stress Test (+2%)"] }},
+    {{ label: "Financing Robustness", keys: ["Rate Risk (scheduled)","Amortization Risk (conditional)","Rate Margin Spread","Break-Even Financing","Financing Verdict","Financing Robustness"] }},
     {{ label: "Returns",              keys: ["IRR (*","Equity Multiple","NOI Growth Assumption"] }},
     {{ label: "Market",               keys: ["CELOC Speed Score","{staleness_key}","Seller Bleed"] }},
     {{ label: "Hotel Operations",     keys: ["Hotel Rooms","ADR","Occupancy Rate","RevPAR","NRevPAR (low dist.)","NRevPAR (mid dist.)","NRevPAR (high dist.)","Rev/Room/Yr","GOP Margin","GOP Amount","CPOR","FF&E Reserve"] }},
@@ -802,10 +821,20 @@ function openModal(p) {{
   const weights   = p.weights   || {{}};
   const barsHtml  = Object.entries(breakdown)
     .filter(([k]) => (weights[k] || 0) > 0)
-    .sort((a,b) => b[1] - a[1])
+    // null = factor not measured on this (un-refreshed) record → sort to bottom.
+    .sort((a,b) => (b[1] ?? -1) - (a[1] ?? -1))
     .map(([k, v]) => {{
+      const w = ((weights[k] || 0) * 100).toFixed(0);
+      // A null value means the factor wasn't scored on this stored record (it
+      // predates the factor). Show "Pending re-analysis", never a fake 0.0 bar.
+      if (v === null || v === undefined) {{
+        return `<div class="score-bar-row">
+          <span class="score-bar-label">${{k}} <span style="color:#b8960c">(${{w}}%)</span></span>
+          <div class="score-bar-track"></div>
+          <span class="score-bar-num" style="width:auto;font-style:italic;color:#6b6355">Pending re-analysis</span>
+        </div>`;
+      }}
       const pct = Math.min(100, v);
-      const w   = ((weights[k] || 0) * 100).toFixed(0);
       return `<div class="score-bar-row">
         <span class="score-bar-label">${{k}} <span style="color:#b8960c">(${{w}}%)</span></span>
         <div class="score-bar-track"><div class="score-bar-fill" style="width:${{pct}}%"></div></div>

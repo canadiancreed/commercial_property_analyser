@@ -915,6 +915,10 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             "score":        scored.get("score"),
             "breakdown":    scored.get("breakdown", {}),
             "weights":      scored.get("weights", {}),
+            # True when this stored record predates the financing-robustness factor,
+            # so the score omits it (renormalised) pending a re-analysis. Rides with
+            # the score onto the card and (aggregated) the city view.
+            "robustness_pending": scored.get("robustness_pending", False),
             "cap_rate":     scored.get("cap_rate", 0),
             "coc":          scored.get("coc", 0),
             "dscr":         scored.get("dscr", 0),
