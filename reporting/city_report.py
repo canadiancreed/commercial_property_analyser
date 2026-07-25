@@ -429,10 +429,13 @@ function fm(n)  {{
 }}
 function gc(metric, v) {{
   if (!v && v !== 0) return 'info';
-  if (metric === 'cap')   return v >= 7   ? 'good' : v >= 5   ? 'fair' : 'poor';
-  if (metric === 'coc')   return v >= 10  ? 'good' : v >= 5   ? 'fair' : 'poor';
-  if (metric === 'irr')   return v >= 15  ? 'good' : v >= 10  ? 'fair' : 'poor';
-  if (metric === 'dscr')  return v >= 1.5 ? 'good' : v >= 1.25? 'fair' : 'poor';
+  // Colours track the CITY scoring ramps (json/score_weights.json
+  // city_score_thresholds): green at/above the ramp ceiling ("strong"), red below
+  // the floor, amber on the ramp. Kept in lockstep with the sub-labels below.
+  if (metric === 'cap')   return v >= 10  ? 'good' : v >= 3   ? 'fair' : 'poor';  // act_cap  [3,10]
+  if (metric === 'coc')   return v >= 15  ? 'good' : v >= -10 ? 'fair' : 'poor';  // act_coc  [-10,15]
+  if (metric === 'irr')   return v >= 18  ? 'good' : v >= 0   ? 'fair' : 'poor';  // act_irr  [0,18]
+  if (metric === 'dscr')  return v >= 1.5 ? 'good' : v >= 1.0 ? 'fair' : 'poor';  // act_dscr [1,1.5]
   if (metric === 'score') return v >= 70  ? 'good' : v >= 45  ? 'fair' : 'poor';
   if (metric === 'drop')  return v > 2    ? 'good' : v > 0    ? 'fair' : 'info';
   if (metric === 'dom')   return v >= 90  ? 'good' : v >= 60  ? 'fair' : 'info';
@@ -523,11 +526,11 @@ function renderCity(c, i) {{
   const confPctStr = c.confidence ? (c.confidence * 100).toFixed(0) + '%' : '—';
   const confCls    = c.confidence >= 0.8 ? 'good' : c.confidence >= 0.5 ? 'fair' : 'poor';
   const activeCards = [
-    {{ label:'Deal Score (Active)',  val: c.active_deal_score_na ? 'n/a' : (c.active_deal_score ? fi(c.active_deal_score)+'/100':'—'),  cls: gc('score',c.active_deal_score),  sub:'avg across active listings' }},
-    {{ label:'Cap Rate (Active)',    val: fp(c.active_cap_rate),   cls: gc('cap',c.active_cap_rate),   sub:'≥7% strong · live deals' }},
-    {{ label:'CoCR (Active)',        val: fp(c.active_cash_on_cash),   cls: gc('coc',c.active_cash_on_cash),   sub:'≥10% strong · live deals' }},
-    {{ label:'IRR (Active)',         val: fp(c.active_irr),   cls: gc('irr',c.active_irr),   sub:'≥15% strong · live deals' }},
-    {{ label:'DSCR (Active)',        val: c.active_dscr ? c.active_dscr.toFixed(2):'—', cls: gc('dscr',c.active_dscr), sub:'≥1.5 strong' }},
+    {{ label:'Deal Score (Active)',  val: c.active_deal_score_na ? 'n/a' : (c.active_deal_score ? fi(c.active_deal_score)+'/100':'—'),  cls: gc('score',c.active_deal_score),  sub: c.pending_reanalysis > 0 ? `⟳ ${{c.pending_reanalysis}} of ${{c.active}} pending re-analysis` : 'avg across active listings' }},
+    {{ label:'Cap Rate (Active)',    val: fp(c.active_cap_rate),   cls: gc('cap',c.active_cap_rate),   sub:'≥10% strong · ramp 3–10%' }},
+    {{ label:'CoCR (Active)',        val: fp(c.active_cash_on_cash),   cls: gc('coc',c.active_cash_on_cash),   sub:'≥15% strong · ramp −10–15%' }},
+    {{ label:'IRR (Active)',         val: fp(c.active_irr),   cls: gc('irr',c.active_irr),   sub:'≥18% strong · ramp 0–18%' }},
+    {{ label:'DSCR (Active)',        val: c.active_dscr ? c.active_dscr.toFixed(2):'—', cls: gc('dscr',c.active_dscr), sub:'≥1.5 strong · ramp 1.0–1.5' }},
     {{ label:'Price Drop (Active)',  val: fp(c.active_price_drop),  cls: gc('drop',c.active_price_drop), sub:'from original list' }},
     {{ label:'Days Listed (Active)', val: c.active_days_on_market != null ? c.active_days_on_market+'d':'—', cls: gc('dom',c.active_days_on_market), sub:'seller motivation' }},
     {{ label:'Avg Price (Active)',   val: fm(avgPriceShown), cls:'info', sub: _filtered ? `${{activeShown}} listing(s) in range` : 'active listings' }},

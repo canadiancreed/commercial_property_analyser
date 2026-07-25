@@ -6,7 +6,7 @@ from scoring.city_ranker import CityRanker
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _make_scorer(score=50.0, cap=7.0, coc=8.0, irr=10.0, dscr=1.4,
-                 cf=12_000, drop=5.0, dom=90):
+                 cf=12_000, drop=5.0, dom=90, cf_pct=2.4):
     scorer = MagicMock()
     scorer.load_config.return_value = {
         "confidence_k": 5,
@@ -17,7 +17,9 @@ def _make_scorer(score=50.0, cap=7.0, coc=8.0, irr=10.0, dscr=1.4,
     scorer.score_property.return_value = {
         "score": score,
         "cap_rate": cap, "coc": coc, "irr": irr, "dscr": dscr,
-        "cf_annual": cf, "price_drop": drop, "dom": dom,
+        # cf_annual = displayed dollars; cf_pct_price = the size-relative measure
+        # the act_cf factor now scores on (Fix 2).
+        "cf_annual": cf, "cf_pct_price": cf_pct, "price_drop": drop, "dom": dom,
     }
     return scorer
 
@@ -603,18 +605,19 @@ class TestIrrDscrCf:
         assert result[0]["opportunity"] == pytest.approx(0.0, abs=0.5)
 
     def test_cf_higher_scores_higher(self):
-        thresh = {"act_cf": [0.0, 50_000.0]}
-        scorer_lo = _make_scorer_with_config(_zero_weights("act_cf"), thresh, cf=0)
-        scorer_hi = _make_scorer_with_config(_zero_weights("act_cf"), thresh, cf=50_000)
+        # Fix 2: act_cf scores cash flow as % of price on a [-6, 8] ramp.
+        thresh = {"act_cf": [-6.0, 8.0]}
+        scorer_lo = _make_scorer_with_config(_zero_weights("act_cf"), thresh, cf_pct=-6.0)
+        scorer_hi = _make_scorer_with_config(_zero_weights("act_cf"), thresh, cf_pct=8.0)
         props = _props(["Ottawa"] * 10)
         opp_lo = CityRanker(scorer_lo).rank(props)[0]["opportunity"]
         opp_hi = CityRanker(scorer_hi).rank(props)[0]["opportunity"]
         assert opp_hi > opp_lo
 
     def test_cf_weight_zero_no_contribution(self):
-        thresh = {"act_cf": [0.0, 50_000.0]}
-        scorer_on  = _make_scorer_with_config(_zero_weights("act_cf"), thresh, cf=50_000)
-        scorer_off = _make_scorer_with_config(_zero_weights(),         thresh, cf=50_000)
+        thresh = {"act_cf": [-6.0, 8.0]}
+        scorer_on  = _make_scorer_with_config(_zero_weights("act_cf"), thresh, cf_pct=8.0)
+        scorer_off = _make_scorer_with_config(_zero_weights(),         thresh, cf_pct=8.0)
         props = _props(["Ottawa"] * 10)
         opp_on  = CityRanker(scorer_on).rank(props)[0]["opportunity"]
         opp_off = CityRanker(scorer_off).rank(props)[0]["opportunity"]
@@ -624,8 +627,8 @@ class TestIrrDscrCf:
         """IRR + DSCR + CF combined with mid-range inputs should produce 0–100."""
         weights = {**_zero_weights("act_irr", "act_dscr", "act_cf"),
                    "act_irr": 0.4, "act_dscr": 0.35, "act_cf": 0.25}
-        thresholds = {"act_irr": [8.0, 20.0], "act_dscr": [1.0, 1.5], "act_cf": [0.0, 50_000.0]}
-        scorer = _make_scorer_with_config(weights, thresholds, irr=14.0, dscr=1.25, cf=25_000)
+        thresholds = {"act_irr": [8.0, 20.0], "act_dscr": [1.0, 1.5], "act_cf": [-6.0, 8.0]}
+        scorer = _make_scorer_with_config(weights, thresholds, irr=14.0, dscr=1.25, cf_pct=4.0)
         result = CityRanker(scorer).rank(_props(["Ottawa"] * 10))
         opp = result[0]["opportunity"]
         assert 0 <= opp <= 100

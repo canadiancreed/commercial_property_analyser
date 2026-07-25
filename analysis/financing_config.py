@@ -178,6 +178,9 @@ def get_financing(property_type=None, units=None, loan_estimate=None) -> dict:
     result = dict(defaults)  # down_payment_pct, interest_rate, term_years, hold_years
     result["stress_test_bump"] = raw.get("stress_test_bump", 0.0)
     result["verified_date"]    = raw.get("verified_date")
+    # Residential fallback covenant for types that qualify on borrower GDS/TDS
+    # (null dscr_floor) — used by the financing-robustness margins (Fix 6).
+    residential_covenant = raw.get("residential_covenant_dscr", 1.1)
 
     type_key = _type_key(property_type, units)
     if type_key:
@@ -191,7 +194,8 @@ def get_financing(property_type=None, units=None, loan_estimate=None) -> dict:
             "financing_scenario": "default",
             "max_ltv": round(1 - defaults["down_payment_pct"], 6),
             "rate_low": None, "rate_high": None, "amort_years": defaults["term_years"],
-            "dscr_floor": None, "fixed_expense_fraction": None,
+            "dscr_floor": None, "covenant_dscr": residential_covenant,
+            "fixed_expense_fraction": None,
             "cmhc_eligible": False, "cmhc": None,
             "small_balance_flag": False, "notes": "",
         })
@@ -222,6 +226,10 @@ def get_financing(property_type=None, units=None, loan_estimate=None) -> dict:
         "rate_low": active.get("rate_low"), "rate_high": active.get("rate_high"),
         "amort_years": active.get("amort_years"),
         "dscr_floor": active.get("dscr_floor"),
+        # Covenant DSCR (Fix 6 robustness) == the resolved lending dscr_floor
+        # (scenario-aware: 1.10 under MLI Select, else the conventional floor).
+        # Null-floor types (1-4 residential, GDS/TDS-qualified) use the fallback.
+        "covenant_dscr": active.get("dscr_floor") or residential_covenant,
         # fixed_expense_fraction is a property of the ASSET CLASS, so it always
         # comes from the parent type block — never the MLI sub-block (which omits it).
         "fixed_expense_fraction": block.get("fixed_expense_fraction"),
