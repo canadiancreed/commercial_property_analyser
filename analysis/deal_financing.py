@@ -129,26 +129,37 @@ class DealFinancing:
         return rows
 
     def _mli_rows(self) -> list:
-        """CMHC / MLI Select panel — multi-family only."""
-        if not self.is_multifamily:
+        """CMHC / MLI panel — Fix C: renders IFF the deal is actually MLI-routed
+        (``financing_scenario == "mli_standard"``). Conventional deals get NO MLI
+        rows: small-balance 5+ MF, 1-4 unit residential, and non-eligible
+        mixed-use. (MLI-routed mixed-use under the 30% rule DOES render it.)"""
+        if self._fin.get("financing_scenario") != "mli_standard":
             return []
         cmhc = self._fin.get("cmhc")
-        if self.type_key != "multi_family_5plus" or not isinstance(cmhc, dict):
-            # 1-4 unit residential is not MLI-eligible.
-            return [ReportRow("MLI Eligible", "No", "INFO")]
+        if not isinstance(cmhc, dict):
+            return []
         select   = cmhc.get("mli_select", {})
         standard = cmhc.get("mli_standard", {})
         std_ltv  = standard.get("max_ltv", 0.85)
-        sel_ltv  = select.get("max_ltv", 0.95)
-        sel_amort = select.get("amort_years", 50)
+        # Acquisition LTV is capped at 85% for BOTH programs; 95% is the unverified
+        # top-tier ceiling. Select amortization is modeled at the 70-pt/45yr tier.
+        sel_ltv       = select.get("max_ltv", 0.85)
+        sel_amort     = select.get("modeled_amort_years", 45)
+        tier_max      = max((select.get("amort_by_points") or {"100": 50}).values())
+        unverified    = cmhc.get("unverified_max_ltv", 0.95)
         rows = [
             ReportRow("MLI Eligible", "Yes (5+ units)", "INFO"),
             ReportRow("MLI Max Loan (Standard)",
-                      f"${self._price * std_ltv:,.2f} @ {std_ltv * 100:.0f}% LTV", "INFO"),
+                      f"${self._price * std_ltv:,.2f} @ {std_ltv * 100:.0f}% LTV, "
+                      f"{standard.get('amort_years', 40)}yr — ranking basis", "INFO"),
             ReportRow("MLI Max Loan (Select)",
-                      f"${self._price * sel_ltv:,.2f} @ {sel_ltv * 100:.0f}% LTV", "INFO"),
-            ReportRow("MLI Amortization", f"up to {sel_amort} yr", "INFO"),
-            ReportRow("MLI Note", "CMHC processing: months, not weeks.", "INFO"),
+                      f"${self._price * sel_ltv:,.2f} @ {sel_ltv * 100:.0f}% LTV "
+                      f"(acquisition cap)", "INFO"),
+            ReportRow("MLI Amortization",
+                      f"modeled {sel_amort}yr (70-pt tier); up to {tier_max}yr @ 100 pts", "INFO"),
+            ReportRow("MLI Note",
+                      f"{unverified * 100:.0f}% LTV is unverified upside — requires 100 pts + "
+                      f"DSCR≥1.20 + full lender advance. CMHC processing: months.", "INFO"),
         ]
         if self._fin.get("small_balance_flag"):
             # Card-facing copy comes from the config `display` key ONLY. `notes` is

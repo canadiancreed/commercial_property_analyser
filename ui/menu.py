@@ -8,7 +8,9 @@ from models.constants import PROP_SHORTCUTS, PROPERTY_TYPES, COMMERCIAL_TYPES_LO
 from data.store import DataStore
 from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
-from analysis.financing_config import load_financing_config, resolve_financing
+from analysis.financing_config import (
+    load_financing_config, resolve_financing, mixed_use_commercial_gfa_share,
+)
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from reporting.printer import ReportPrinter
 from reporting.property_report import PropertyReportGenerator
@@ -919,6 +921,11 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             # so the score omits it (renormalised) pending a re-analysis. Rides with
             # the score onto the card and (aggregated) the city view.
             "robustness_pending": scored.get("robustness_pending", False),
+            # Fix 3 dual scoring: MLI-eligible deals rank on the Standard score
+            # (p.score); the Select upside score + gap ride along for display.
+            "mli_eligible":  scored.get("mli_eligible", False),
+            "select_score":  scored.get("select_score"),
+            "select_gap":    scored.get("select_gap"),
             "cap_rate":     scored.get("cap_rate", 0),
             "coc":          scored.get("coc", 0),
             "dscr":         scored.get("dscr", 0),
@@ -1292,7 +1299,11 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         # current values — any stale copies in the stored record are ignored here
         # and refreshed on write. All routing lives in financing_config.
         _units = unit_mix.total_units if unit_mix else 0
-        fin = resolve_financing(p.get("asking_price", 0), p.get("property_type"), _units)
+        # commercial GFA share (mixed-use only) drives the CMHC 30% eligibility rule.
+        _share = mixed_use_commercial_gfa_share(
+            p.get("property_type"), unit_mix.floors if unit_mix else p.get("floors", 1))
+        fin = resolve_financing(p.get("asking_price", 0), p.get("property_type"), _units,
+                                commercial_gfa_share=_share)
         return PropertyInput(
             address          = p["address"],
             mls_number       = p.get("mls_number", ""),

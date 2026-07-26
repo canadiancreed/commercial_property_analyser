@@ -152,9 +152,11 @@ def _deal(app_type, price, gpr, vacancy, opex_ratio, units=0):
 
 
 def test_tm5_refi_headroom_ltv_binding():
-    d = _deal("Multi-Family", 500_000, 90_300, 0.03, 0.40, units=6)  # Verona
+    # Verona 6-unit $500k: 75%-LTV loan $375k < $1M → conventional (Fix A), 75% LTV.
+    d = _deal("Multi-Family", 500_000, 90_300, 0.03, 0.40, units=6)
     assert d.binding_constraint == "LTV"
-    assert d.refi_headroom == pytest.approx(113_361.09, abs=MONEY)   # 488,361.09 − 375,000
+    # Conventional: 488,361.09 (DSCR ceiling) − 375,000 (LTV ceiling).
+    assert d.refi_headroom == pytest.approx(113_361.09, abs=MONEY)
 
 
 def test_tm5_refi_headroom_omitted_when_dscr_binds():
@@ -169,25 +171,29 @@ def test_tm5_refi_headroom_absent_without_dscr_floor():
     assert d.refi_headroom is None
 
 
-# ── T-M6: display/notes split — internal prose can never leak ────────────────
+# ── T-M6: small-balance 5+ MF reverts to conventional (Fix A) with no MLI panel (Fix C) ──
+
+def test_tm6_small_balance_reverts_conventional_no_mli_panel():
+    fin = resolve_financing(500_000, "Multi-Family", 6)   # 75%-LTV loan $375k < $1M
+    assert fin["financing_scenario"] == "type"
+    assert fin["small_balance_flag"] is True
+    assert "small-balance" in fin["mli_eligibility"]
+    d = DealFinancing(fin, 500_000, 52_554.60, gpr=90_300, units=6)
+    metrics = {r.metric for r in d.rows()}
+    assert not any(m.startswith("MLI") for m in metrics)   # Fix C: no MLI rows
+
 
 def _small_balance_fin(with_display):
-    fin = resolve_financing(500_000, "Multi-Family", 6)   # mf5plus, small balance
+    fin = resolve_financing(500_000, "Multi-Family", 6)   # 75%-loan $375k < $1M → conventional
     assert fin["small_balance_flag"] is True
-    if not with_display:
+    if not with_display and isinstance(fin.get("cmhc"), dict):
         fin = dict(fin)
         fin["cmhc"] = {k: v for k, v in fin["cmhc"].items() if k != "display"}
     return fin
 
 
-def test_tm6_small_balance_renders_display_copy():
-    d = DealFinancing(_small_balance_fin(True), 500_000, 52_554.60, gpr=90_300, units=6)
-    vals = {r.metric: r.value for r in d.rows()}
-    assert vals["MLI Small-Balance Flag"] == \
-        "Loan under $1M — CMHC costs/timeline rarely pencil at this size; shown as secondary option."
-
-
 def test_tm6_no_display_renders_nothing():
+    # Small-balance 5+ MF is conventional (Fix A) → no MLI panel at all (Fix C).
     d = DealFinancing(_small_balance_fin(False), 500_000, 52_554.60, gpr=90_300, units=6)
     assert "MLI Small-Balance Flag" not in {r.metric for r in d.rows()}
 

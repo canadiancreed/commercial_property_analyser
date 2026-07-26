@@ -10,6 +10,7 @@
   "verified_date": "2026-07",
   "_covenant_comment": "Financing-robustness covenant DSCR (Fix 6) is the per-type lending dscr_floor above — ONE source of truth, so loan sizing and robustness stay consistent. Types that qualify on borrower GDS/TDS rather than a project DSCR (multi_family_1_4, and any type with a null dscr_floor) fall back to residential_covenant_dscr.",
   "residential_covenant_dscr": 1.1,
+  "_financing_sources": "CMHC MLI parameters verified July 2026 against CMHC primary (cmhc-schl.gc.ca) + corroborating broker/lender sources. Every listing here is an EXISTING-BUILDING ACQUISITION, never new construction, so 95% loan-to-COST never applies. Acquisition advances are capped at 85% LTV (lender effective-advance practice, corroborated) because existing buildings rarely throw enough DSCR to support true 95% advancing; 95% is the published 100-point existing-property ceiling and is treated as UNVERIFIED UPSIDE requiring 100pts + DSCR>=1.20 + full lender advance. MLI Standard (85/40/DSCR1.20, no points) is the primary-verified ranking floor. MLI Select amortization is point-tier-dependent (50pts->40yr, 70pts->45yr, 100pts->50yr); 50yr is the 100-point reward only, so Select is modeled at 70pts/45yr, never a blanket 50yr. Eligibility: >=5 RESIDENTIAL units (retirement 50 units/beds); mixed-use qualifies only under the CMHC 30% rule (non-residential <=30% of gross floor area). Retail/office/industrial are never CMHC-eligible.",
   "property_types": {
     "multi_family_1_4": {
       "max_ltv": 0.8,
@@ -30,25 +31,36 @@
       "fixed_expense_fraction": 0.65,
       "cmhc_eligible": true,
       "cmhc": {
-        "mli_select": {
-          "max_ltv": 0.95,
-          "rate_low": 0.0425,
-          "rate_high": 0.0525,
-          "amort_years": 50,
-          "dscr_floor": 1.1
-        },
+        "_verification": "CMHC primary + broker/lender corroboration, verified 2026-07. Acquisition LTV capped at 85% for BOTH programs (existing-building effective-advance practice). Select LTV of 86-95% is unverified upside (needs 100pts + DSCR>=1.20 + full lender advance).",
+        "acquisition_ltv_cap": 0.85,
+        "acquisition_ltv_cap_source": "lender effective-advance practice (corroborated) — existing buildings rarely support true 95% advancing",
+        "unverified_max_ltv": 0.95,
+        "unverified_max_ltv_source": "CMHC published 100-point existing-property ceiling; conditional/unverified upside, not modeled in scoring",
+        "primary_scenario": "mli_standard",
         "mli_standard": {
           "max_ltv": 0.85,
           "rate_low": 0.045,
           "rate_high": 0.0525,
           "amort_years": 40,
-          "dscr_floor": 1.3
+          "dscr_floor": 1.2,
+          "_source": "CMHC primary — MLI Standard: 85% LTV, 40yr amortization, DSCR 1.20, no points required (the certainty floor / ranking default)"
+        },
+        "mli_select": {
+          "max_ltv": 0.85,
+          "rate_low": 0.0425,
+          "rate_high": 0.0525,
+          "dscr_floor": 1.1,
+          "amort_by_points": { "50": 40, "70": 45, "100": 50 },
+          "modeled_points": 70,
+          "modeled_amort_years": 45,
+          "_source": "CMHC fact sheet — Select DSCR floor 1.10; amortization by point tier 50pts->40yr, 70pts->45yr, 100pts->50yr (50yr = 100-point reward w/ limited recourse); premium discounts 10/20/30% at 50/70/100pts. LTV capped at 85% (acquisition). Modeled at 70pts/45yr — realistic achievable Select, NOT a blanket 50yr.",
+          "_premium_note": "Premiums rose sharply July 2025 (0.25% surcharge per 5yr amortization beyond 25yr; a 70pt/95% deal ~5.72%) — an upfront insurance cost, separate from the interest rate band above."
         },
         "min_practical_loan": 1000000,
-        "notes": "Below min_practical_loan, CMHC fixed costs and processing time rarely pencil; use conventional settings and flag CMHC as a secondary option",
-        "display": "Loan under $1M — CMHC costs/timeline rarely pencil at this size; shown as secondary option."
+        "notes": "5+ residential units qualify for CMHC MLI. Score on MLI Standard (ranking); Select is displayed upside. Below min_practical_loan (keyed on the 75%-LTV loan, not price), the deal finances CONVENTIONALLY (75% LTV / 25yr), not MLI — CMHC fixed costs rarely pencil at that size. This small-balance floor applies to ANY MLI-routed type (multifamily and eligible mixed-use), so no deal gets MLI terms on a sub-$1M loan.",
+        "display": "Loan under $1M — CMHC costs/timeline rarely pencil at this size; MLI shown as a secondary option."
       },
-      "notes": "Conventional/credit-union commercial multifamily"
+      "notes": "Commercial multifamily. 5+ residential units are CMHC MLI-eligible (ranked on MLI Standard); the block scalars above are the conventional/credit-union fallback."
     },
     "mixed_use": {
       "max_ltv": 0.75,
@@ -58,7 +70,14 @@
       "dscr_floor": 1.25,
       "fixed_expense_fraction": 0.55,
       "cmhc_eligible": false,
-      "notes": "No CMHC access. 20-30% down typical."
+      "cmhc_conditional": {
+        "_source": "CMHC primary 30% non-residential rule: non-residential space must not exceed 30% of gross floor area (nor 30% of lending value). A mixed-use building under the threshold with 5+ residential units IS CMHC-eligible.",
+        "max_commercial_gfa_share": 0.30,
+        "min_residential_units": 5,
+        "cmhc_terms_from": "multi_family_5plus",
+        "_share_basis": "Commercial GFA share is estimated conservatively as ground-floor / total = 1/floors (the same retail-below/residential-above assumption the income engine uses); no measured commercial-GFA field exists in the data. Where floors can't establish it, eligibility is undetermined and routing falls back to conventional (safe direction)."
+      },
+      "notes": "Conventional by default; MLI-eligible only under the CMHC 30% non-residential rule (<=30% commercial GFA AND 5+ residential units), then ranked on MLI Standard."
     },
     "office": {
       "max_ltv": 0.65,

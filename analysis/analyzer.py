@@ -13,7 +13,7 @@ from analysis.metrics.property_types import HotelMetrics, IndustrialMetrics
 from analysis.industrial_config import industrial_confidence
 from analysis.underwriting_config import load_underwriting_config
 from analysis.screener_config import load_screener_config
-from analysis.financing_config import resolve_financing
+from analysis.financing_config import resolve_financing, mixed_use_commercial_gfa_share
 from analysis.deal_financing import DealFinancing
 from analysis.metrics.financing_robustness import FinancingRobustness
 
@@ -165,7 +165,10 @@ class CommercialPropertyAnalyzer:
         # keep the rich block — max_ltv, dscr_floor, fixed_expense_fraction, CMHC
         # — for the additive DealFinancing rows and the break-even-occupancy split).
         self._units     = prop.unit_mix.total_units if prop.unit_mix else 0
-        self._financing = resolve_financing(prop.asking_price, prop.property_type, self._units)
+        _comm_share     = mixed_use_commercial_gfa_share(
+            prop.property_type, prop.unit_mix.floors if prop.unit_mix else 1)
+        self._financing = resolve_financing(prop.asking_price, prop.property_type,
+                                            self._units, commercial_gfa_share=_comm_share)
 
         self.mortgage = MortgageCalculator(
             prop.asking_price, prop.down_payment_pct,
@@ -280,6 +283,50 @@ class CommercialPropertyAnalyzer:
             )
             is_hotel = (prop.property_type or "").strip().lower() == "hotel"
             self.hotel = HotelMetrics(prop, annual_rent) if is_hotel else None
+
+            # ── MLI Select UPSIDE pass (Fix 3, dual scoring) ─────────────────
+            # LTV is capped at 85% for BOTH programs, so equity/loan are identical
+            # to Standard — Select differs ONLY in debt service (lower rate +
+            # point-tier amortization, modeled 70pt/45yr) and the 1.10 DSCR floor.
+            # Recompute the debt-side metrics so the record can carry a Standard
+            # (ranking) score AND a Select (upside) score + the gap.
+            self.select_mortgage = self.select_cashflow = None
+            self.select_debt = self.select_returns = self.select_robustness = None
+            sel = self._financing.get("select")
+            if sel:
+                self.select_mortgage = MortgageCalculator(
+                    prop.asking_price, sel["down_payment_pct"], sel["interest_rate"],
+                    sel["term_years"], prop.hold_years, prop.construction_cost or 0,
+                    province=prop.province or "",
+                )
+                self.select_cashflow = CashFlowMetrics(
+                    self.income.est_noi, self.select_mortgage.annual_mortgage,
+                    self.select_mortgage.down_payment, prop.construction_cost or 0)
+                self.select_debt = DebtMetrics(
+                    self.income.est_noi, prop.expense_ratio,
+                    self.select_mortgage.annual_mortgage, annual_rent,
+                    loan_amount=self.select_mortgage.loan_amount,
+                    interest_rate=sel["interest_rate"], term_years=sel["term_years"],
+                    compounding=self.select_mortgage.compounding,
+                    stress_rate_bump=_underwriting["stress_rate_bump"],
+                    stress_min_dscr=_underwriting["stress_min_dscr"],
+                    egi=self.income.egi, total_operating_expenses=self.income.est_expenses,
+                    fixed_expense_fraction=self._financing.get("fixed_expense_fraction"),
+                    beo_display_cap=_screener["beo_display_cap"],
+                    beo_warning_threshold=_screener["beo_warning_threshold"])
+                self.select_returns = ReturnMetrics(
+                    prop, self.income.est_noi, self.select_mortgage.annual_mortgage,
+                    self.select_cashflow.cash_invested, self.exit.exit_price,
+                    self.select_mortgage.loan_balance,
+                    noi_growth_source=noi_growth_source, noi_growth_rate=noi_growth_rate)
+                self.select_robustness = FinancingRobustness(
+                    self.income.est_noi, self.select_mortgage.loan_amount,
+                    sel["interest_rate"], sel["term_years"], sel.get("covenant_dscr"),
+                    compounding=self.select_mortgage.compounding,
+                    rate_low=sel.get("rate_low"), rate_high=sel.get("rate_high"),
+                    rate_ref_bps=_underwriting.get("robustness_rate_ref_bps", 250.0),
+                    amort_ref_years=_underwriting.get("robustness_amort_ref_years", 10.0),
+                    rate_weight=_underwriting.get("robustness_rate_weight", 0.7))
         else:
             self.income = self.exit = self.cashflow = self.debt = self.returns = self.market = None
             self.income_confidence = None
@@ -287,6 +334,8 @@ class CommercialPropertyAnalyzer:
             self.industrial = None
             self.deal_financing = None
             self.financing_robustness = None
+            self.select_mortgage = self.select_cashflow = None
+            self.select_debt = self.select_returns = self.select_robustness = None
             self.mixed_use  = None
             self._income_confidence = None
 
@@ -300,10 +349,29 @@ class CommercialPropertyAnalyzer:
                 rows.extend(group.rows())
         return rows
 
+    def _select_record(self, primary_results):
+        """Fix 3 dual scoring: a MLI-Select variant of ``results`` (same income /
+        cap rate / exit — only the debt-side rows differ, since LTV is capped at
+        85% for both programs) plus the Select robustness sub-score. Returns
+        (select_results, select_robustness_score) or (None, None) when the deal is
+        not MLI-eligible (no Select scenario)."""
+        if self.select_returns is None:
+            return None, None
+        replace = {}
+        for grp in (self.select_cashflow, self.select_debt,
+                    self.select_returns, self.select_robustness):
+            for row in grp.rows():
+                if row.grade != "":
+                    replace[row.metric] = row.to_dict()
+        select_results = [replace.get(r["metric"], r) for r in primary_results]
+        return select_results, self.select_robustness.score
+
     def to_record(self, existing: dict = None) -> dict:
         """Serializes the full analysis to a dict suitable for saving via DataStore."""
         p   = self.prop
         now = date.today().isoformat()
+        _results = [row.to_dict() for row in self.report() if row.grade != ""]
+        _select_results, _select_robustness = self._select_record(_results)
         return {
             "address":          p.address,
             "mls_number":       p.mls_number,
@@ -370,5 +438,10 @@ class CommercialPropertyAnalyzer:
             "financing_robustness": (
                 self.financing_robustness.score if self.financing_robustness else None
             ),
-            "results":          [row.to_dict() for row in self.report() if row.grade != ""],
+            "results":          _results,
+            # Fix 3: MLI Select upside variant of the results + robustness. Present
+            # only for CMHC MLI-eligible deals; None otherwise. Ranking uses the
+            # Standard `results` above; the report shows both + the gap.
+            "select_results":   _select_results,
+            "select_financing_robustness": _select_robustness,
         }
