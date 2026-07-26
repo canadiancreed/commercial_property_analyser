@@ -969,6 +969,9 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
             return
         updated = skipped = 0
         errors  = []   # (address, mls, property_type, exc_repr, traceback_str)
+        vac_sources = {}   # source stamp -> count (regional vacancy pipeline, v3.7)
+        vac_alarms  = 0    # tier-4 alarms: a residential deal that fell through to the floor
+        vac_demoted = 0    # deals whose figure was demoted for poor CMHC reliability
         for i, p in enumerate(props):
             try:
                 prop     = self._record_to_prop(p)
@@ -978,6 +981,16 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
                     record["notes"] = p["notes"]
                 self._store.update_property(i, record)
                 updated += 1
+                # A demoted deal is broken out on its own line, NOT folded into its
+                # landing stamp — otherwise a downgraded figure hides inside provincial_avg.
+                if record.get("vacancy_demoted_from"):
+                    vac_demoted += 1
+                else:
+                    src = record.get("vacancy_source")
+                    if src:
+                        vac_sources[src] = vac_sources.get(src, 0) + 1
+                if record.get("vacancy_normal") is False:
+                    vac_alarms += 1
             except ValueError:
                 # Expected: no market rent rates for this city yet — partial record.
                 skipped += 1
@@ -991,7 +1004,44 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
         if skipped: print(f", {skipped} skipped (missing rates)", end="")
         if errors:  print(f", {len(errors)} errors", end="")
         print(".")
+        self._report_vacancy_sources(vac_sources, vac_alarms, vac_demoted)
         self._report_reanalyze_errors(errors)
+
+    # ── Regional vacancy source breakdown (v3.7 tripwire) ───────────────────
+
+    def _report_vacancy_sources(self, vac_sources: dict, vac_alarms: int, vac_demoted: int = 0):
+        """Show how many deals ran on real regional vacancy data vs. a fallback floor,
+        so the source mix is visible at a glance. Demoted deals (a poor-reliability figure
+        skipped) are their own line, not hidden in their landing stamp. A nonzero tier-4
+        alarm count is the "go look" signal — a residential deal fell all the way through
+        to the constant floor, which in healthy operation should never happen (every
+        property has a province, so tier 3 always resolves). Nonzero => the join broke."""
+        if not vac_sources and not vac_demoted:
+            return
+        labels = {
+            "region":         "region (surveyed)",
+            "parent_cma":     "parent CMA/CA",
+            "provincial_avg": "provincial avg",
+            "type_default":   "per-type default (commercial)",
+            "constant_floor": "constant floor (ALARM)",
+            "override":       "manual override",
+        }
+        order = ["region", "parent_cma", "provincial_avg", "type_default",
+                 "constant_floor", "override"]
+        print("\n  Vacancy source mix:")
+        for key in order:
+            n = vac_sources.get(key)
+            if n:
+                print(f"    • {labels.get(key, key):32} {n}")
+        for key, n in vac_sources.items():   # any unexpected stamp
+            if key not in labels and n:
+                print(f"    • {key:32} {n}")
+        if vac_demoted:
+            print(f"    • {'demoted (poor reliability)':32} {vac_demoted}")
+        if vac_alarms:
+            print(f"  ⚠ {vac_alarms} tier-4 vacancy alarm(s) — residential deal(s) fell "
+                  f"through to the constant floor. Check the vacancy/crosswalk data "
+                  f"(json/vacancy_rates.json, json/geographic_crosswalk.json).")
 
     def _report_reanalyze_errors(self, errors: list):
         """Surface the errors `_reanalyze_all` used to swallow: a one-line summary

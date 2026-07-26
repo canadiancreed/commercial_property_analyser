@@ -1,0 +1,1202 @@
+{
+ "_meta": {
+  "description": "CMHC Rental Market Survey apartment (residential) vacancy by geography.",
+  "source": "Canada Mortgage and Housing Corporation, Rental Market Survey (republished via Statistics Canada WDS tables 34-10-0127/128/129)",
+  "source_url": "https://www150.statcan.gc.ca/t1/tbl/en/tv.action?pid=3410012701",
+  "reference_date": "October 2025",
+  "attribution": "Adapted from Canada Mortgage and Housing Corporation, Rental Market Survey, October 2025.",
+  "unit": "fraction (0.031 == 3.1%)",
+  "reliability_codes": {
+   "e": "StatCan 'use with caution' (higher sampling variability) - demoted to the parent tier",
+   "null": "no quality flag on the figure (StatCan channel does not carry CMHC's a/b/c/d letters)"
+  },
+  "last_updated": "2026-07-26",
+  "status": "fetched",
+  "reliability_note": "Regional figures come from StatCan's republication of the CMHC series, which carries StatCan quality flags (E=use with caution, F=suppressed) rather than CMHC's a/b/c/d letters.",
+  "aggregate_note": "provincial/national are UNWEIGHTED means of surveyed centres, not official CMHC provincial figures. Universe/unit-count weights are not published on the reachable StatCan WDS channel, so a stock-weighted provincial mean is not possible from this source.",
+  "license_note": "CMHC data carries an attribution requirement: value-added products must display the 'attribution' string wherever the figures surface."
+ },
+ "regions": {
+  "825": {
+   "vacancy_rate": 0.05,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Calgary",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "835": {
+   "vacancy_rate": 0.039,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Edmonton",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "580": {
+   "vacancy_rate": 0.013,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Greater Sudbury / Grand Sudbury",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "205": {
+   "vacancy_rate": 0.025,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Halifax",
+   "province": "NS",
+   "ref_date": "2025"
+  },
+  "537": {
+   "vacancy_rate": 0.036,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Hamilton",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "541": {
+   "vacancy_rate": 0.042,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Kitchener - Cambridge - Waterloo",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "555": {
+   "vacancy_rate": 0.039,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "London",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "505": {
+   "vacancy_rate": 0.034,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Ottawa - Gatineau",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "421": {
+   "vacancy_rate": 0.026,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Québec",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "705": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Regina",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "001": {
+   "vacancy_rate": 0.016,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "St. John's",
+   "province": "NL",
+   "ref_date": "2025"
+  },
+  "310": {
+   "vacancy_rate": 0.015,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Saint John",
+   "province": "NB",
+   "ref_date": "2025"
+  },
+  "725": {
+   "vacancy_rate": 0.032,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Saskatoon",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "535": {
+   "vacancy_rate": 0.03,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Toronto",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "933": {
+   "vacancy_rate": 0.037,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Vancouver",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "935": {
+   "vacancy_rate": 0.031,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Victoria",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "559": {
+   "vacancy_rate": 0.036,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Windsor",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "602": {
+   "vacancy_rate": 0.028,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Winnipeg",
+   "province": "MB",
+   "ref_date": "2025"
+  },
+  "539": {
+   "vacancy_rate": 0.035,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "St. Catharines - Niagara",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "408": {
+   "vacancy_rate": 0.026,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Saguenay",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "595": {
+   "vacancy_rate": 0.043,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Thunder Bay",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "532": {
+   "vacancy_rate": 0.037,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Oshawa",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "442": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Trois-Rivières",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "433": {
+   "vacancy_rate": 0.025,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Sherbrooke",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "932": {
+   "vacancy_rate": 0.028,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Abbotsford - Mission",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "568": {
+   "vacancy_rate": 0.042,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Barrie",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "543": {
+   "vacancy_rate": 0.035,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Brantford",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "550": {
+   "vacancy_rate": 0.032,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Guelph",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "915": {
+   "vacancy_rate": 0.063,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Kelowna",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "521": {
+   "vacancy_rate": 0.023,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Kingston",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "305": {
+   "vacancy_rate": 0.037,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Moncton",
+   "province": "NB",
+   "ref_date": "2025"
+  },
+  "529": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Peterborough",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "462": {
+   "vacancy_rate": 0.033,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Montréal",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "590": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Sault Ste. Marie",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "562": {
+   "vacancy_rate": 0.049,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Sarnia",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "501": {
+   "vacancy_rate": 0.036,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Cornwall",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "575": {
+   "vacancy_rate": 0.022,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "North Bay",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "970": {
+   "vacancy_rate": 0.044,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Prince George",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "105": {
+   "vacancy_rate": 0.017,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Charlottetown",
+   "province": "PE",
+   "ref_date": "2025"
+  },
+  "320": {
+   "vacancy_rate": 0.021,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Fredericton",
+   "province": "NB",
+   "ref_date": "2022"
+  },
+  "444": {
+   "vacancy_rate": 0.018,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Shawinigan",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "938": {
+   "vacancy_rate": 0.021,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Nanaimo",
+   "province": "BC",
+   "ref_date": "2022"
+  },
+  "925": {
+   "vacancy_rate": 0.009,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Kamloops",
+   "province": "BC",
+   "ref_date": "2022"
+  },
+  "810": {
+   "vacancy_rate": 0.045,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Lethbridge",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "447": {
+   "vacancy_rate": 0.007,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Drummondville",
+   "province": "QC",
+   "ref_date": "2022"
+  },
+  "522": {
+   "vacancy_rate": 0.036,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Belleville - Quinte West",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "930": {
+   "vacancy_rate": 0.013,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Chilliwack",
+   "province": "BC",
+   "ref_date": "2022"
+  },
+  "450": {
+   "vacancy_rate": 0.02,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Granby",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "805": {
+   "vacancy_rate": 0.034,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Medicine Hat",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "830": {
+   "vacancy_rate": 0.028,
+   "reliability": null,
+   "geo_level": "CMA",
+   "name": "Red Deer",
+   "province": "AB",
+   "ref_date": "2022"
+  },
+  "452": {
+   "vacancy_rate": 0.025,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Saint-Hyacinthe",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "850": {
+   "vacancy_rate": 0.02,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Grande Prairie",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "404": {
+   "vacancy_rate": 0.031,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Rimouski",
+   "province": "QC",
+   "ref_date": "2012"
+  },
+  "225": {
+   "vacancy_rate": 0.022,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Cape Breton",
+   "province": "NS",
+   "ref_date": "2025"
+  },
+  "556": {
+   "vacancy_rate": 0.048,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Chatham-Kent",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "943": {
+   "vacancy_rate": 0.041,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Courtenay",
+   "province": "BC",
+   "ref_date": "2012"
+  },
+  "918": {
+   "vacancy_rate": 0.035,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Vernon",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "530": {
+   "vacancy_rate": 0.029,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Kawartha Lakes",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "547": {
+   "vacancy_rate": 0.003,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Norfolk",
+   "province": "ON",
+   "ref_date": "2023"
+  },
+  "860": {
+   "vacancy_rate": 0.136,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Wood Buffalo",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "410": {
+   "vacancy_rate": 0.019,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Alma",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "406": {
+   "vacancy_rate": 0.009,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Baie-Comeau",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "328": {
+   "vacancy_rate": 0.0,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Bathurst",
+   "province": "NB",
+   "ref_date": "2023"
+  },
+  "610": {
+   "vacancy_rate": 0.007,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Brandon",
+   "province": "MB",
+   "ref_date": "2012"
+  },
+  "512": {
+   "vacancy_rate": 0.046,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Brockville",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "944": {
+   "vacancy_rate": 0.01,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Campbell River",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "330": {
+   "vacancy_rate": 0.005,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Campbellton",
+   "province": "NB",
+   "ref_date": "2024"
+  },
+  "833": {
+   "vacancy_rate": 0.015,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Camrose",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "527": {
+   "vacancy_rate": 0.039,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Cobourg",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "567": {
+   "vacancy_rate": 0.044,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Collingwood",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "015": {
+   "vacancy_rate": 0.014,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Corner Brook",
+   "province": "NL",
+   "ref_date": "2025"
+  },
+  "437": {
+   "vacancy_rate": 0.021,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Cowansville",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "905": {
+   "vacancy_rate": 0.012,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Cranbrook",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "975": {
+   "vacancy_rate": 0.006,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Dawson Creek",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "411": {
+   "vacancy_rate": 0.006,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Dolbeau-Mistassini",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "937": {
+   "vacancy_rate": 0.031,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Duncan",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "335": {
+   "vacancy_rate": 0.008,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Edmundston",
+   "province": "NB",
+   "ref_date": "2025"
+  },
+  "582": {
+   "vacancy_rate": 0.019,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Elliot Lake",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "750": {
+   "vacancy_rate": 0.05,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Estevan",
+   "province": "SK",
+   "ref_date": "2024"
+  },
+  "977": {
+   "vacancy_rate": 0.024,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Fort St. John",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "010": {
+   "vacancy_rate": 0.026,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Grand Falls-Windsor",
+   "province": "NL",
+   "ref_date": "2024"
+  },
+  "456": {
+   "vacancy_rate": 0.011,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Joliette",
+   "province": "QC",
+   "ref_date": "2022"
+  },
+  "598": {
+   "vacancy_rate": 0.023,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Kenora",
+   "province": "ON",
+   "ref_date": "2021"
+  },
+  "468": {
+   "vacancy_rate": 0.011,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Lachute",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "840": {
+   "vacancy_rate": 0.024,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Lloydminster",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "403": {
+   "vacancy_rate": 0.01,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Matane",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "571": {
+   "vacancy_rate": 0.037,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Midland",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "715": {
+   "vacancy_rate": 0.053,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Moose Jaw",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "220": {
+   "vacancy_rate": 0.014,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "New Glasgow",
+   "province": "NS",
+   "ref_date": "2025"
+  },
+  "735": {
+   "vacancy_rate": 0.03,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "North Battleford",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "569": {
+   "vacancy_rate": 0.031,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Orillia",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "566": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Owen Sound",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "515": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Pembroke",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "913": {
+   "vacancy_rate": 0.023,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Penticton",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "940": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Port Alberni",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "528": {
+   "vacancy_rate": 0.029,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Port Hope",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "607": {
+   "vacancy_rate": 0.089,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Portage la Prairie",
+   "province": "MB",
+   "ref_date": "2025"
+  },
+  "945": {
+   "vacancy_rate": 0.039,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Powell River",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "745": {
+   "vacancy_rate": 0.049,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Prince Albert",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "955": {
+   "vacancy_rate": 0.017,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Prince Rupert",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "952": {
+   "vacancy_rate": 0.012,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Quesnel",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "405": {
+   "vacancy_rate": 0.008,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Rivière-du-Loup",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "485": {
+   "vacancy_rate": 0.007,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Rouyn-Noranda",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "428": {
+   "vacancy_rate": 0.013,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Saint-Georges",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "920": {
+   "vacancy_rate": 0.009,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Salmon Arm",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "465": {
+   "vacancy_rate": 0.051,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Salaberry-de-Valleyfield",
+   "province": "QC",
+   "ref_date": "2024"
+  },
+  "412": {
+   "vacancy_rate": 0.019,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Sept-Îles",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "454": {
+   "vacancy_rate": 0.007,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Sorel-Tracy",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "934": {
+   "vacancy_rate": 0.002,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Squamish",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "553": {
+   "vacancy_rate": 0.044,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Stratford",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "110": {
+   "vacancy_rate": 0.042,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Summerside",
+   "province": "PE",
+   "ref_date": "2025"
+  },
+  "720": {
+   "vacancy_rate": 0.048,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Swift Current",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "965": {
+   "vacancy_rate": 0.0,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Terrace",
+   "province": "BC",
+   "ref_date": "2024"
+  },
+  "430": {
+   "vacancy_rate": 0.009,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Thetford Mines",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "640": {
+   "vacancy_rate": 0.067,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Thompson",
+   "province": "MB",
+   "ref_date": "2025"
+  },
+  "546": {
+   "vacancy_rate": 0.047,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Tillsonburg",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "586": {
+   "vacancy_rate": 0.019,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Timmins",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "215": {
+   "vacancy_rate": 0.011,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Truro",
+   "province": "NS",
+   "ref_date": "2025"
+  },
+  "480": {
+   "vacancy_rate": 0.01,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Val-d'Or",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "440": {
+   "vacancy_rate": 0.022,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Victoriaville",
+   "province": "QC",
+   "ref_date": "2022"
+  },
+  "865": {
+   "vacancy_rate": 0.049,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Wetaskiwin",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "950": {
+   "vacancy_rate": 0.002,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Williams Lake",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "544": {
+   "vacancy_rate": 0.025,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Woodstock",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "710": {
+   "vacancy_rate": 0.02,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Yorkton",
+   "province": "SK",
+   "ref_date": "2025"
+  },
+  "828": {
+   "vacancy_rate": 0.012,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Canmore",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "533": {
+   "vacancy_rate": 0.045,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Ingersoll",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "820": {
+   "vacancy_rate": 0.034,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Okotoks",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "939": {
+   "vacancy_rate": 0.009,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Parksville",
+   "province": "BC",
+   "ref_date": "2025"
+  },
+  "481": {
+   "vacancy_rate": 0.0,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Amos",
+   "province": "QC",
+   "ref_date": "2025"
+  },
+  "210": {
+   "vacancy_rate": 0.008,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Kentville",
+   "province": "NS",
+   "ref_date": "2025"
+  },
+  "806": {
+   "vacancy_rate": 0.01,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Brooks",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "531": {
+   "vacancy_rate": 0.041,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Centre Wellington",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "329": {
+   "vacancy_rate": 0.041,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Miramichi",
+   "province": "NB",
+   "ref_date": "2025"
+  },
+  "516": {
+   "vacancy_rate": 0.013,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Petawawa",
+   "province": "ON",
+   "ref_date": "2025"
+  },
+  "995": {
+   "vacancy_rate": 0.013,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Yellowknife",
+   "province": "NT",
+   "ref_date": "2025"
+  },
+  "821": {
+   "vacancy_rate": 0.014,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "High River",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "832": {
+   "vacancy_rate": 0.016,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Lacombe",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "605": {
+   "vacancy_rate": 0.014,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Steinbach",
+   "province": "MB",
+   "ref_date": "2025"
+  },
+  "826": {
+   "vacancy_rate": 0.027,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Strathmore",
+   "province": "AB",
+   "ref_date": "2025"
+  },
+  "831": {
+   "vacancy_rate": 0.031,
+   "reliability": null,
+   "geo_level": "CA",
+   "name": "Sylvan Lake",
+   "province": "AB",
+   "ref_date": "2025"
+  }
+ },
+ "provincial": {
+  "AB": {
+   "vacancy_rate": 0.035,
+   "reliability": null,
+   "note": "unweighted mean of 16 surveyed CMHC centre(s), 2025"
+  },
+  "ON": {
+   "vacancy_rate": 0.0327,
+   "reliability": null,
+   "note": "unweighted mean of 39 surveyed CMHC centre(s), 2025"
+  },
+  "NS": {
+   "vacancy_rate": 0.016,
+   "reliability": null,
+   "note": "unweighted mean of 5 surveyed CMHC centre(s), 2025"
+  },
+  "QC": {
+   "vacancy_rate": 0.018,
+   "reliability": null,
+   "note": "unweighted mean of 28 surveyed CMHC centre(s), 2025"
+  },
+  "SK": {
+   "vacancy_rate": 0.037,
+   "reliability": null,
+   "note": "unweighted mean of 9 surveyed CMHC centre(s), 2025"
+  },
+  "NL": {
+   "vacancy_rate": 0.0187,
+   "reliability": null,
+   "note": "unweighted mean of 3 surveyed CMHC centre(s), 2025"
+  },
+  "NB": {
+   "vacancy_rate": 0.0181,
+   "reliability": null,
+   "note": "unweighted mean of 7 surveyed CMHC centre(s), 2025"
+  },
+  "BC": {
+   "vacancy_rate": 0.0218,
+   "reliability": null,
+   "note": "unweighted mean of 25 surveyed CMHC centre(s), 2025"
+  },
+  "MB": {
+   "vacancy_rate": 0.041,
+   "reliability": null,
+   "note": "unweighted mean of 5 surveyed CMHC centre(s), 2025"
+  },
+  "PE": {
+   "vacancy_rate": 0.0295,
+   "reliability": null,
+   "note": "unweighted mean of 2 surveyed CMHC centre(s), 2025"
+  },
+  "NT": {
+   "vacancy_rate": 0.013,
+   "reliability": null,
+   "note": "unweighted mean of 1 surveyed CMHC centre(s), 2025"
+  }
+ },
+ "national": {
+  "vacancy_rate": 0.0268,
+  "note": "unweighted mean of 140 surveyed CMHC centres, 2025"
+ }
+}

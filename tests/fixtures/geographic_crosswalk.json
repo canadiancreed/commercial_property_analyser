@@ -1,0 +1,13 @@
+{
+  "_meta": {
+    "description": "TEST FIXTURE — deterministic crosswalk for the suite. Not real data; keeps analyzer/mixed-use tests independent of the annually-refreshed json/geographic_crosswalk.json. Empty csd/name_index => every city misses the name hop and resolves at tier 3 (provincial).",
+    "status": "test-fixture"
+  },
+  "province_codes": {
+    "10": "NL", "11": "PE", "12": "NS", "13": "NB", "24": "QC", "35": "ON",
+    "46": "MB", "47": "SK", "48": "AB", "59": "BC", "60": "YT", "61": "NT", "62": "NU"
+  },
+  "cma_ca": {},
+  "csd": {},
+  "name_index": {}
+}

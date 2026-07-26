@@ -1,6 +1,6 @@
 from datetime import date
 from models.property_input import PropertyInput
-from models.constants import VACANCY_RATE_DEFAULTS, EXPENSE_RATIO_DEFAULTS
+from models.constants import EXPENSE_RATIO_DEFAULTS
 from analysis.mortgage import MortgageCalculator, DaysOnMarketCalculator
 from analysis.rent_resolver import RentResolver
 from analysis.metrics.pricing import PricingMetrics
@@ -16,6 +16,7 @@ from analysis.screener_config import load_screener_config
 from analysis.financing_config import resolve_financing, mixed_use_commercial_gfa_share
 from analysis.deal_financing import DealFinancing
 from analysis.metrics.financing_robustness import FinancingRobustness
+from analysis.vacancy_resolver import resolve_vacancy, VacancyResolution
 
 
 def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
@@ -80,6 +81,12 @@ def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
         "ind_office_rate":     prop.ind_office_rate,
         "ind_yard_rate":       prop.ind_yard_rate,
         "vacancy_rate":        prop.vacancy_rate,
+        "vacancy_source":      None,
+        "vacancy_reliability": None,
+        "vacancy_region":      None,
+        "vacancy_tier":        None,
+        "vacancy_normal":      None,
+        "vacancy_demoted_from": None,
         "noi_growth_rate":     prop.noi_growth_rate,
         "income_confidence":   None,
         "income_size_band":    None,
@@ -104,12 +111,21 @@ def _resolve_noi_growth(prop: PropertyInput) -> tuple[float, str]:
     return load_underwriting_config()["noi_growth_default"], "house default"
 
 
-def _resolve_vacancy_rate(prop: PropertyInput) -> float:
-    """Return vacancy rate: explicit override if set, else type-specific constant."""
+def _resolve_vacancy_rate(prop: PropertyInput) -> VacancyResolution:
+    """Resolve vacancy through the regional pipeline (analysis/vacancy_resolver): a
+    region-keyed lookup with an always-terminating 4-tier fallback chain (region ->
+    parent CMA/CA -> provincial avg -> per-type constant floor), each carrying a source
+    stamp + CMHC reliability code. An explicit per-property override still wins (this
+    field is vestigial — normally None — but kept so a manually-entered rate is honored)."""
     if prop.vacancy_rate is not None:
-        return prop.vacancy_rate
-    ptype = (prop.property_type or "").strip().lower()
-    return VACANCY_RATE_DEFAULTS.get(ptype, 0.05)
+        domain = ("residential" if (prop.property_type or "").strip().lower()
+                  in ("multi-family", "residential") else "commercial")
+        return VacancyResolution(
+            rate=prop.vacancy_rate, tier=0, stamp="override",
+            reliability=None, geo_name="manual override",
+            normal=True, attribution=None, domain=domain,
+        )
+    return resolve_vacancy(prop.city, prop.province, prop.property_type)
 
 
 class CommercialPropertyAnalyzer:
@@ -197,21 +213,30 @@ class CommercialPropertyAnalyzer:
             self.mixed_use = None
             if is_mixed_use:
                 _sc = load_screener_config()
+                # The residential component's vacancy comes from the regional pipeline
+                # (residential domain — CMHC RMS); the commercial component keeps its
+                # screener default (no regional commercial survey wired this version).
+                res_vac = resolve_vacancy(prop.city, prop.province, "residential")
+                self.vacancy_resolution = res_vac
                 self.mixed_use = MixedUseComponents(
                     self._comm_rent or 0.0, self._res_rent or 0.0, prop.lease_type,
                     comm_vacancy=_sc["component_vacancy"]["commercial"],
-                    res_vacancy=_sc["component_vacancy"]["residential"],
+                    res_vacancy=res_vac.rate,
                     comm_gross_ratio=_sc["mixed_use_commercial_gross_expense_ratio"],
                     comm_nnn_ratio=EXPENSE_RATIO_DEFAULTS["nnn"],
                     res_ratio=EXPENSE_RATIO_DEFAULTS["residential"],
                     majority_threshold=_sc["commercial_majority_threshold"],
                     commercial_lease_expiry=prop.commercial_lease_expiry,
                 )
-                self.income  = IncomeMetrics(prop, annual_rent, breakdown, rollup=self.mixed_use)
+                self.income  = IncomeMetrics(prop, annual_rent, breakdown, rollup=self.mixed_use,
+                                             vacancy_resolution=res_vac)
                 vacancy_rate = self.mixed_use.blended_vacancy
             else:
-                vacancy_rate = _resolve_vacancy_rate(prop)
-                self.income  = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate)
+                vac_res = _resolve_vacancy_rate(prop)
+                self.vacancy_resolution = vac_res
+                vacancy_rate = vac_res.rate
+                self.income  = IncomeMetrics(prop, annual_rent, breakdown, vacancy_rate=vacancy_rate,
+                                             vacancy_resolution=vac_res)
             imputed_lines = getattr(rent_resolver, "_imputed_lines", [])
             imputed_total = sum(a for a, _ in imputed_lines)
             # Verified/estimated split counts advertised/in-place ([A]) dollars as
@@ -338,6 +363,7 @@ class CommercialPropertyAnalyzer:
             self.select_debt = self.select_returns = self.select_robustness = None
             self.mixed_use  = None
             self._income_confidence = None
+            self.vacancy_resolution = None
 
     def report(self) -> list:
         rows = []
@@ -423,6 +449,15 @@ class CommercialPropertyAnalyzer:
             "ind_office_rate":     p.ind_office_rate,
             "ind_yard_rate":       p.ind_yard_rate,
             "vacancy_rate":        p.vacancy_rate,
+            # Regional vacancy pipeline (v3.7): the source stamp / reliability /
+            # region label from the 4-tier resolver, stored so the source mix is
+            # auditable and the tier-4 tripwire is countable across a batch.
+            "vacancy_source":      (self.vacancy_resolution.stamp if self.vacancy_resolution else None),
+            "vacancy_reliability": (self.vacancy_resolution.reliability if self.vacancy_resolution else None),
+            "vacancy_region":      (self.vacancy_resolution.geo_name if self.vacancy_resolution else None),
+            "vacancy_tier":        (self.vacancy_resolution.tier if self.vacancy_resolution else None),
+            "vacancy_normal":      (self.vacancy_resolution.normal if self.vacancy_resolution else None),
+            "vacancy_demoted_from": (self.vacancy_resolution.demoted_from if self.vacancy_resolution else None),
             "noi_growth_rate":     p.noi_growth_rate,
             "income_confidence":   self._income_confidence,
             "income_size_band":    self._income_size_band,

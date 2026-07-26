@@ -18,6 +18,7 @@ import webbrowser
 from datetime import datetime
 
 from analysis.mortgage import MortgageCalculator
+from analysis.vacancy_resolver import attribution_string
 
 # Occupancy scenarios, best case first.
 OCCUPANCY_LEVELS = [1.00, 0.85, 0.75, 0.60]
@@ -81,6 +82,9 @@ class VacancyReportGenerator:
 
         data_json = _json.dumps(deals)
         stamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+        vacancy_attr = attribution_string() or ""
+        attr_html = (f'<div class="note" style="border-left-color:var(--muted)">{vacancy_attr}</div>'
+                     if vacancy_attr else "")
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -146,6 +150,7 @@ class VacancyReportGenerator:
   <div class="note">Cap rate and annual cash flow at 100%, 85%, 75%, and 60% occupancy. Debt
   service is held constant — only NOI falls with vacancy. Red cash flow = the deal bleeds at that
   occupancy; amber cap rate = below the 7% target.</div>
+  {attr_html}
   <div class="filters">
     <div class="filter-group">
       <label>Min Score</label>

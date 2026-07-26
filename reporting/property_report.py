@@ -2,6 +2,7 @@ import json as _json
 import tempfile
 import webbrowser
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
+from analysis.vacancy_resolver import attribution_string
 
 
 class PropertyReportGenerator:
@@ -25,6 +26,16 @@ class PropertyReportGenerator:
         type_opts     = "".join(f'<option value="{t}">{t}</option>' for t in types)
 
         staleness_key = METRIC_MARKET_STALENESS
+        # CMHC attribution: value-added products that surface RMS vacancy figures must
+        # display this string (json/vacancy_rates.json _meta.attribution).
+        vacancy_attr = attribution_string() or ""
+        footer_html = (
+            f'<footer class="report-footer">Vacancy figures: {vacancy_attr} '
+            f'Region-keyed via the StatCan Geographic Attribute File (2021 Census). '
+            f'Every Vacancy Rate row shows its source tier and CMHC reliability code.'
+            f'</footer>'
+            if vacancy_attr else ""
+        )
 
         return f"""<!DOCTYPE html>
 <html lang="en">
@@ -466,6 +477,17 @@ class PropertyReportGenerator:
   .good {{ color: var(--green); }}
   .fair {{ color: var(--amber); }}
   .poor {{ color: var(--red); }}
+  .report-footer {{
+    max-width: var(--col-w);
+    margin: 0 auto;
+    padding: 1.4rem 2.5rem 3rem;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    line-height: 1.6;
+    letter-spacing: 0.03em;
+  }}
 </style>
 </head>
 <body>
@@ -553,6 +575,8 @@ class PropertyReportGenerator:
 <main>
   <div id="cards"></div>
 </main>
+
+{footer_html}
 
 <script>
 const DATA = {data_json};
