@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "description": "TEST FIXTURE — deterministic vacancy data for the suite. Not real survey figures; provinces are pinned at the 0.03 residential constant so analyzer/mixed-use golden values stay stable regardless of the annually-refreshed json/vacancy_rates.json.",
+    "attribution": "Adapted from Canada Mortgage and Housing Corporation, Rental Market Survey, October 2025.",
+    "status": "test-fixture"
+  },
+  "regions": {},
+  "provincial": {
+    "NL": { "vacancy_rate": 0.03, "reliability": null },
+    "PE": { "vacancy_rate": 0.03, "reliability": null },
+    "NS": { "vacancy_rate": 0.03, "reliability": null },
+    "NB": { "vacancy_rate": 0.03, "reliability": null },
+    "QC": { "vacancy_rate": 0.03, "reliability": null },
+    "ON": { "vacancy_rate": 0.03, "reliability": null },
+    "MB": { "vacancy_rate": 0.03, "reliability": null },
+    "SK": { "vacancy_rate": 0.03, "reliability": null },
+    "AB": { "vacancy_rate": 0.03, "reliability": null },
+    "BC": { "vacancy_rate": 0.03, "reliability": null },
+    "YT": { "vacancy_rate": 0.03, "reliability": null },
+    "NT": { "vacancy_rate": 0.03, "reliability": null },
+    "NU": { "vacancy_rate": 0.03, "reliability": null }
+  },
+  "national": { "vacancy_rate": 0.03, "reliability": null }
+}

@@ -16,9 +16,13 @@ INCOME_METRIC_NAMES: frozenset = frozenset({
 class IncomeMetrics:
 
     def __init__(self, prop, annual_rent: float, rent_breakdown: list,
-                 vacancy_rate: float = None, rollup=None):
+                 vacancy_rate: float = None, rollup=None, vacancy_resolution=None):
         self.annual_rent    = annual_rent
         self.rent_breakdown = rent_breakdown
+        # Provenance from the regional vacancy pipeline (analysis/vacancy_resolver):
+        # source stamp, reliability, region label. Display-only — the numeric rate it
+        # carries is already applied via ``vacancy_rate`` / ``rollup``.
+        self._vac_res       = vacancy_resolution
         # ``rollup`` (a MixedUseComponents) replaces the single building-wide
         # vacancy/expense-ratio path with a per-component computation — EGI, opex,
         # and NOI are already blended in it. Only mixed_use passes one; every other
@@ -61,13 +65,31 @@ class IncomeMetrics:
             return "GOOD" if self.oer_ratio <= 15 else "FAIR" if self.oer_ratio <= 25 else "POOR"
         return "GOOD" if 35 <= self.oer_ratio <= 45 else "FAIR" if 30 <= self.oer_ratio <= 50 else "POOR"
 
+    def _vacancy_value(self) -> str:
+        """The Vacancy Rate row value with regional provenance appended (source stamp,
+        region, CMHC reliability). For mixed-use the displayed rate is the blended
+        vacancy, so the provenance is prefixed 'res:' — it describes the residential
+        component the regional lookup drives, not the blend."""
+        base = f"{self.vacancy_rate * 100:.1f}%"
+        if self._vac_res is None:
+            return base
+        prefix = "res: " if self._rollup is not None else ""
+        return f"{base} · {prefix}{self._vac_res.provenance()}"
+
+    def _vacancy_grade(self) -> str:
+        # A tier-4 alarm (the resolver fell through to the constant floor because the
+        # region/join didn't resolve) is surfaced here too, not just in the batch count.
+        if self._vac_res is not None and not self._vac_res.normal:
+            return "CAUTION: vacancy floored — regional data gap"
+        return "INFO"
+
     def rows(self) -> list:
         p    = self._prop
         rows = [ReportRow("  Rent Detail", line, "") for line in self.rent_breakdown]
         rows += [
             ReportRow("Gross Potential Rent", f"${self.annual_rent:,.2f}", "INFO"),
             *([] if (self._prop.property_type or "").strip().lower() == "hotel" else
-              [ReportRow("Vacancy Rate", f"{self.vacancy_rate * 100:.1f}%", "INFO")]),
+              [ReportRow("Vacancy Rate", self._vacancy_value(), self._vacancy_grade())]),
             ReportRow("Effective Gross Income", f"${self.egi:,.2f}",      "INFO"),
             (ReportRow("Expense Ratio",
                        f"{self._rollup.blended_expense_ratio * 100:.2f}% (blended)", "INFO")

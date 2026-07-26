@@ -294,7 +294,9 @@ class TestVacancyModelling:
         ("Hotel",         "hotel"),
     ])
     def test_property_type_vacancy_defaults_resolved(self, prop_type, expected_key):
-        """_resolve_vacancy_rate picks the correct VACANCY_RATE_DEFAULTS entry per type."""
+        """With no city/region data, the regional resolver still terminates at each
+        type's VACANCY_RATE_DEFAULTS floor: commercial types resolve straight to their
+        per-type constant; residential types fall through the chain to the same floor."""
         from models.constants import VACANCY_RATE_DEFAULTS
         from analysis.analyzer import _resolve_vacancy_rate
         prop = PropertyInput(
@@ -304,7 +306,7 @@ class TestVacancyModelling:
             property_type=prop_type,
         )
         assert prop.vacancy_rate is None
-        assert _resolve_vacancy_rate(prop) == pytest.approx(VACANCY_RATE_DEFAULTS[expected_key])
+        assert _resolve_vacancy_rate(prop).rate == pytest.approx(VACANCY_RATE_DEFAULTS[expected_key])
 
     def test_unknown_property_type_vacancy_fallback(self):
         """An unrecognised property type falls back to 5%."""
@@ -315,7 +317,7 @@ class TestVacancyModelling:
             term_years=25, hold_years=10, lease_type="Normal",
             property_type="Warehouse",
         )
-        assert _resolve_vacancy_rate(prop) == pytest.approx(0.05)
+        assert _resolve_vacancy_rate(prop).rate == pytest.approx(0.05)
 
     def test_explicit_vacancy_rate_not_overridden(self):
         """A caller-supplied vacancy_rate is returned as-is by _resolve_vacancy_rate."""
@@ -327,4 +329,4 @@ class TestVacancyModelling:
             property_type="Office", vacancy_rate=0.20,
         )
         assert prop.vacancy_rate == pytest.approx(0.20)
-        assert _resolve_vacancy_rate(prop) == pytest.approx(0.20)
+        assert _resolve_vacancy_rate(prop).rate == pytest.approx(0.20)

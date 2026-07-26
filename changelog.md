@@ -6,6 +6,88 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.7.0] — Unreleased
+
+_Regional vacancy pipeline. The hardcoded per-type vacancy constant is replaced by a
+region-keyed lookup resolved through an always-terminating 4-tier fallback chain,
+sourced from two scripted, versioned downloads (CMHC Rental Market Survey vacancy +
+StatCan Geographic Attribute File crosswalk). Zero hand-entry; refresh = re-run the
+fetch scripts. Requires a re-analysis (menu `r`) to persist the resolved rates + source
+stamps into stored records._
+
+### Added
+
+- **Regional vacancy resolver** (`analysis/vacancy_resolver.py`) —
+  `resolve_vacancy(city, province, property_type)` walks a 4-tier chain (first hit
+  wins): **region** (CSD maps to a directly-surveyed CMHC centre) → **parent_cma** (CSD
+  sits in a surveyed CMA/CA) → **provincial_avg** (provincial average) →
+  **constant_floor** (nothing resolved — tier-4 alarm). The join is code-to-code after
+  one unavoidable city-name → CSD-code hop.
+- **Type awareness.** CMHC RMS measures residential vacancy, so residential asset
+  classes (multi-family, residential, mixed-use residential component) draw tiers 1-3
+  from the survey; commercial classes resolve to their per-type `VACANCY_RATE_DEFAULTS`
+  constant through the same resolver under a distinct `type_default` stamp (an expected
+  baseline, never an alarm) — commercial numbers do not regress, and a commercial
+  regional feed can slot into tiers 1-3 later with no resolver change.
+- **Conservative floor** — **only tier 4** (no real data / pipeline break) floors at
+  `max(type constant, national)`; tiers 1-3 report their real CMHC figure raw, including
+  a provincial average below the 3% constant (flooring it would overwrite genuine
+  sub-constant provinces — e.g. BC ~1.9% — and re-create the blanket constant this
+  pipeline removes).
+- **Source stamp + CMHC reliability code on every record** (`vacancy_source`,
+  `vacancy_reliability`, `vacancy_region`, `vacancy_tier`, `vacancy_normal`,
+  `vacancy_demoted_from`) — the per-property Vacancy Rate row shows its tier / region /
+  reliability, and the batch re-analysis prints the source mix (`ui/menu.py`).
+- **Reliability demotion is visible, not silent** — a caution-graded figure is skipped for
+  the next tier, and the skipped region + grade are kept in `VacancyResolution.demoted_from`,
+  persisted as `vacancy_demoted_from`, appended to the Vacancy Rate row (`· demoted from
+  Kingston CMA (rel. d)`), and broken out as their own line in the batch source-mix — so a
+  demoted deal is distinguishable from a genuine no-regional-data one. Reliability is the
+  published statistical-quality grade on the vacancy figure alone; it never touches listing
+  data, prices, rents, or the income estimate. The reachable StatCan channel carries
+  StatCan's `E`/`F` flags (not CMHC's a/b/c/d, which are HMIP-only); the resolver demotes on
+  `d`/`e`. No current live region is flagged-with-value, so demotion is unit-tested but has
+  not yet fired on production data.
+- **Tier-3 provincial is honestly labeled as a derived, unweighted average** — there is no
+  official provincial CMHC-RMS cut, and the RMS rental universe (unit count per centre)
+  needed for a stock-weighted mean is not published on the reachable StatCan WDS channel
+  (HMIP-only), so tier 3 is the **unweighted** mean of a province's surveyed centres. The
+  Vacancy Rate row now carries `· derived: unweighted avg of surveyed centres` inline
+  (`analysis/vacancy_resolver.VacancyResolution.provenance`), not only in the data-file
+  `_meta`, so a user leaning on a tier-3 number sees the caveat. Universe-weighting was
+  investigated against the live WDS tables and confirmed not possible from this source.
+- **Tier-4 tripwire** — a residential deal that falls all the way through to the
+  constant floor (`normal=False`) is counted and surfaced after re-analysis. Every
+  property has a province, so tier 3 always resolves in healthy operation; nonzero
+  tier-4 is the "go look" signal that the fetch/join broke.
+- **Two scripted fetches** (`scripts/fetch_geographic_crosswalk.py`,
+  `scripts/fetch_vacancy_rates.py`), run for real against live government data:
+  `json/geographic_crosswalk.json` (StatCan 92-151-X — 5,161 CSDs / 153 CMA/CAs, with the
+  996–999 "metropolitan influenced zone" pseudo-codes excluded) and `json/vacancy_rates.json`
+  (real CMHC RMS, October 2025 — 140 surveyed regions across 11 provinces). CMHC's HMIP
+  portal blocks programmatic access (HTTP 403) and no `cmhc` PyPI wrapper exists, so the
+  vacancy fetch pulls the **identical CMHC series republished by Statistics Canada's WDS**
+  (tables 34-10-0127/128/129, joined to the crosswalk by the DGUID's CMA/CA code). That
+  channel carries StatCan's quality flag (`E`/`F`), not CMHC's a/b/c/d letters, and no
+  provincial cut — so provincial/national tiers are the unweighted mean of surveyed centres,
+  labeled as such. Both fetches are stdlib-only and leave the existing file untouched on any
+  failure (never a partial write). Real end-to-end result: 218 deals resolve to regional
+  (`parent_cma`) data, 180 to raw provincial, 0 tier-4 alarms.
+- **CMHC attribution** — the required "Adapted from Canada Mortgage and Housing
+  Corporation, Rental Market Survey, <reference date>" string surfaces in the property
+  report footer and the vacancy-sensitivity report.
+
+### Changed
+
+- **`_resolve_vacancy_rate` is now region-keyed** (`analysis/analyzer.py`) — it returns
+  a `VacancyResolution` (rate + provenance) instead of a bare `VACANCY_RATE_DEFAULTS`
+  lookup, which is retained as the per-type constant floor. The mixed-use residential
+  component vacancy now comes from the resolver (was the fixed
+  `component_vacancy.residential` 0.04); a Testville/ON fixture resolves to the ON
+  provincial floor (0.03), shifting the mixed-use golden values accordingly.
+
+---
+
 ## [3.6.7] — 2026-07-25
 
 _CMHC MLI financing correction. Every listing is an existing-building acquisition,

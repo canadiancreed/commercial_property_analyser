@@ -3,9 +3,15 @@ Revision 2 — mixed-use component engine, refi headroom, config display/notes
 split, and lease-expiry field.
 
 Money ±$5, ratios ±0.005. Values computed independently with the Canadian
-semi-annual compounding formula and the config: residential_vacancy 0.04,
-commercial_vacancy 0.125, residential 0.40, NNN 0.08, gross commercial 0.40,
-mixed_use block 75% LTV / 6.125% / 25yr / dscr 1.25 / f 0.55, stress 0.02.
+semi-annual compounding formula and the config: commercial_vacancy 0.125,
+residential 0.40, NNN 0.08, gross commercial 0.40, mixed_use block 75% LTV /
+6.125% / 25yr / dscr 1.25 / f 0.55, stress 0.02.
+
+Residential-component vacancy (v3.7): the end-to-end _analyze() fixtures below
+now draw the residential component's vacancy from the regional pipeline
+(analysis/vacancy_resolver). "Testville, ON" has no crosswalk entry, so it
+resolves to the ON provincial floor (seed 0.03) — NOT the old fixed 0.04. The
+direct-MixedUseComponents tests (T-M4 component) still pass res_vacancy explicitly.
 """
 import pytest
 from unittest.mock import MagicMock
@@ -49,25 +55,25 @@ def test_tm1_nnn_mixed_use_bayside():
     a = _analyze("Mixed-Use", price=730_000, comm=40_000, res=65_400, lease="NNN")
     m = a.mixed_use
     assert m.comm_egi == pytest.approx(35_000.00, abs=MONEY)
-    assert m.res_egi  == pytest.approx(62_784.00, abs=MONEY)
-    assert m.egi      == pytest.approx(97_784.00, abs=MONEY)
-    assert m.blended_vacancy       == pytest.approx(0.0723, abs=RATIO)
-    assert m.total_opex            == pytest.approx(27_913.60, abs=MONEY)
-    assert m.blended_expense_ratio == pytest.approx(0.2855, abs=RATIO)
-    assert m.noi      == pytest.approx(69_870.40, abs=MONEY)
-    assert a.income.cap_rate == pytest.approx(9.57, abs=0.02)
+    assert m.res_egi  == pytest.approx(63_438.00, abs=MONEY)   # res_vacancy 0.03 (regional)
+    assert m.egi      == pytest.approx(98_438.00, abs=MONEY)
+    assert m.blended_vacancy       == pytest.approx(0.0661, abs=RATIO)
+    assert m.total_opex            == pytest.approx(28_175.20, abs=MONEY)
+    assert m.blended_expense_ratio == pytest.approx(0.2862, abs=RATIO)
+    assert m.noi      == pytest.approx(70_262.80, abs=MONEY)
+    assert a.income.cap_rate == pytest.approx(9.63, abs=0.02)
     assert m.commercial_share == pytest.approx(0.3795, abs=RATIO)
     assert m.commercial_majority is False
 
     assert a.mortgage.loan_amount    == pytest.approx(547_500, abs=MONEY)
     assert a.mortgage.monthly_payment == pytest.approx(3_543.72, abs=MONEY)
     assert a.mortgage.annual_mortgage == pytest.approx(42_524.69, abs=MONEY)
-    assert a.debt.dscr          == pytest.approx(1.643, abs=RATIO)
-    assert a.debt.stressed_dscr == pytest.approx(1.379, abs=RATIO)
-    assert a.deal_financing.dscr_max_loan == pytest.approx(603_992.55, abs=MONEY)
+    assert a.debt.dscr          == pytest.approx(1.652, abs=RATIO)
+    assert a.debt.stressed_dscr == pytest.approx(1.387, abs=RATIO)
+    assert a.deal_financing.dscr_max_loan == pytest.approx(607_384.64, abs=MONEY)
     assert a.deal_financing.binding_constraint == "LTV"
-    assert a.deal_financing.refi_headroom == pytest.approx(56_492.55, abs=MONEY)
-    assert a.debt.break_even_point / 100 == pytest.approx(0.630, abs=RATIO)
+    assert a.deal_financing.refi_headroom == pytest.approx(59_884.64, abs=MONEY)
+    assert a.debt.break_even_point / 100 == pytest.approx(0.632, abs=RATIO)
     # The bug being fixed: prior single-ratio engine gave NOI $88,240.88.
     assert abs(m.noi - 88_240.88) > 1_000
 
@@ -76,20 +82,20 @@ def test_tm2_gross_mixed_use_napanee():
     a = _analyze("Mixed-Use", price=590_000, comm=32_801.50, res=72_300, lease="Normal")
     m = a.mixed_use
     assert m.comm_egi == pytest.approx(28_701.31, abs=MONEY)
-    assert m.res_egi  == pytest.approx(69_408.00, abs=MONEY)
-    assert m.egi      == pytest.approx(98_109.31, abs=MONEY)
-    assert m.blended_vacancy       == pytest.approx(0.0665, abs=RATIO)
-    assert m.total_opex            == pytest.approx(39_243.73, abs=MONEY)
+    assert m.res_egi  == pytest.approx(70_131.00, abs=MONEY)   # res_vacancy 0.03 (regional)
+    assert m.egi      == pytest.approx(98_832.31, abs=MONEY)
+    assert m.blended_vacancy       == pytest.approx(0.0596, abs=RATIO)
+    assert m.total_opex            == pytest.approx(39_532.93, abs=MONEY)
     assert m.blended_expense_ratio == pytest.approx(0.4000, abs=RATIO)
-    assert m.noi      == pytest.approx(58_865.59, abs=MONEY)
-    assert a.income.cap_rate == pytest.approx(9.98, abs=0.02)
+    assert m.noi      == pytest.approx(59_299.39, abs=MONEY)
+    assert a.income.cap_rate == pytest.approx(10.05, abs=0.02)
     assert a.mortgage.annual_mortgage == pytest.approx(34_369.27, abs=MONEY)
-    assert a.debt.dscr          == pytest.approx(1.713, abs=RATIO)
-    assert a.debt.stressed_dscr == pytest.approx(1.437, abs=RATIO)
-    assert a.deal_financing.dscr_max_loan == pytest.approx(508_861.79, abs=MONEY)
+    assert a.debt.dscr          == pytest.approx(1.725, abs=RATIO)
+    assert a.debt.stressed_dscr == pytest.approx(1.448, abs=RATIO)
+    assert a.deal_financing.dscr_max_loan == pytest.approx(512_611.76, abs=MONEY)
     assert a.deal_financing.binding_constraint == "LTV"
-    assert a.deal_financing.refi_headroom == pytest.approx(66_361.79, abs=MONEY)
-    assert a.debt.break_even_point / 100 == pytest.approx(0.649, abs=RATIO)
+    assert a.deal_financing.refi_headroom == pytest.approx(70_111.76, abs=MONEY)
+    assert a.debt.break_even_point / 100 == pytest.approx(0.651, abs=RATIO)
     assert m.commercial_share == pytest.approx(0.3121, abs=RATIO)
     assert m.commercial_majority is False
 
@@ -116,10 +122,10 @@ def test_tm4_nnn_guard_lowers_only_commercial():
     normal = _analyze("Mixed-Use", price=730_000, comm=40_000, res=65_400, lease="Normal")
     # Same fixture, Normal → commercial opex uses gross default → NOI drops.
     assert normal.mixed_use.noi < nnn.mixed_use.noi
-    assert normal.mixed_use.noi == pytest.approx(58_670.40, abs=MONEY)
+    assert normal.mixed_use.noi == pytest.approx(59_062.80, abs=MONEY)
     # Residential opex is identical under both tags — the tag never touches it.
     assert normal.mixed_use.res_opex == pytest.approx(nnn.mixed_use.res_opex, abs=0.01)
-    assert nnn.mixed_use.res_opex == pytest.approx(62_784.00 * 0.40, abs=0.01)
+    assert nnn.mixed_use.res_opex == pytest.approx(63_438.00 * 0.40, abs=0.01)  # res_egi @ 0.03 vacancy
 
 
 def test_tm4_pure_residential_ignores_nnn_tag():

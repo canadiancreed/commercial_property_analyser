@@ -298,3 +298,73 @@ class TestAnalyzerIndustrial:
         prop = _make_prop(annual_rent=60_000, property_type="Office")
         a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
         assert a.industrial is None
+
+
+# ── Regional vacancy pipeline (v3.7): record provenance + no commercial regression ──
+
+class TestVacancyPipelineRecord:
+    """Runs against the committed seed data (empty crosswalk -> residential resolves at
+    tier 3 provincial; commercial resolves to its per-type default). Verifies the
+    record round-trips the source stamp fields and commercial numbers don't regress."""
+
+    def test_record_carries_vacancy_provenance(self):
+        prop = _make_prop(annual_rent=60_000, property_type="Multi-Family")
+        a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        rec = a.to_record()
+        assert rec["vacancy_source"] == "provincial_avg"   # seed: no region data yet
+        assert rec["vacancy_tier"] == 3
+        assert rec["vacancy_normal"] is True               # tier 3 is healthy, not an alarm
+        assert rec["vacancy_region"].startswith("ON")
+        # The displayed Vacancy Rate row embeds the provenance, incl. the honest tier-3
+        # "derived unweighted average" caveat (not an official provincial figure).
+        vac_row = next(r for r in rec["results"] if r["metric"] == "Vacancy Rate")
+        assert "provincial avg" in vac_row["value"]
+        assert "derived: unweighted avg of surveyed centres" in vac_row["value"]
+
+    def test_commercial_vacancy_no_regression(self):
+        prop = _make_prop(annual_rent=60_000, property_type="Office")
+        a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        assert a.income.vacancy_rate == pytest.approx(0.14)   # unchanged office default
+        rec = a.to_record()
+        assert rec["vacancy_source"] == "type_default"
+        assert rec["vacancy_normal"] is True
+
+    def test_partial_record_has_null_vacancy_fields(self):
+        from analysis.analyzer import build_partial_record
+        rec = build_partial_record(_make_prop(property_type="Retail"))
+        for k in ("vacancy_source", "vacancy_reliability", "vacancy_region",
+                  "vacancy_tier", "vacancy_normal", "vacancy_demoted_from"):
+            assert rec[k] is None
+
+    def test_demotion_recorded_in_record_and_row(self, tmp_path, monkeypatch):
+        """A 'd'-rated region figure is demoted, and that fact is persisted (record
+        field) AND shown (Vacancy Rate row) — not silently swallowed."""
+        import json as _json
+        import analysis.vacancy_resolver as vr
+        crosswalk = {
+            "cma_ca": {"505": {"name": "Ottawa - Gatineau", "type": "CMA", "province": "ON"}},
+            "csd": {"3506008": {"name": "Ottawa", "cma_ca_code": "505", "province": "ON"}},
+            "name_index": {"ottawa|ON": "3506008"},
+        }
+        vacancy = {
+            "_meta": {"attribution": "Adapted from CMHC, RMS, 2025."},
+            "regions": {"505": {"vacancy_rate": 0.020, "reliability": "d", "geo_level": "CMA",
+                                "name": "Ottawa - Gatineau", "province": "ON"}},
+            "provincial": {"ON": {"vacancy_rate": 0.024, "reliability": None}},
+            "national": {"vacancy_rate": 0.020},
+        }
+        (tmp_path / "x.json").write_text(_json.dumps(crosswalk), encoding="utf-8")
+        (tmp_path / "v.json").write_text(_json.dumps(vacancy), encoding="utf-8")
+        monkeypatch.setattr(vr, "_CROSSWALK_PATH", str(tmp_path / "x.json"))
+        monkeypatch.setattr(vr, "_VACANCY_PATH", str(tmp_path / "v.json"))
+        vr.reset_cache()
+        try:
+            prop = _make_prop(annual_rent=60_000, property_type="Multi-Family")  # Ottawa/ON
+            a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+            rec = a.to_record()
+            assert rec["vacancy_source"] == "provincial_avg"   # 505 was 'd' -> demoted
+            assert rec["vacancy_demoted_from"] == "Ottawa - Gatineau CMA (rel. d)"
+            vac_row = next(r for r in rec["results"] if r["metric"] == "Vacancy Rate")
+            assert "demoted from Ottawa - Gatineau CMA (rel. d)" in vac_row["value"]
+        finally:
+            vr.reset_cache()

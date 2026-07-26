@@ -54,6 +54,7 @@ commercial_property_analyser_v2/
 │   ├── rent_resolver.py       # RentResolver — derives annual rent; tags each line [A] advertised / [M] market
 │   ├── underwriting_config.py # load_underwriting_config() — loader/validator for config/underwriting.json
 │   ├── screener_config.py     # load_screener_config() — loader/validator for config/screener_config.json
+│   ├── vacancy_resolver.py    # resolve_vacancy() — region-keyed vacancy, 4-tier fallback chain (3.7)
 │   └── metrics/               # Individual metric calculators
 │       ├── income.py          # NOI, Cap Rate, Gross/Effective Rent, GRM, Cap Rate Risk Check,
 │       │                      #   IncomeConfidenceMetrics (verified vs. estimated income, confidence multiplier)
@@ -85,6 +86,10 @@ commercial_property_analyser_v2/
 │   ├── config_editor.py       # ConfigEditorMixin — scoring weights, distances, demographics
 │   └── csv_handler.py         # CsvHandlerMixin — CSV import and template export
 │
+├── scripts/                   # Scripted, re-runnable data fetches (refresh = re-run)
+│   ├── fetch_geographic_crosswalk.py # Rebuilds json/geographic_crosswalk.json from StatCan 92-151-X
+│   └── fetch_vacancy_rates.py        # Rebuilds json/vacancy_rates.json from CMHC RMS
+│
 ├── json/                      # Runtime data files (auto-created on first use)
 │   ├── properties.json        # Saved property records with full analysis results
 │   ├── commercial_rents.json  # Commercial rent rates ($/sqft/yr) by city and type
@@ -92,6 +97,8 @@ commercial_property_analyser_v2/
 │   ├── score_weights.json     # Scoring weights and thresholds (editable via menu → s)
 │   ├── city_distances.json    # Distance from each city to its nearest regional centre
 │   ├── city_demographics.json # Population and annual growth data per city
+│   ├── vacancy_rates.json     # CMHC RMS vacancy by region + provincial floors (fetched)
+│   ├── geographic_crosswalk.json # StatCan CSD → CMA/CA → province crosswalk (fetched)
 │   └── missing_rent_data.json # Cities with incomplete rent data, tracked for follow-up
 │
 └── tests/                     # Unit and integration tests (99%+ branch coverage)
@@ -312,7 +319,21 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
 | `city_distances.json` | `{ "Cobourg": { "nearest_centre": "Toronto", "distance_km": 100 } }` |
 | `city_demographics.json` | `{ "cobourg": { "population": 20000, "population_2016": 19000, "growth_pct_annual": 1.02, "source": "Stats Canada 2021 Census" } }` — census population growth, used by `scoring/city_ranker.py` for city opportunity depth and by `scoring/scorer.py` (with `city_distances.json`) as one input to the market-liquidity proxy that gates the DOM/Price-Drop confidence amplifier. Not used as a rent/NOI growth assumption (see `config/underwriting.json`). |
 | `missing_rent_data.json` | Tracks which cities are missing commercial or residential rent data so the menu can prompt the user to fill them in. |
+| `vacancy_rates.json` | CMHC Rental Market Survey apartment (residential) vacancy keyed by StatCan CMA/CA code, plus provincial + national aggregates. Consumed by `analysis/vacancy_resolver.py` as tiers 1-3 of the vacancy chain. A scripted download (`scripts/fetch_vacancy_rates.py`), not hand-edited. CMHC's HMIP portal blocks programmatic access, so the fetch pulls the identical CMHC series republished by StatCan's WDS (tables 34-10-0127/128/129). |
+| `geographic_crosswalk.json` | StatCan Geographic Attribute File (92-151-X): every CSD (municipality) → its CMA/CA and province as numeric codes, plus a normalized name index for the city-name → CSD-code hop. Powers tiers 2-3 of the vacancy chain. A scripted download (`scripts/fetch_geographic_crosswalk.py`), versioned by census. |
 | `reanalyze_errors.log` | Plain-text log written by **Re-analyze all** (`r`) when a property fails to analyze: a timestamp header plus the full traceback for each failed record (address · MLS · type). Overwritten each run; deleted automatically when a run completes with no errors. Not JSON — a debugging aid so an error count is never a dead end. |
+
+**Regional vacancy pipeline (3.7).** Vacancy is resolved per region by
+`analysis/vacancy_resolver.py` through an always-terminating 4-tier fallback chain —
+surveyed region → parent CMA/CA → provincial average → per-type constant floor — each
+figure carrying a source stamp (and a reliability flag where the source provides one). The
+`vacancy_rates.json` and `geographic_crosswalk.json` files above are **scripted, versioned
+downloads**: refresh by re-running `scripts/fetch_geographic_crosswalk.py` (StatCan, per
+census) and `scripts/fetch_vacancy_rates.py` (CMHC RMS via StatCan's WDS, annually), then
+re-analyze (`r`). No hand-entry — "data will change" is handled by re-running. The
+committed files hold a real October-2025 fetch (140 surveyed regions across 11 provinces).
+CMHC figures are shown with the required "Adapted from Canada Mortgage and Housing
+Corporation, Rental Market Survey, &lt;reference date&gt;" attribution wherever they surface.
 
 ---
 
