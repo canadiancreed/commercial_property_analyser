@@ -4,7 +4,7 @@ from analysis.metrics.returns import METRIC_MARKET_STALENESS
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from analysis.underwriting_config import load_underwriting_config
 from analysis.screener_config import load_screener_config
-from analysis.financing_config import resolve_financing
+from analysis.financing_config import resolve_financing, mixed_use_commercial_gfa_share
 
 METRIC_SELLER_BLEED = "Seller Bleed"
 
@@ -177,10 +177,16 @@ class PropertyScorer:
 
     # ── Scoring ────────────────────────────────────────────────────────────
 
-    def score_property(self, p: dict) -> dict:
+    def score_property(self, p: dict, _compute_select: bool = True,
+                       _covenant_override=None) -> dict:
         """
         Score a saved property record (0-100).
         Returns {"score": float|None, "breakdown": {}, "weights": {}, ...metrics}.
+
+        For a CMHC MLI-eligible record the primary score is **MLI Standard** (the
+        ranking basis) and an **MLI Select** upside score is computed from
+        ``select_results`` (Fix 3); ``_compute_select`` / ``_covenant_override`` are
+        internal knobs used when recursively scoring that Select variant.
         """
         results = {r["metric"]: r for r in (p.get("results") or [])}
         INCOME  = INCOME_METRIC_NAMES
@@ -373,19 +379,42 @@ class PropertyScorer:
         if _dscr_row:
             _dc = "".join(c for c in str(_dscr_row.get("value", "")) if c.isdigit() or c in ".-")
             current_dscr = float(_dc) if _dc else None
-        covenant_dscr = None
-        covenant_capped = False
-        if current_dscr is not None:
+
+        # Resolve financing once — reused for the covenant cap AND the MLI Select
+        # covenant (dual scoring). Skipped when a covenant override is supplied
+        # (the recursive Select pass) or nothing needs it.
+        _fin = None
+        if _covenant_override is None and (current_dscr is not None or p.get("select_results")):
             _um = p.get("unit_mix") or {}
             _units = sum(_um.get(k, 0) or 0 for k in
                          ("bachelor", "one_br", "two_br", "three_br", "four_br", "unknown"))
-            covenant_dscr = resolve_financing(
-                p.get("asking_price") or 0, p.get("property_type"), _units
-            ).get("covenant_dscr")
-            if (covenant_dscr is not None and current_dscr < covenant_dscr
-                    and adjusted_score > covenant_cap):
-                adjusted_score = covenant_cap
-                covenant_capped = True
+            _share = mixed_use_commercial_gfa_share(
+                p.get("property_type"), _um.get("floors", p.get("floors", 1)))
+            _fin = resolve_financing(p.get("asking_price") or 0, p.get("property_type"),
+                                     _units, commercial_gfa_share=_share)
+
+        covenant_dscr = (_covenant_override if _covenant_override is not None
+                         else (_fin.get("covenant_dscr") if _fin else None))
+        covenant_capped = False
+        if (current_dscr is not None and covenant_dscr is not None
+                and current_dscr < covenant_dscr and adjusted_score > covenant_cap):
+            adjusted_score = covenant_cap
+            covenant_capped = True
+
+        # ── Fix 3: MLI Select UPSIDE score (dual scoring) ────────────────────
+        # Rank on the Standard score above; also score the Select variant of the
+        # results (same income/cap — only debt-side rows differ) against the 1.10
+        # Select covenant, and report the gap as a financing-upside signal.
+        select_score = select_gap = None
+        if _compute_select and p.get("select_results"):
+            sel_cov = (_fin.get("select") or {}).get("covenant_dscr") if _fin else None
+            sel_variant = {**p, "results": p["select_results"],
+                           "financing_robustness": p.get("select_financing_robustness")}
+            sel_scored = self.score_property(sel_variant, _compute_select=False,
+                                             _covenant_override=sel_cov)
+            select_score = sel_scored.get("score")
+            if select_score is not None and adjusted_score is not None:
+                select_gap = round(select_score - adjusted_score, 1)
 
         # A pending robustness factor is rendered as None (not 0.0) so the score
         # breakdown can show "Pending re-analysis" instead of a fake zero bar.
@@ -402,6 +431,11 @@ class PropertyScorer:
             "robustness_pending": robustness_pending,
             "covenant_capped": covenant_capped,
             "covenant_dscr":   covenant_dscr,
+            # Fix 3 dual scoring: MLI Select upside score + gap over the Standard
+            # (ranking) score. None for deals that are not CMHC MLI-eligible.
+            "mli_eligible":    p.get("select_results") is not None,
+            "select_score":    select_score,
+            "select_gap":      select_gap,
             "weights":     weights,
             "income_confidence": p.get("income_confidence"),
             "cap_rate":    cap_rate,

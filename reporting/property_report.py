@@ -240,6 +240,14 @@ class PropertyReportGenerator:
     margin-top: 0.15rem;
     cursor: help;
   }}
+  .score-select {{
+    font-family: var(--mono);
+    font-size: 8.5px;
+    letter-spacing: 0.06em;
+    color: var(--green);
+    margin-top: 0.15rem;
+    cursor: help;
+  }}
   .card-body {{ padding: 1rem 1.2rem; }}
   .card-address {{
     font-family: 'DM Serif Display', serif;
@@ -648,6 +656,7 @@ function renderCard(p) {{
       <div class="score-label">Investment Score</div>
       <div class="score-grade ${{gradeClass}}">${{gradeLabel}}</div>
       ${{p.robustness_pending && p.score !== null ? `<div class="score-pending" title="Financing-robustness factor not yet computed on this stored record — score omits it (renormalised). Re-analyze to refresh.">⟳ re-analysis pending</div>` : ''}}
+      ${{p.mli_eligible && p.select_score !== null && p.select_score !== undefined ? `<div class="score-select" title="Ranked on MLI Standard (85% LTV / 40yr / DSCR 1.20). MLI Select upside — 85% LTV cap, 70pt/45yr amortization, DSCR 1.10; 95% LTV requires 100pts + DSCR≥1.20 + lender advance.">MLI Select ${{p.select_score.toFixed(0)}}${{p.select_gap != null ? ` (${{p.select_gap >= 0 ? '+' : ''}}${{p.select_gap.toFixed(1)}})` : ''}}</div>` : ''}}
     </div>
     <div class="card-body">
       <div class="card-address">${{p.address}}</div>

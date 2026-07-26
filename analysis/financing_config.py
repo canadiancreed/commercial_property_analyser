@@ -143,6 +143,30 @@ def _derive_scalars(block: dict) -> dict:
     return out
 
 
+def _mli_scalars(mli_block: dict) -> dict:
+    """Down payment / rate / amortization from an MLI Standard or Select sub-block.
+    Select carries a point-tier amortization table plus a ``modeled_amort_years``
+    (the tier we score on) — Standard carries a flat ``amort_years``."""
+    out = {"down_payment_pct": round(1 - mli_block["max_ltv"], 6),
+           "interest_rate": (mli_block["rate_low"] + mli_block["rate_high"]) / 2}
+    out["term_years"] = mli_block.get("amort_years") or mli_block.get("modeled_amort_years")
+    return out
+
+
+def mixed_use_commercial_gfa_share(property_type, floors):
+    """Conservative commercial gross-floor-area share for the CMHC 30% rule:
+    ground floor / total ≈ 1/floors (the retail-below/residential-above model the
+    income engine already assumes). Returns None when it can't be estimated
+    (missing floors) — the caller then treats eligibility as undetermined and
+    routes conventional (the safe direction). Only meaningful for mixed_use."""
+    p = (property_type or "").strip().lower().replace(" ", "_").replace("-", "_")
+    if p != "mixed_use":
+        return None
+    if not floors or floors < 1:
+        return None
+    return 1.0 / floors
+
+
 def conventional_max_ltv(property_type=None, units=None) -> float:
     """The conventional (non-CMHC) max LTV for a type — used to size the routing
     loan estimate. Falls back to the house default when no type block applies."""
@@ -157,19 +181,73 @@ def conventional_max_ltv(property_type=None, units=None) -> float:
     return 1 - _defaults(raw)["down_payment_pct"]
 
 
-def get_financing(property_type=None, units=None, loan_estimate=None) -> dict:
+def _cmhc_eligibility(type_key, units, commercial_gfa_share, block, ptypes):
+    """Resolve CMHC MLI eligibility and which cmhc block supplies the terms.
+
+    Returns (mli_cmhc | None, basis: str). Eligibility (CMHC primary):
+      • multi_family_5plus — 5+ RESIDENTIAL units (the unit-count split already
+        guarantees this), uses its own ``cmhc`` block.
+      • mixed_use — the 30% non-residential rule: commercial GFA ≤ 30% AND ≥5
+        residential units, borrowing the multi_family_5plus terms. A missing
+        commercial share is "undetermined" → conventional (safe direction).
+      • every other type (retail / office / industrial / hotel) — never eligible.
+    """
+    if type_key == "multi_family_5plus" and isinstance(block.get("cmhc"), dict):
+        return block["cmhc"], "5+ residential units"
+    if type_key == "mixed_use":
+        cond = block.get("cmhc_conditional")
+        if not isinstance(cond, dict):
+            return None, "not CMHC-eligible"
+        ref = ptypes.get(cond.get("cmhc_terms_from"))
+        ref_cmhc = ref.get("cmhc") if isinstance(ref, dict) else None
+        max_share = cond.get("max_commercial_gfa_share", 0.30)
+        min_units = cond.get("min_residential_units", 5)
+        if commercial_gfa_share is None:
+            return None, "eligibility undetermined — commercial share unknown"
+        if (commercial_gfa_share <= max_share and (units or 0) >= min_units
+                and isinstance(ref_cmhc, dict)):
+            return ref_cmhc, (f"mixed-use 30% rule — commercial GFA "
+                              f"{commercial_gfa_share*100:.0f}% ≤ {max_share*100:.0f}%, "
+                              f"{units} residential units")
+        if commercial_gfa_share > max_share:
+            return None, (f"conventional — commercial GFA {commercial_gfa_share*100:.0f}% "
+                          f"> {max_share*100:.0f}% rule")
+        return None, f"conventional — {units or 0} residential units < {min_units}"
+    return None, "not CMHC-eligible"
+
+
+def _select_scenario(mli_cmhc, residential_covenant) -> dict:
+    """The MLI Select UPSIDE sub-scenario for the dual score. Acquisition LTV is
+    capped at 85% (same as Standard), so the Select advantage is amortization
+    (modeled 70pt/45yr, not a blanket 50yr) and DSCR floor (1.10), NOT leverage."""
+    sel = mli_cmhc["mli_select"]
+    out = _mli_scalars(sel)
+    out.update({
+        "financing_scenario": "mli_select",
+        "max_ltv": sel.get("max_ltv"),
+        "rate_low": sel.get("rate_low"), "rate_high": sel.get("rate_high"),
+        "dscr_floor": sel.get("dscr_floor"),
+        "covenant_dscr": sel.get("dscr_floor") or residential_covenant,
+        "amort_by_points": sel.get("amort_by_points"),
+        "modeled_points": sel.get("modeled_points"),
+        "unverified_max_ltv": mli_cmhc.get("unverified_max_ltv"),
+        "label": "upside; 95% LTV requires 100pts + DSCR≥1.20 + lender advance",
+    })
+    return out
+
+
+def get_financing(property_type=None, units=None, loan_estimate=None,
+                  commercial_gfa_share=None) -> dict:
     """Resolve the merged financing block for a property.
 
     Returns the four pipeline scalars (down_payment_pct / interest_rate /
-    term_years / hold_years) plus the rich per-type fields (max_ltv, dscr_floor,
-    fixed_expense_fraction, cmhc, …) and routing metadata (financing_scenario,
-    small_balance_flag). With no matching type block the result is the defaults
-    unchanged — pre-per-type behavior.
-
-    ``loan_estimate`` (a dollar loan size) is used ONLY to route
-    multi_family_5plus: at or above the CMHC min_practical_loan the MLI Select
-    block becomes the primary scenario; below it, conventional is primary and
-    CMHC is flagged as a secondary (small-balance) option.
+    term_years / hold_years) plus the rich per-type fields and routing metadata.
+    CMHC MLI-eligible deals (5+ unit multifamily, or mixed-use meeting the 30%
+    rule) are **ranked on MLI Standard** (85% LTV, 40yr, DSCR 1.20 — the
+    no-points certainty floor) and carry a ``select`` upside sub-scenario. Every
+    listing is an existing-building acquisition, so LTV is capped at 85% for both
+    programs; the Select advantage is amortization + DSCR floor, not extra
+    leverage. ``loan_estimate`` only sets the informational small-balance flag.
     """
     raw = _load_raw()
     defaults = _defaults(raw)
@@ -178,6 +256,7 @@ def get_financing(property_type=None, units=None, loan_estimate=None) -> dict:
     result = dict(defaults)  # down_payment_pct, interest_rate, term_years, hold_years
     result["stress_test_bump"] = raw.get("stress_test_bump", 0.0)
     result["verified_date"]    = raw.get("verified_date")
+    result["select"] = None
     # Residential fallback covenant for types that qualify on borrower GDS/TDS
     # (null dscr_floor) — used by the financing-robustness margins (Fix 6).
     residential_covenant = raw.get("residential_covenant_dscr", 1.1)
@@ -197,57 +276,83 @@ def get_financing(property_type=None, units=None, loan_estimate=None) -> dict:
             "dscr_floor": None, "covenant_dscr": residential_covenant,
             "fixed_expense_fraction": None,
             "cmhc_eligible": False, "cmhc": None,
-            "small_balance_flag": False, "notes": "",
+            "small_balance_flag": False, "mli_eligibility": "n/a", "notes": "",
         })
         return result
 
-    cmhc = block.get("cmhc")
-    active = block                     # conventional block by default
-    scenario = "type"
-    small_balance_flag = False
+    mli_cmhc, basis = _cmhc_eligibility(type_key, units, commercial_gfa_share, block, ptypes)
 
-    if type_key == "multi_family_5plus" and isinstance(cmhc, dict):
-        min_practical = cmhc.get("min_practical_loan")
-        use_mli = (loan_estimate is not None and min_practical is not None
-                   and loan_estimate >= min_practical)
-        if use_mli:
-            active = {**block, **cmhc["mli_select"]}   # MLI overrides ltv/rate/amort/dscr
-            scenario = "mli_select"
-        else:
-            scenario = "conventional"
-            small_balance_flag = (min_practical is not None and loan_estimate is not None
-                                  and loan_estimate < min_practical)
+    # Small-balance carve-out — applies to ANY MLI-routed type (multifamily AND
+    # eligible mixed-use): an MLI lender declines a sub-floor balance regardless of
+    # asset type, so a deal whose 75%-LTV loan is below the CMHC practical floor
+    # (~$1M) finances CONVENTIONALLY (75% LTV / 25yr), not MLI Standard. Keyed on the
+    # LOAN amount (loan_estimate = price × conventional LTV), not price. Uniform rule:
+    # no deal of any type gets MLI terms on a sub-$1M loan.
+    small_balance_reverted = False
+    if isinstance(mli_cmhc, dict):
+        min_practical = mli_cmhc.get("min_practical_loan")
+        if (min_practical is not None and loan_estimate is not None
+                and loan_estimate < min_practical):
+            mli_cmhc = None
+            small_balance_reverted = True
+            basis = (f"conventional — small-balance (75%-LTV loan "
+                     f"< ${min_practical:,.0f} CMHC floor)")
 
-    result.update(_derive_scalars(active))     # down_payment_pct / interest_rate / term_years
+    if isinstance(mli_cmhc, dict):
+        # ── CMHC MLI-eligible → RANK on MLI Standard; expose Select upside ─────
+        std = mli_cmhc["mli_standard"]
+        result.update(_mli_scalars(std))
+        result["select"] = _select_scenario(mli_cmhc, residential_covenant)
+        min_practical = mli_cmhc.get("min_practical_loan")
+        small_balance_flag = (min_practical is not None and loan_estimate is not None
+                              and loan_estimate < min_practical)
+        result.update({
+            "type_key": type_key, "source": "cmhc_mli",
+            "financing_scenario": "mli_standard",
+            "max_ltv": std.get("max_ltv"),
+            "rate_low": std.get("rate_low"), "rate_high": std.get("rate_high"),
+            "amort_years": std.get("amort_years"),
+            "dscr_floor": std.get("dscr_floor"),
+            "covenant_dscr": std.get("dscr_floor") or residential_covenant,
+            "fixed_expense_fraction": block.get("fixed_expense_fraction"),
+            "cmhc_eligible": True,
+            "cmhc": mli_cmhc,
+            "small_balance_flag": small_balance_flag,
+            "mli_eligibility": basis,
+            "notes": block.get("notes", ""),
+        })
+        return result
+
+    # ── Not CMHC-eligible → conventional per-type block ──────────────────────
+    result.update(_derive_scalars(block))
     result.update({
         "type_key": type_key, "source": "property_type",
-        "financing_scenario": scenario,
-        "max_ltv": active.get("max_ltv"),
-        "rate_low": active.get("rate_low"), "rate_high": active.get("rate_high"),
-        "amort_years": active.get("amort_years"),
-        "dscr_floor": active.get("dscr_floor"),
-        # Covenant DSCR (Fix 6 robustness) == the resolved lending dscr_floor
-        # (scenario-aware: 1.10 under MLI Select, else the conventional floor).
-        # Null-floor types (1-4 residential, GDS/TDS-qualified) use the fallback.
-        "covenant_dscr": active.get("dscr_floor") or residential_covenant,
-        # fixed_expense_fraction is a property of the ASSET CLASS, so it always
-        # comes from the parent type block — never the MLI sub-block (which omits it).
+        "financing_scenario": "type",
+        "max_ltv": block.get("max_ltv"),
+        "rate_low": block.get("rate_low"), "rate_high": block.get("rate_high"),
+        "amort_years": block.get("amort_years"),
+        "dscr_floor": block.get("dscr_floor"),
+        "covenant_dscr": block.get("dscr_floor") or residential_covenant,
         "fixed_expense_fraction": block.get("fixed_expense_fraction"),
         "cmhc_eligible": block.get("cmhc_eligible", False),
-        "cmhc": cmhc,
-        "small_balance_flag": small_balance_flag,
+        "cmhc": block.get("cmhc"),
+        "small_balance_flag": small_balance_reverted,
+        "mli_eligibility": basis,
         "notes": block.get("notes", ""),
     })
     return result
 
 
-def resolve_financing(price, property_type=None, units=None) -> dict:
+def resolve_financing(price, property_type=None, units=None,
+                      commercial_gfa_share=None) -> dict:
     """Convenience wrapper: sizes the routing loan estimate from the asking price
     (price × the conventional LTV) and returns the fully-routed merged block.
     This is the single entry point the pipeline (_record_to_prop, the analyzer)
-    uses so the loan-estimate routing lives entirely inside this module."""
+    uses so the loan-estimate routing lives entirely inside this module.
+    ``commercial_gfa_share`` (mixed-use only) drives the CMHC 30% eligibility rule."""
     loan_estimate = (price or 0) * conventional_max_ltv(property_type, units)
-    return get_financing(property_type, units, loan_estimate=loan_estimate)
+    return get_financing(property_type, units, loan_estimate=loan_estimate,
+                         commercial_gfa_share=commercial_gfa_share)
 
 
 # ── Persistence (menu 'f' edits the defaults layer only) ───────────────────

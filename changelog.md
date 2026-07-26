@@ -6,6 +6,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [3.6.7] — 2026-07-25
+
+_CMHC MLI financing correction. Every listing is an existing-building acquisition,
+so the model now scores on realistically-obtainable MLI terms, not best-case
+construction figures. Parameters verified July 2026 against CMHC primary
+(cmhc-schl.gc.ca) + corroborating broker/lender sources; each constant is marked
+with source and status in `config/financing.json` and `docs/scoring-design.md`.
+Requires a re-analysis (menu `f`) to persist into stored records._
+
+### Changed
+
+- **Acquisition LTV capped at 85%** (was 95% MLI Select). 95% is loan-to-*cost* for
+  new construction / the published 100-point existing-property ceiling — never
+  thrown by real acquisition DSCR, so lenders advance to ~85% (effective-advance
+  practice). Both MLI Standard and Select are scored at 85%; 95% is retained only as
+  labelled, unmodelled upside. Moved the **49** five-plus multifamily that had been
+  scored at 95% down a mean **−5.5** (largest −22.4: 61 Brookfield Rd 70→48).
+- **5+ multifamily ranks on MLI Standard** (85% LTV / 40yr / DSCR 1.20 — the
+  no-points certainty floor), replacing the old conventional-below-$1M /
+  MLI-Select@95%-at-or-above-$1M split. DSCR floor corrected 1.30 → 1.20 (CMHC).
+- **Mixed-use CMHC eligibility via the 30% non-residential rule** — mixed-use was
+  previously excluded from CMHC entirely. Commercial gross-floor-area share is
+  computed as **1 ÷ floor count** (equal-plate convention: ground-floor commercial,
+  upper floors residential) and gated at a **flat 30%**; a mixed-use building with
+  commercial share ≤30% (4+ floors) **and** ≥5 residential units is MLI-eligible and
+  ranks on MLI Standard, else conventional. **11** mixed-use become eligible.
+- **Small-balance carve-out (uniform, all MLI-routed types)** — a deal whose 75%-LTV
+  loan (`price × 0.75`, not price) is under the ~$1M CMHC practical floor finances
+  conventionally (75% LTV / 25yr), not MLI: an MLI lender declines a sub-floor
+  balance regardless of asset type. **48** deals revert (42 multifamily + 6
+  mixed-use); the minimum 75%-LTV loan among all MLI-routed deals is now $1.05M.
+  Conventional LTV is held at **75%** (the conservative end of the 75–80% range).
+- **MLI Select amortization is point-tier-dependent** — 40yr at 50 pts, 45yr at 70
+  pts, 50yr at 100 pts (50yr is the 100-point reward, limited recourse). The Select
+  score is modelled at 70pt/45yr, never a blanket 50yr.
+
+### Added
+
+- **Dual scoring — MLI Standard (ranking) + MLI Select (upside) + gap.** MLI-eligible
+  deals are ranked on the Standard score and carry a Select upside score plus the gap
+  (`analysis/analyzer.py` runs a second debt-side pass → `select_results`;
+  `scoring/scorer.py` scores the Select variant against the 1.10 Select covenant).
+  Because LTV is capped at 85% for both programs, equity/loan are identical, so the
+  Select edge is amortization (45 vs 40yr) + the lower DSCR floor, not leverage — the
+  gap is small by construction. The card shows "MLI Select N (+gap)" with the
+  "95% LTV requires 100pts + DSCR≥1.20 + lender advance" caveat.
+- **Per-type CMHC source/verification metadata** in `config/financing.json`
+  (`acquisition_ltv_cap`, `unverified_max_ltv`, `amort_by_points`,
+  `modeled_amort_years`, the mixed-use `cmhc_conditional` 30%-rule block) plus a
+  constant-by-constant source/status table in `docs/scoring-design.md`.
+
+### Fixed
+
+- **MLI panel renders iff the deal is MLI-routed** (`analysis/deal_financing.py`) — no
+  MLI rows on any conventional deal (small-balance multifamily, 1–4 unit residential,
+  non-eligible mixed-use); the panel now also renders correctly for MLI-routed
+  mixed-use, and the stale "MLI Eligible: No" row on conventional deals is gone.
+- **MLI panel display drift** — the Select row would have shown the pre-correction
+  95% LTV / 50yr; it now shows the 85% acquisition cap, modelled 45yr (up to 50yr @
+  100 pts), and the 95%-is-unverified-upside note.
+
+---
+
 ## [3.6.6] — 2026-07-25
 
 _Scoring engine redesign. Seven structural fixes plus a financing-robustness

@@ -56,16 +56,19 @@ CASES = [
          scenario="type", down=160_000, pmt=3_415.62, ads=40_987.44,
          dscr=1.09, stress_dscr=0.88, dscr_loan=None, max_loan=640_000,
          binding="n/a (GDS/TDS)", beo=0.914, beo_warn=True),
+    # 5+ multifamily ranks on MLI Standard (85% LTV, 40yr, DSCR 1.20) — EXCEPT
+    # small-balance deals whose 75%-LTV loan is under the ~$1M CMHC floor (Fix A),
+    # which revert to conventional (75% LTV, 25yr). T2's 75%-loan is $375k < $1M.
     dict(id="T2_multi_family_5plus_small", type="Multi-Family", units=6,
          price=500_000, gpr=90_300, vacancy=0.03, opex=0.40,
-         scenario="conventional", down=125_000, pmt=2_343.83, ads=28_126.00,
+         scenario="type", down=125_000, pmt=2_343.83, ads=28_126.00,
          dscr=1.87, stress_dscr=1.56, dscr_loan=488_361, max_loan=375_000,
          binding="LTV", beo=0.655, beo_warn=False),
     dict(id="T3_multi_family_5plus_large", type="Multi-Family", units=16,
          price=2_400_000, gpr=288_000, vacancy=0.03, opex=0.42,
-         scenario="mli_select", down=120_000, pmt=9_882.01, ads=118_584.16,
-         dscr=1.37, stress_dscr=1.03, dscr_loan=2_132_644, max_loan=2_132_644,
-         binding="DSCR", beo=0.793, beo_warn=False),
+         scenario="mli_standard", down=360_000, pmt=9_603.17, ads=115_238.09,
+         dscr=1.406, stress_dscr=1.093, dscr_loan=1_858_568, max_loan=1_858_568,
+         binding="DSCR", beo=0.780, beo_warn=False),
     dict(id="T4_mixed_use", type="Mixed-Use", units=0,
          price=900_000, gpr=96_000, vacancy=0.05, opex=0.38,
          scenario="type", down=225_000, pmt=4_368.97, ads=52_427.70,
@@ -130,27 +133,30 @@ def test_binding_constraint_coverage():
 
 # ── Multi-family panel details ───────────────────────────────────────────────
 
-def test_t2_mli_panel_small_balance():
+def test_t2_small_balance_reverts_to_conventional():
+    # Fix A: 75%-LTV loan = $375k < $1M → conventional. Fix C: no MLI rows.
     fin, _, _, deal, _ = _build(500_000, 90_300, 0.03, 0.40, "Multi-Family", 6)
-    metrics = {r.metric: r.value for r in deal.rows()}
-    assert metrics["MLI Eligible"] == "Yes (5+ units)"
-    assert "MLI Small-Balance Flag" in metrics          # loan < $1M
-    assert metrics["Units"] == "6"
+    assert fin["financing_scenario"] == "type"
+    assert fin["small_balance_flag"] is True
+    metrics = {r.metric for r in deal.rows()}
+    assert not any(m.startswith("MLI") for m in metrics)   # no MLI rows on conventional
     assert deal.price_per_door == pytest.approx(83_333, abs=1.0)
 
 
-def test_t3_mli_select_no_small_balance():
+def test_t3_mli_panel_renders_when_routed():
     fin, _, _, deal, _ = _build(2_400_000, 288_000, 0.03, 0.42, "Multi-Family", 16)
     metrics = {r.metric: r.value for r in deal.rows()}
+    assert fin["financing_scenario"] == "mli_standard"    # loan >= $1M
     assert metrics["MLI Eligible"] == "Yes (5+ units)"
-    assert "MLI Small-Balance Flag" not in metrics       # loan >= $1M
+    assert "MLI Small-Balance Flag" not in metrics
     assert deal.price_per_door == pytest.approx(150_000, abs=1.0)
 
 
-def test_t1_mli_ineligible():
+def test_t1_mli_panel_absent_on_conventional():
+    # Fix C: 1-4 unit residential is conventional → NO MLI rows at all.
     _, _, _, deal, _ = _build(800_000, 76_800, 0.03, 0.40, "Multi-Family", 4)
-    metrics = {r.metric: r.value for r in deal.rows()}
-    assert metrics["MLI Eligible"] == "No"
+    metrics = {r.metric for r in deal.rows()}
+    assert not any(m.startswith("MLI") for m in metrics)
 
 
 def test_t4_mixed_use_no_mli_panel():

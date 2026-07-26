@@ -371,6 +371,96 @@ left at exactly the ceiling.
 
 ---
 
+## CMHC MLI financing — sources, verification & dual scoring
+
+Parameters verified **July 2026** against CMHC primary (`cmhc-schl.gc.ca`) plus
+corroborating broker/lender sources. Every value is marked with its source and
+status; anything not primary-verified is flagged and modelled conservatively. The
+constants live in `config/financing.json` (`multi_family_5plus.cmhc`); routing is
+`analysis/financing_config.py`.
+
+| Constant | Value | Source | Status |
+|---|---|---|---|
+| MLI applies to | acquisitions **and** new construction | CMHC primary | verified |
+| Acquisition LTV cap (both programs) | **85%** | lender effective-advance practice | corroborated (not CMHC-published) |
+| 95% figure | loan-to-**cost** (construction) / 100-pt existing ceiling | CMHC primary | **unverified upside** for acquisitions |
+| MLI Standard | 85% LTV / 40yr / DSCR **1.20** / no points | CMHC primary | verified (ranking floor) |
+| MLI Select DSCR floor | **1.10** | CMHC fact sheet | verified |
+| MLI Select amortization | 50pt→40yr, 70pt→45yr, 100pt→50yr | CMHC fact sheet | verified (tier-dependent) |
+| Select modelled tier | **70pt / 45yr** | conservative choice | modelled (not 50yr) |
+| Premium discounts | 10/20/30% at 50/70/100 pts | CMHC | verified (premium, not rate) |
+| 30% non-residential rule | commercial ≤30% of GFA **and** value | CMHC primary | verified |
+| Eligibility basis | ≥5 **residential** units (retirement 50) | CMHC primary | verified |
+
+**Explicitly recorded:**
+
+* **(a) Acquisition LTV is capped at 85%.** Every listing in this system is an
+  existing-building acquisition; CMHC's published 95% ceiling for a 100-point
+  existing property is not thrown by real acquisition DSCR, so lenders advance to
+  ~85%. Both MLI Standard and MLI Select are scored at 85% LTV. (`config/financing.json`
+  → `cmhc.acquisition_ltv_cap`, `mli_standard.max_ltv`, `mli_select.max_ltv`.)
+* **(b) 95% is construction-LTC or a conditional top-tier ceiling — unverified
+  upside.** It is *not* modelled in scoring; the Select label reads "95% LTV
+  requires 100pts + DSCR≥1.20 + lender advance." (`cmhc.unverified_max_ltv`.)
+* **(c) MLI Select amortization is tier-dependent.** 40/45/50yr at 50/70/100 pts;
+  50yr is the 100-point reward only. The Select score is modelled at 70pt/45yr,
+  never a blanket 50yr. (`mli_select.amort_by_points`, `modeled_amort_years`.)
+* **(d) The mixed-use 30% rule governs eligibility.** A mixed-use building with
+  commercial GFA ≤30% **and** ≥5 residential units is CMHC-eligible and ranks on
+  MLI Standard; otherwise conventional. Commercial GFA share is **exactly
+  `1 / floor_count`** under the equal-plate data convention (ground floor
+  commercial, upper floors residential, equal plates), gated at a **flat 30%** —
+  4+ floors (≤25%) qualify, 3 floors (33.3%) do not. This is exact under the
+  convention: no margin, no confirmation step. (`mixed_use.cmhc_conditional`;
+  `financing_config.mixed_use_commercial_gfa_share`.) Passing the 30% gate makes a
+  mixed-use deal MLI-*eligible*; the small-balance floor (e) then applies to it
+  like any other MLI-routed deal.
+* **(e) Small-balance carve-out — ALL MLI-routed types.** A deal whose **75%-LTV
+  loan** (`price × 0.75`, not price) is below the ~\$1M CMHC practical floor
+  finances conventionally (75% LTV / 25yr), not MLI — an MLI lender declines a
+  sub-floor balance regardless of asset type, so the rule is uniform across
+  multifamily **and** eligible mixed-use. (`cmhc.min_practical_loan`;
+  `financing_config.get_financing`.) The MLI panel and Select scenario are
+  suppressed for these deals. **No deal of any type gets MLI terms on a sub-\$1M
+  loan** (verified: the minimum 75%-LTV loan among all MLI-routed deals is \$1.05M).
+* **(f) The MLI panel renders iff the deal is MLI-routed.** No MLI rows appear on
+  any conventional deal — small-balance multifamily, 1–4 unit residential, or
+  non-eligible mixed-use. (`deal_financing._mli_rows`, gated on
+  `financing_scenario == "mli_standard"`.)
+
+**Dual scoring (MLI Standard rank + MLI Select upside).** MLI-eligible deals are
+**ranked on the MLI Standard score** (the no-points certainty floor) and carry a
+**MLI Select upside score + gap**. Because acquisition LTV is capped at 85% for
+both programs, equity and loan are identical between them — so the Select advantage
+is **amortization (45 vs 40yr) and the lower DSCR floor, not extra leverage**, and
+the Standard→Select gap is small by construction (typically 0–1 point). The Select
+variant is a second debt-side pass (`analyzer._select_record`), scored against the
+1.10 Select covenant; the card shows both.
+
+**Measured effect (639 properties, before = prior all-fixes state):**
+
+* **Fix 1** — the 49 five-plus multifamily previously advanced at 95% LTV drop a
+  mean of −5.5 (largest −22.4: 61 Brookfield Rd 70→48) now that they carry 85% LTV.
+* **Fix 2** — all 91 five-plus multifamily now rank on MLI Standard.
+* **Fix 4** — 11 mixed-use become CMHC-eligible under the 30% rule (mean +5.2;
+  87-93 King St W +28.8), moving from conventional (75%/25yr) to MLI Standard
+  (85%/40yr).
+* **Fix 5** — the 5-unit threshold counts **residential** units: 0 misclassifications
+  (64 mixed-use with ≥5 residential units but >30% commercial correctly stay
+  conventional; 0 non-multifamily/mixed-use or sub-5-unit deals routed to MLI).
+* Conventional high-cap deals (e.g. Napanee 113 East St E, 9.98% cap) are unchanged
+  and so rise relative to the demoted 95%-LTV multifamily.
+* **Small-balance carve-out (uniform, all types)** — **48** deals whose 75%-LTV
+  loan is under \$1M revert from MLI Standard (85%) to conventional (75%): **42
+  multifamily** (mean −14.9; largest −29.6, 130 King St E, Kingston 79.9→50.3) and
+  **6 mixed-use** (98-100 Walton St, Port Hope −13.6; 104-106 Walton −6.3; 102
+  Walton −2.8; the rest ≈0). Conventional LTV is held at **75%** (the conservative
+  end of 75–80%) for all reverting deals. After the carve-out, top-of-book is
+  entirely conventional high-cap deals that pencil on realistic obtainable
+  financing — no thin-cap deal is propped up by best-case MLI leverage.
+
+---
+
 ## Deliberate, non-standard choices
 
 These are judgment calls, **not** industry conventions. They are chosen for
