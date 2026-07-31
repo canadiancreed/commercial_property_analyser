@@ -86,6 +86,34 @@ stamps into stored records._
   `component_vacancy.residential` 0.04); a Testville/ON fixture resolves to the ON
   provincial floor (0.03), shifting the mixed-use golden values accordingly.
 
+### Fixed
+
+- **Firefox persistent-context launch now self-heals** (`scraping/firefox_launcher.py`,
+  wired into `scraping/realtor_scraper.py`) — the realtor.ca scraper could fail at
+  startup with `BrowserType.launch_persistent_context: Failed to launch the browser
+  process` after Firefox exited **0** (started, couldn't open the profile, quit cleanly).
+  The launch is now wrapped in an escalating recovery routine: **(1)** launch as-is →
+  **(2)** clear stale lock files (`parent.lock` / `.parentlock` / `lock`) left by a killed
+  run → **(3)** kill only the `firefox.exe` processes whose command line names *this*
+  profile, clear locks, relaunch → **(4)** rename the profile aside (`.broken-<stamp>`,
+  never delete) and relaunch once; if all fail it raises with the profile path and the
+  last underlying error.
+- **Proactive revision quarantine** — the profile carries a `.playwright_firefox_revision`
+  marker; on startup a marker that disagrees with the installed Playwright build's
+  `firefox-<n>` (the `compatibility.ini` mismatch that makes Firefox exit 0 silently) is
+  quarantined *before* a launch attempt is spent on it. On this machine the marker/log
+  showed the installed build had moved `firefox-1522` → `firefox-1532` — the exact cause
+  this guard catches.
+- **Never blanket-kills Firefox** — process matching is by the specific profile path in the
+  command line (via `psutil` when present, else a PowerShell `Get-CimInstance Win32_Process`
+  query — never the removed `wmic`), so the user's ordinary browsing session is left open.
+  Verified live: 2 profile-owned processes killed while 24 unrelated stock-Firefox
+  processes stayed running.
+- **Reset is opt-out** — resetting the profile discards realtor.ca cookies / cleared
+  bot-check state, so it is renamed (recoverable) not deleted, logged at WARNING, and a new
+  `RealtorScraper(allow_profile_reset=False)` flag makes the routine raise instead of
+  resetting for callers where losing that state is worse than failing.
+
 ---
 
 ## [3.6.7] — 2026-07-25

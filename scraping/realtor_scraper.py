@@ -31,6 +31,7 @@ from urllib.parse import quote_plus
 
 from core.address import _display_address, _parse_address_sort
 from models.constants import CANADIAN_PROVINCES, PROVINCE_NAME_TO_CODE
+from scraping.firefox_launcher import launch_persistent_firefox
 
 _PROVINCE_TOKENS = {p.lower() for p in CANADIAN_PROVINCES}
 
@@ -429,25 +430,36 @@ class RealtorScraper:
 
     def __init__(self, headless: bool = False, min_delay: float = 6.0,
                  max_delay: float = 14.0, nav_timeout_ms: int = 30000,
-                 user_data_dir: str = USER_DATA_DIR, recycle_every: int = 40):
-        self._headless       = headless
-        self._min_delay      = min_delay
-        self._max_delay      = max_delay
-        self._nav_timeout_ms = nav_timeout_ms
-        self._user_data_dir  = user_data_dir
-        self._recycle_every  = recycle_every
-        self._pw             = None
-        self._context        = None
-        self._page           = None
-        self._first          = True
-        self._fetch_count    = 0
+                 user_data_dir: str = USER_DATA_DIR, recycle_every: int = 40,
+                 allow_profile_reset: bool = True):
+        self._headless            = headless
+        self._min_delay           = min_delay
+        self._max_delay           = max_delay
+        self._nav_timeout_ms      = nav_timeout_ms
+        self._user_data_dir       = user_data_dir
+        self._recycle_every       = recycle_every
+        self._allow_profile_reset = allow_profile_reset
+        self._pw                  = None
+        self._context             = None
+        self._page                = None
+        self._first               = True
+        self._fetch_count         = 0
 
     # ── lifecycle ─────────────────────────────────────────────────────────
     def _launch_context(self):
-        """Launch a stealthy persistent Firefox context."""
-        os.makedirs(self._user_data_dir, exist_ok=True)
-        ctx = self._pw.firefox.launch_persistent_context(
-            user_data_dir=self._user_data_dir,
+        """Launch a stealthy persistent Firefox context.
+
+        Delegates the actual launch to ``launch_persistent_firefox``, which
+        recovers automatically from the persistent-profile failure modes on
+        Windows (stale locks, an orphaned Firefox still holding the profile, or a
+        profile built by a different Playwright Firefox build). Set
+        ``allow_profile_reset=False`` on the scraper to forbid the reset when
+        losing realtor.ca session state is worse than failing.
+        """
+        ctx = launch_persistent_firefox(
+            self._pw.firefox,
+            self._user_data_dir,
+            allow_profile_reset=self._allow_profile_reset,
             headless=self._headless,
             firefox_user_prefs=FIREFOX_PREFS,
             locale="en-CA",
