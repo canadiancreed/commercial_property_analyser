@@ -446,20 +446,23 @@ class RealtorScraper:
         self._fetch_count         = 0
 
     # ── lifecycle ─────────────────────────────────────────────────────────
-    def _launch_context(self):
+    def _launch_context(self, detect_running: bool = True):
         """Launch a stealthy persistent Firefox context.
 
-        Delegates the actual launch to ``launch_persistent_firefox``, which
-        recovers automatically from the persistent-profile failure modes on
-        Windows (stale locks, an orphaned Firefox still holding the profile, or a
-        profile built by a different Playwright Firefox build). Set
-        ``allow_profile_reset=False`` on the scraper to forbid the reset when
-        losing realtor.ca session state is worse than failing.
+        Delegates the actual launch to ``launch_persistent_firefox``. If another
+        Firefox already holds this profile — i.e. the scraper is already running —
+        that raises ``FirefoxProfileInUseError`` with a clear message rather than
+        thrashing or touching the live run; otherwise it clears stale locks and,
+        only as a last resort, resets the profile (pass
+        ``allow_profile_reset=False`` on the scraper to forbid even that). The
+        ``detect_running`` guard is skipped on an internal recycle, which has just
+        closed its own context and so can't be "already running".
         """
         ctx = launch_persistent_firefox(
             self._pw.firefox,
             self._user_data_dir,
             allow_profile_reset=self._allow_profile_reset,
+            detect_running=detect_running,
             headless=self._headless,
             firefox_user_prefs=FIREFOX_PREFS,
             locale="en-CA",
@@ -473,8 +476,19 @@ class RealtorScraper:
     def __enter__(self):
         from playwright.sync_api import sync_playwright
         self._pw = sync_playwright().start()
-        self._context = self._launch_context()
-        self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
+        try:
+            self._context = self._launch_context()
+            self._page = (self._context.pages[0] if self._context.pages
+                          else self._context.new_page())
+        except BaseException:
+            # Launch failed (e.g. already running) — don't leak the Playwright
+            # driver, since __exit__ won't run when __enter__ raises.
+            try:
+                self._pw.stop()
+            except Exception:
+                pass
+            self._pw = None
+            raise
         return self
 
     def __exit__(self, exc_type, exc, tb):
@@ -500,7 +514,9 @@ class RealtorScraper:
                 self._context.close()
         except Exception:
             pass
-        self._context = self._launch_context()
+        # We just closed our own context, so skip the already-running guard —
+        # the profile holder it would find is the instance we are replacing.
+        self._context = self._launch_context(detect_running=False)
         self._page = self._context.pages[0] if self._context.pages else self._context.new_page()
 
     def open_home(self) -> bool:

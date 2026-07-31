@@ -1,33 +1,32 @@
-"""Resilient launcher for Playwright's persistent Firefox context on Windows.
+"""Resilient launcher for Playwright's persistent Firefox context.
 
-A persistent Firefox profile fails to open for three well-known reasons, and all
-three present the same way: ``launch_persistent_context`` raises after Firefox
-*started* and then exited 0 — it launched, couldn't open the profile, found
-nothing to do, and quit cleanly (a missing binary or a crash would give a
-non-zero code, so exit 0 right after launch is the tell). The three causes:
+A persistent Firefox profile can only be opened by one process at a time — the
+scraper launches with ``-no-remote``. The failure this guards against is the
+common one: the scraper is **already running**, so a second launch on the same
+profile finds it in use, opens nothing, and Firefox exits 0 — which Playwright
+surfaces as ``Failed to launch the browser process`` buried under an unrelated
+``shader-cache`` graphics warning. (Exit 0 is the tell: a missing binary or a
+crash gives a non-zero code; exit 0 right after launch means Firefox started,
+couldn't take the profile, and quit cleanly.)
 
-  1. **Stale lock files** (``parent.lock`` / ``.parentlock`` / ``lock``) left in
-     the profile by a run that was *killed* instead of closed.
-  2. **An orphaned ``firefox.exe`` still holding the profile.** Under
-     ``-no-remote`` the new instance exits rather than attaching to the running
-     one.
-  3. **A profile built by a different Playwright Firefox revision.** Playwright
-     ships a patched Firefox; a profile from another build (or from stock
-     Firefox) fails the ``compatibility.ini`` check and Firefox exits silently —
-     there is no UI in which to show the error.
+``launch_persistent_firefox``:
 
-``launch_persistent_firefox`` wraps the launch in an escalating recovery routine
-that handles 1 and 2, and proactively quarantines a profile whose recorded build
-revision no longer matches the installed one (cause 3) instead of burning a
-launch attempt on a profile that cannot work.
+  * **detects an already-running instance up front** — a Firefox process whose
+    command line names *this* profile — and fails fast with one clear message
+    (:class:`FirefoxProfileInUseError`), instead of thrashing through retries or
+    killing the live run;
+  * otherwise launches, and on failure escalates gently: clear the stale lock
+    files a *killed* run leaves behind, then — only as a last resort, and only
+    when the caller permits it — rename the profile aside so Playwright can
+    recreate it.
 
-Everything here is Windows-first (that is where these failures occur) but the
-lock-clearing and quarantine steps are harmless on any platform.
+Nothing here ever does a blanket ``taskkill /IM firefox.exe`` (that would close
+the user's ordinary browsing session), nothing kills a healthy running instance,
+and nothing deletes profile data.
 """
 
 import logging
 import os
-import re
 import subprocess
 import time
 
@@ -39,48 +38,88 @@ logger = logging.getLogger(__name__)
 # is correct regardless of who left the profile behind.
 _PROFILE_LOCK_FILES = ("parent.lock", ".parentlock", "lock")
 
-# Our own marker file recording which Playwright Firefox build created (or last
-# successfully matched) the profile, compared against the installed build on
-# startup to catch cause 3 before it wastes a launch attempt.
-_REVISION_MARKER = ".playwright_firefox_revision"
 
+class FirefoxProfileInUseError(RuntimeError):
+    """The profile is already open in another Firefox instance (scraper running).
 
-def firefox_revision(executable_path):
-    """Return the ``firefox-<n>`` build token from a Playwright firefox path.
-
-    Playwright installs each build at
-    ``...\\ms-playwright\\firefox-<n>\\firefox\\firefox.exe``. Returns ``""`` when
-    the path has no such segment, in which case revision checks are skipped
-    (degrade to no proactive quarantine rather than guess).
+    A subclass of ``RuntimeError`` so existing broad handlers still catch it,
+    while callers that want to show a friendly "already running" message can
+    catch it specifically.
     """
-    m = re.search(r"firefox-(\d+)", executable_path or "")
-    return "firefox-" + m.group(1) if m else ""
 
 
-def _read_marker(user_data_dir):
-    """Return the build revision recorded in the profile's marker, or ``""``."""
+def _short(exc):
+    """First line of an exception message.
+
+    Playwright appends the entire browser log to its launch errors; echoing that
+    on every retry is exactly the wall of noise we want to avoid.
+    """
+    text = str(exc).strip()
+    return text.splitlines()[0] if text else repr(exc)
+
+
+def profile_holder_pids(user_data_dir):
+    """PIDs of Firefox processes whose command line references this profile.
+
+    Read-only — this is how we tell "already running" apart from a genuinely
+    broken profile. Matches on the specific profile path (never a blanket firefox
+    match), preferring ``psutil`` and falling back to a PowerShell
+    ``Get-CimInstance Win32_Process`` query (never the removed ``wmic``).
+    """
+    target = os.path.normcase(os.path.abspath(user_data_dir))
+    pids = _holder_pids_psutil(target)
+    if pids is None:                          # psutil not installed
+        pids = _holder_pids_powershell(user_data_dir)
+    return pids
+
+
+def _holder_pids_psutil(target):
+    """psutil implementation of :func:`profile_holder_pids`; ``target`` is the
+    normcased absolute profile path. Returns ``None`` when psutil is absent."""
     try:
-        with open(os.path.join(user_data_dir, _REVISION_MARKER),
-                  encoding="utf-8") as fh:
-            return fh.read().strip()
-    except OSError:
-        return ""
+        import psutil
+    except ImportError:
+        return None
+    pids = []
+    for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+        try:
+            if "firefox" not in (proc.info.get("name") or "").lower():
+                continue
+            cmdline = os.path.normcase(" ".join(proc.info.get("cmdline") or []))
+            if target in cmdline:
+                pids.append(proc.info["pid"])
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            continue
+    return pids
 
 
-def _write_marker(user_data_dir, revision):
-    """Record ``revision`` as the build that owns this profile (best effort)."""
-    if not revision:
-        return
+def _holder_pids_powershell(user_data_dir):
+    """PowerShell fallback for :func:`profile_holder_pids` (no psutil)."""
+    # -like matches the profile path as a wildcard body; backslashes are literal
+    # in -like and a Windows profile path has no *,?,[ so it is used verbatim.
+    pattern = user_data_dir.replace("'", "''")
+    script = (
+        "$ErrorActionPreference='SilentlyContinue';"
+        "Get-CimInstance Win32_Process -Filter \"Name = 'firefox.exe'\" | "
+        "Where-Object { $_.CommandLine -like '*" + pattern + "*' } | "
+        "ForEach-Object { $_.ProcessId }"
+    )
     try:
-        with open(os.path.join(user_data_dir, _REVISION_MARKER), "w",
-                  encoding="utf-8") as fh:
-            fh.write(revision)
-    except OSError as exc:
-        logger.warning("Could not write profile revision marker: %s", exc)
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("PowerShell profile-holder query failed: %s", exc)
+        return []
+    return [int(tok) for tok in result.stdout.split() if tok.strip().isdigit()]
 
 
 def _clear_locks(user_data_dir):
-    """Delete stale Firefox lock files from the profile. Returns count removed."""
+    """Delete stale Firefox lock files left by a killed (not closed) run.
+
+    Returns the number removed.
+    """
     removed = 0
     for name in _PROFILE_LOCK_FILES:
         path = os.path.join(user_data_dir, name)
@@ -92,81 +131,6 @@ def _clear_locks(user_data_dir):
         except OSError as exc:
             logger.warning("Could not remove lock file %s: %s", path, exc)
     return removed
-
-
-def _kill_profile_holders(user_data_dir):
-    """Kill only Firefox processes whose command line names *this* profile.
-
-    Deliberately never does a blanket ``taskkill /IM firefox.exe`` — that would
-    close the user's ordinary browsing session. Matches on the profile path in
-    the process command line. Prefers ``psutil``; falls back to a PowerShell
-    ``Get-CimInstance Win32_Process`` query (never ``wmic``, which is removed from
-    recent Windows). Returns the number of processes killed.
-    """
-    target = os.path.normcase(os.path.abspath(user_data_dir))
-    killed = _kill_holders_psutil(target)
-    if killed is None:                       # psutil not installed
-        killed = _kill_holders_powershell(user_data_dir)
-    if killed:
-        time.sleep(1.0)                      # let the OS release the profile's handles
-    return killed
-
-
-def _kill_holders_psutil(target):
-    """psutil implementation of :func:`_kill_profile_holders`.
-
-    ``target`` is the normcased absolute profile path. Returns the kill count, or
-    ``None`` when psutil is not installed (so the caller can fall back).
-    """
-    try:
-        import psutil
-    except ImportError:
-        return None
-    killed = 0
-    for proc in psutil.process_iter(["name", "cmdline"]):
-        try:
-            if "firefox" not in (proc.info.get("name") or "").lower():
-                continue
-            cmdline = os.path.normcase(" ".join(proc.info.get("cmdline") or []))
-            if target in cmdline:
-                proc.kill()
-                killed += 1
-                logger.warning("Killed Firefox pid=%s holding profile %s",
-                               proc.pid, target)
-        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
-            continue
-    return killed
-
-
-def _kill_holders_powershell(user_data_dir):
-    """PowerShell fallback for :func:`_kill_profile_holders` (no psutil).
-
-    Uses ``Get-CimInstance Win32_Process`` (``wmic`` is gone from recent Windows)
-    to find ``firefox.exe`` processes whose command line contains the profile
-    path and stops each by PID. Returns the number killed.
-    """
-    # -like matches the profile path as a wildcard body; backslashes are literal
-    # in -like and a Windows profile path has no *,?,[ so it is used verbatim.
-    pattern = user_data_dir.replace("'", "''")
-    script = (
-        "$ErrorActionPreference='SilentlyContinue';"
-        "Get-CimInstance Win32_Process -Filter \"Name = 'firefox.exe'\" | "
-        "Where-Object { $_.CommandLine -like '*" + pattern + "*' } | "
-        "ForEach-Object { Stop-Process -Id $_.ProcessId -Force; $_.ProcessId }"
-    )
-    try:
-        result = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", script],
-            capture_output=True, text=True, timeout=30,
-        )
-    except (OSError, subprocess.SubprocessError) as exc:
-        logger.warning("PowerShell process-kill fallback failed: %s", exc)
-        return 0
-    pids = [ln.strip() for ln in (result.stdout or "").splitlines() if ln.strip()]
-    for pid in pids:
-        logger.warning("Killed Firefox pid=%s holding profile %s (PowerShell)",
-                       pid, user_data_dir)
-    return len(pids)
 
 
 def _quarantine_profile(user_data_dir):
@@ -181,93 +145,76 @@ def _quarantine_profile(user_data_dir):
         return ""
     dest = "%s.broken-%s" % (user_data_dir, time.strftime("%Y%m%d-%H%M%S"))
     os.rename(user_data_dir, dest)
-    logger.warning("Reset Firefox profile: moved %s -> %s; realtor.ca session "
-                   "state will be rebuilt on the next run.", user_data_dir, dest)
+    logger.warning("Reset Firefox profile as a last resort: moved %s -> %s; the "
+                   "realtor.ca session will be rebuilt on the next run.",
+                   user_data_dir, dest)
     return dest
 
 
 def launch_persistent_firefox(firefox, user_data_dir, allow_profile_reset=True,
-                              **launch_kwargs):
-    """Launch a persistent Firefox context, recovering automatically from the
-    common ways a Windows persistent profile fails to open.
+                              detect_running=True, **launch_kwargs):
+    """Launch a persistent Firefox context, recovering from the usual reasons a
+    Windows persistent profile won't open.
 
     ``firefox`` is a Playwright ``BrowserType`` (i.e. ``playwright.firefox``).
-    ``launch_kwargs`` are passed straight through to ``launch_persistent_context``
+    ``launch_kwargs`` pass straight through to ``launch_persistent_context``
     (headless, viewport, user_agent, proxy, prefs, …) — nothing is hardcoded
-    here. Escalation on repeated failure:
+    here. Flow:
 
-      1. launch as-is;
-      2. clear stale lock files, relaunch;
-      3. kill processes holding the profile, clear locks, relaunch;
-      4. rename the profile aside and relaunch once.
-
-    Before any of that, if the profile's recorded build revision disagrees with
-    the installed Playwright Firefox (cause 3), the profile is quarantined up
-    front rather than spending an attempt on a launch that cannot succeed.
-
-    ``allow_profile_reset=False`` forbids the reset (step 4 *and* the proactive
-    quarantine): for callers where losing realtor.ca session state is worse than
-    failing, the routine raises instead of resetting.
+      * ``detect_running`` (default True): if a Firefox process already holds
+        this profile, raise :class:`FirefoxProfileInUseError` immediately — a
+        persistent profile can't be opened twice, and the running instance is
+        left untouched. Pass ``False`` on an internal relaunch that has just
+        closed its own context (so it can't false-positive on itself).
+      * launch as-is;
+      * on failure, clear stale lock files and relaunch;
+      * on failure, and only when ``allow_profile_reset`` is True, rename the
+        profile aside (last resort) and relaunch once.
 
     Raises ``RuntimeError`` (chained to the last underlying error, with the
-    profile path in the message) if every step fails.
+    profile path in the message) if it still can't launch.
     """
     os.makedirs(user_data_dir, exist_ok=True)
 
-    installed_rev = firefox_revision(getattr(firefox, "executable_path", "") or "")
-    marker_rev = _read_marker(user_data_dir)
-
-    # Proactive cause-3 guard: a profile built by a different Playwright Firefox
-    # build exits 0 with no surfaced error. Quarantine it now rather than
-    # spending an attempt (and the kill/lock escalations) on a hopeless launch.
-    if installed_rev and marker_rev and marker_rev != installed_rev:
-        msg = ("Firefox profile %s was built by %s but the installed Playwright "
-               "Firefox is %s" % (user_data_dir, marker_rev, installed_rev))
-        if not allow_profile_reset:
-            raise RuntimeError(msg + "; profile reset is disabled "
-                               "(allow_profile_reset=False), refusing to launch.")
-        logger.warning("%s; quarantining the profile before launch.", msg)
-        _quarantine_profile(user_data_dir)
-        os.makedirs(user_data_dir, exist_ok=True)
+    if detect_running:
+        holders = profile_holder_pids(user_data_dir)
+        if holders:
+            raise FirefoxProfileInUseError(
+                "The realtor.ca scraper looks like it's already running: Firefox "
+                "%s already has the profile %s open. A persistent Firefox profile "
+                "can't be opened twice — close that run before starting another. "
+                "(If you're sure nothing is running, those are leftover processes "
+                "from a run that didn't shut down cleanly; end them and retry.)"
+                % (", ".join("pid=%d" % p for p in holders), user_data_dir))
 
     def _try_launch():
-        ctx = firefox.launch_persistent_context(user_data_dir=user_data_dir,
-                                                **launch_kwargs)
-        _write_marker(user_data_dir, installed_rev)
-        return ctx
+        return firefox.launch_persistent_context(user_data_dir=user_data_dir,
+                                                 **launch_kwargs)
 
     # 1) Launch as-is.
     try:
         return _try_launch()
     except Exception as exc:
         last_err = exc
-        logger.warning("Firefox launch attempt 1/3 failed: %s", exc)
+        logger.warning("Firefox launch failed; clearing stale locks and "
+                       "retrying: %s", _short(exc))
 
-    # 2) Clear stale lock files, relaunch.
+    # 2) Clear stale lock files (left by a killed, not cleanly closed, run).
     _clear_locks(user_data_dir)
     try:
         return _try_launch()
     except Exception as exc:
         last_err = exc
-        logger.warning("Firefox launch attempt 2/3 (after clearing locks) "
-                       "failed: %s", exc)
+        logger.warning("Firefox relaunch after clearing locks failed: %s",
+                       _short(exc))
 
-    # 3) Kill processes holding the profile, clear locks again, relaunch.
-    _kill_profile_holders(user_data_dir)
-    _clear_locks(user_data_dir)
-    try:
-        return _try_launch()
-    except Exception as exc:
-        last_err = exc
-        logger.warning("Firefox launch attempt 3/3 (after killing profile "
-                       "holders) failed: %s", exc)
-
-    # 4) Last resort: reset the profile and try once more — unless forbidden.
+    # 3) Last resort: reset the profile, if the caller permits it.
     if not allow_profile_reset:
         raise RuntimeError(
-            "Failed to launch persistent Firefox at %s after 3 attempts; profile "
-            "reset is disabled (allow_profile_reset=False). Last error: %s"
-            % (user_data_dir, last_err)) from last_err
+            "Could not launch persistent Firefox at %s (stale locks were cleared). "
+            "Automatic profile reset is off (allow_profile_reset=False), so your "
+            "realtor.ca session is left intact. Last error: %s"
+            % (user_data_dir, _short(last_err))) from last_err
 
     _quarantine_profile(user_data_dir)
     os.makedirs(user_data_dir, exist_ok=True)
@@ -275,5 +222,5 @@ def launch_persistent_firefox(firefox, user_data_dir, allow_profile_reset=True,
         return _try_launch()
     except Exception as exc:
         raise RuntimeError(
-            "Failed to launch persistent Firefox at %s after 3 recovery attempts "
-            "and a profile reset. Last error: %s" % (user_data_dir, exc)) from exc
+            "Could not launch persistent Firefox at %s even after resetting the "
+            "profile. Last error: %s" % (user_data_dir, _short(exc))) from exc

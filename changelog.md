@@ -88,31 +88,31 @@ stamps into stored records._
 
 ### Fixed
 
-- **Firefox persistent-context launch now self-heals** (`scraping/firefox_launcher.py`,
-  wired into `scraping/realtor_scraper.py`) — the realtor.ca scraper could fail at
-  startup with `BrowserType.launch_persistent_context: Failed to launch the browser
-  process` after Firefox exited **0** (started, couldn't open the profile, quit cleanly).
-  The launch is now wrapped in an escalating recovery routine: **(1)** launch as-is →
-  **(2)** clear stale lock files (`parent.lock` / `.parentlock` / `lock`) left by a killed
-  run → **(3)** kill only the `firefox.exe` processes whose command line names *this*
-  profile, clear locks, relaunch → **(4)** rename the profile aside (`.broken-<stamp>`,
-  never delete) and relaunch once; if all fail it raises with the profile path and the
-  last underlying error.
-- **Proactive revision quarantine** — the profile carries a `.playwright_firefox_revision`
-  marker; on startup a marker that disagrees with the installed Playwright build's
-  `firefox-<n>` (the `compatibility.ini` mismatch that makes Firefox exit 0 silently) is
-  quarantined *before* a launch attempt is spent on it. On this machine the marker/log
-  showed the installed build had moved `firefox-1522` → `firefox-1532` — the exact cause
-  this guard catches.
-- **Never blanket-kills Firefox** — process matching is by the specific profile path in the
-  command line (via `psutil` when present, else a PowerShell `Get-CimInstance Win32_Process`
-  query — never the removed `wmic`), so the user's ordinary browsing session is left open.
-  Verified live: 2 profile-owned processes killed while 24 unrelated stock-Firefox
-  processes stayed running.
-- **Reset is opt-out** — resetting the profile discards realtor.ca cookies / cleared
-  bot-check state, so it is renamed (recoverable) not deleted, logged at WARNING, and a new
-  `RealtorScraper(allow_profile_reset=False)` flag makes the routine raise instead of
-  resetting for callers where losing that state is worse than failing.
+- **Firefox persistent-context launch fails clearly when the scraper is already running**
+  (`scraping/firefox_launcher.py`, wired into `scraping/realtor_scraper.py`) — the realtor.ca
+  scraper could fail at startup with `BrowserType.launch_persistent_context: Failed to launch
+  the browser process` after Firefox exited **0** (started, couldn't take the profile, quit
+  cleanly). The dominant cause on this machine was the simplest one: **a second run while one
+  was already open**. A persistent `-no-remote` profile can't be opened twice, so the launcher
+  now **detects an already-running instance up front** — a Firefox process whose command line
+  names *this* profile — and raises `FirefoxProfileInUseError` with a one-line message naming
+  the holder PID, instead of retrying or touching the live run.
+- **Gentle, non-destructive escalation for a profile that genuinely won't open** — if nothing
+  is holding the profile: **(1)** launch as-is → **(2)** clear stale lock files
+  (`parent.lock` / `.parentlock` / `lock`) left by a *killed* run and relaunch → **(3)** only
+  as a last resort, and only when permitted, rename the profile aside (`.broken-<stamp>`, never
+  deleted) and relaunch once. Playwright's multi-line browser log is trimmed to its first line
+  in the warning output, so recovery no longer prints a wall of errors.
+- **Never kills a healthy run, never blanket-kills Firefox** — the already-running check is
+  read-only (matches the specific profile path via `psutil` when present, else a PowerShell
+  `Get-CimInstance Win32_Process` query — never the removed `wmic`); the user's ordinary
+  browsing session and any live scrape are left untouched.
+- **Profile reset stays a true last resort and is opt-out** — resetting discards realtor.ca
+  cookies / cleared bot-check state, so it only runs after a launch genuinely fails with the
+  profile *not* in use, is logged at WARNING, renames (recoverable) rather than deletes, and
+  `RealtorScraper(allow_profile_reset=False)` disables it entirely for callers where losing
+  that state is worse than failing. The internal memory-recycle relaunch skips the
+  already-running guard (it has just closed its own context).
 
 ---
 
