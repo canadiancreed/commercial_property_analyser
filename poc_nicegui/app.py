@@ -79,6 +79,7 @@ from reporting.price_drop_report import PriceDropReportGenerator
 from reporting.benchmark_report import BenchmarkReportGenerator
 from models.property_input import PropertyInput, UnitMix
 from models.constants import PROPERTY_TYPES
+from version import __version__
 
 from nicegui import ui, app, native
 
@@ -252,7 +253,7 @@ def header():
             with ui.column().classes("gap-0"):
                 ui.label("Commercial Property Analyser").classes("text-lg font-semibold leading-tight")
                 ui.label("Desktop UI — proof of concept").classes("text-xs text-slate-400 leading-tight")
-        ui.label("live SQLite database").classes("text-xs text-slate-300")
+        ui.label(f"v{__version__} · live SQLite database").classes("text-xs text-slate-300")
 
 
 def _load_rows() -> list:
