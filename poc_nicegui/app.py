@@ -368,13 +368,16 @@ def dynamic_form():
             FIELDS["city"]     = ui.input("City", value=pv("city", "")).classes("w-40")
             FIELDS["province"] = ui.input("Province", value=pv("province", "")).classes("w-28")
         with ui.row().classes("w-full gap-3"):
-            FIELDS["asking_price"]   = ui.number("Asking price", value=pv("asking_price"), prefix="$", format="%.0f").classes("flex-1")
-            FIELDS["total_sq_ft"]    = ui.number("Total sq ft", value=pv("total_sq_ft"), format="%.0f").classes("flex-1")
+            FIELDS["asking_price"]   = ui.number("Asking price", value=pv("asking_price"), prefix="$", format="%.0f",
+                                                 validation={"Must be greater than 0": lambda v: v is None or v > 0}).classes("flex-1")
+            FIELDS["total_sq_ft"]    = ui.number("Total sq ft", value=pv("total_sq_ft"), format="%.0f",
+                                                 validation={"Can't be negative": lambda v: v is None or v >= 0}).classes("flex-1")
             FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f").classes("flex-1")
         with ui.row().classes("w-full gap-3"):
             FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value=pv("lease_type", "Normal"), label="Lease type").classes("w-40")
             FIELDS["status"]       = ui.select(["active", "inactive"], value=pv("status", "active"), label="Status").classes("w-40")
             FIELDS["listing_date"] = ui.input("Listing date", value=pv("listing_date", "")).props("type=date").classes("w-48")
+            FIELDS["construction_cost"] = ui.number("Construction cost", value=pv("construction_cost"), prefix="$", format="%.0f").classes("flex-1")
 
     if "commercial" in groups:
         with card("Commercial lease", "storefront"):
@@ -382,6 +385,10 @@ def dynamic_form():
                 FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", value=pv("commercial_rent"), prefix="$", format="%.0f").classes("flex-1")
                 FIELDS["market_cap_rate"] = ui.number("Market cap rate", value=pvpct("market_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
                 FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", value=pvpct("exit_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["commercial_lease_expiry"] = ui.input("Commercial lease expiry", value=pv("commercial_lease_expiry", "")).props("type=date").classes("w-48")
+                ui.label("A commercial rent you enter is treated as advertised (actual), "
+                         "not a market estimate.").classes("text-xs text-slate-500 self-center")
 
     if "residential" in groups:
         with card("Residential unit mix", "apartment"):
@@ -435,9 +442,12 @@ def save_property_from_form():
     if not address:
         ui.notify("Address is required to save.", type="warning")
         return
+    asking = float(_fval("asking_price", 0) or 0)
+    if asking <= 0:
+        ui.notify("Asking price must be greater than 0.", type="warning")
+        return
 
     ptype   = state["type"]
-    asking  = float(_fval("asking_price", 0) or 0)
     um = UnitMix(
         bachelor=int(_fval("um_bachelor", 0) or 0), one_br=int(_fval("um_one_br", 0) or 0),
         two_br=int(_fval("um_two_br", 0) or 0), three_br=int(_fval("um_three_br", 0) or 0),
@@ -458,8 +468,11 @@ def save_property_from_form():
         property_type=ptype, status=_fval("status", "active"),
         lease_type=_fval("lease_type", "Normal"),
         listing_date=_fval("listing_date") or date.today().isoformat(),
+        construction_cost=float(_fval("construction_cost", 0) or 0),
+        commercial_lease_expiry=_fval("commercial_lease_expiry"),
         unit_mix=um if units else None,
         commercial_rent=_fval("commercial_rent"),
+        commercial_rent_user_entered=_fval("commercial_rent") is not None,
         market_cap_rate=_pct("market_cap_rate"), exit_cap_rate=_pct("exit_cap_rate"),
         hotel_rooms=int(_fval("hotel_rooms", 0) or 0), hotel_adr=_fval("hotel_adr"),
         hotel_occupancy=_pct("hotel_occupancy"),

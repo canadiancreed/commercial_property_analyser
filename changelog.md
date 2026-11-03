@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.4.0] — 2026-11-03
+
+_Fuller add/edit form + input validation (desktop app)._
+
+### Added
+
+- The Add/Edit form now captures **construction cost** (core group) and **commercial
+  lease expiry** (commercial group), and flags a commercial rent you type as
+  user-entered (advertised/actual, not a market estimate). All are wired into the saved
+  record and prefilled when editing.
+- **Validation:** inline rules (asking price must be > 0, sq ft can't be negative) plus
+  a save-time guard that blocks saving without an address or with a non-positive asking
+  price.
+
 ## [4.3.0] — 2026-11-03
 
 _Re-analysis on data change (desktop app) — edits to rates or financing no longer leave

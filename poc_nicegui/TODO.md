@@ -6,7 +6,7 @@ README title and the top `changelog.md` entry in sync with it.
 **Convention:** each completed step below is a **minor** bump (4.1.0, 4.2.0, …);
 **major** only for a storage/architecture break; **patch** for fixes.
 
-**Current — v4.3.0:** SQLite data layer (properties + commercial_rents +
+**Current — v4.4.0:** SQLite data layer (properties + commercial_rents +
 residential_rents tables behind the unchanged `DataStore` API, guarded JSON→DB
 migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware
 Add/Edit form (**edit & delete done in 4.1.0**), all 7 reports embedded, rate editing,
@@ -36,10 +36,10 @@ per-user database.
 - "Re-analyze all" action on the Portfolio tab (threaded + spinner). Rate saves
   auto-re-analyze the affected city; financing save nudges to Re-analyze all.
 
-### 4.4.0 — Full add/edit field surface + validation
-- Wire the remaining per-type inputs into the saved record (commercial rent semantics,
-  NNN lease, exit/market cap, construction cost, commercial lease expiry, industrial
-  rates). Add inline validation + required-field errors.
+### ✅ 4.4.0 — Full add/edit field surface + validation (DONE)
+- Added construction cost + commercial lease expiry; commercial-rent-user-entered flag;
+  inline validation (price > 0, sq ft ≥ 0) + save-time guards. All per-type fields now
+  wired + prefilled on edit.
 
 ### 4.5.0 — Remaining CLI features
 - CSV import and realtor.ca URL import.
