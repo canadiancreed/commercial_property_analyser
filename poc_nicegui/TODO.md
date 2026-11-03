@@ -6,20 +6,23 @@ README title and the top `changelog.md` entry in sync with it.
 **Convention:** each completed step below is a **minor** bump (4.1.0, 4.2.0, …);
 **major** only for a storage/architecture break; **patch** for fixes.
 
-**Current — v4.0.0:** SQLite data layer (properties + commercial_rents +
+**Current — v4.1.0:** SQLite data layer (properties + commercial_rents +
 residential_rents tables behind the unchanged `DataStore` API, guarded JSON→DB
-migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware Add
-form, all 7 reports embedded, rate editing, and global settings — packaged as a
-standalone Windows `.exe` over a persistent per-user database.
+migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware
+Add/Edit form (**edit & delete done in 4.1.0**), all 7 reports embedded, rate editing,
+and global settings — packaged as a standalone Windows `.exe` over a persistent
+per-user database.
 
 ---
 
 ## Planned steps (roughly in order)
 
-### 4.1.0 — Property edit & delete
-- Load an existing record into the type-aware form, save changes in place.
-- Delete with confirmation. Wire to `store.update_property` / `store.delete_property`
-  (both index-based — use a stable key lookup, not a grid row index, in the UI).
+### ✅ 4.1.0 — Property edit & delete (DONE)
+- Edit loads a record into the type-aware form (reshaped + prefilled), re-runs the
+  analyzer on save, updates in place (removes the original first so a key change can't
+  duplicate). Delete confirms then removes. Report iframes cache-busted.
+- NOTE: edit/delete currently key off the load-order **index** (fine for single-user;
+  revisit with a stable key if concurrency is ever added).
 
 ### 4.2.0 — Stage A: shared service layer
 - Extract `_record_to_prop`, `_build_report_row`, and the report orchestration out of
