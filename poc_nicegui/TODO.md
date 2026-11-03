@@ -6,7 +6,7 @@ README title and the top `changelog.md` entry in sync with it.
 **Convention:** each completed step below is a **minor** bump (4.1.0, 4.2.0, …);
 **major** only for a storage/architecture break; **patch** for fixes.
 
-**Current — v4.1.0:** SQLite data layer (properties + commercial_rents +
+**Current — v4.2.0:** SQLite data layer (properties + commercial_rents +
 residential_rents tables behind the unchanged `DataStore` API, guarded JSON→DB
 migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware
 Add/Edit form (**edit & delete done in 4.1.0**), all 7 reports embedded, rate editing,
@@ -24,11 +24,12 @@ per-user database.
 - NOTE: edit/delete currently key off the load-order **index** (fine for single-user;
   revisit with a stable key if concurrency is ever added).
 
-### 4.2.0 — Stage A: shared service layer
-- Extract `_record_to_prop`, `_build_report_row`, and the report orchestration out of
-  `ui/menu.py` into a service module; delete the COPIES in `poc_nicegui/app.py` and have
-  both the CLI and the desktop app call the service. (Removes the only real code
-  duplication introduced by the POC.)
+### ✅ 4.2.0 — Stage A: shared service layer (DONE)
+- `record_to_prop` + `build_report_row` now live in `analysis/report_builder.py`, imported
+  by both `ui/menu.py` (re-exposed as `PropertyMenu._record_to_prop` / `_build_report_row`)
+  and `poc_nicegui/app.py`. The POC's verbatim copies are gone. (Report-orchestration
+  loops — `_rows_simple` / `_rows_with_targets` and the CLI `_open_*` — are still per
+  front-end; a fuller service is optional later.)
 
 ### 4.3.0 — Re-analysis on data change
 - After a rate or financing edit, re-analyze affected stored properties (mirror the CLI
@@ -57,9 +58,9 @@ per-user database.
 ---
 
 ## Known gaps / notes for whoever picks this up
-- **Copied helpers:** `record_to_prop` / `build_report_row` in `poc_nicegui/app.py` are
-  verbatim copies from `ui/menu.py` (so the exe doesn't import the CLI → Playwright).
-  Retire them in 4.2.0.
+- **Shared helpers:** `record_to_prop` / `build_report_row` live in
+  `analysis/report_builder.py` (done in 4.2.0), imported by both the CLI and the POC — so
+  the exe still doesn't import the CLI (→ Playwright), and there's no duplication.
 - **Report performance:** the two target-solving reports (Investment, Negotiation) run
   `solve_targets` per property and are slow at full scale — they run in a background
   thread with a spinner.

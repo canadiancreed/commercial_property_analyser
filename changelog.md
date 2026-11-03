@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.2.0] — 2026-11-03
+
+_Stage A: shared service layer — the record↔model and report-row mappings now live in
+one place instead of being duplicated across the CLI and the desktop app._
+
+### Changed
+
+- Extracted `record_to_prop` and `build_report_row` into **`analysis/report_builder.py`**,
+  the single source used by both front-ends. `ui/menu.py` exposes them as
+  `PropertyMenu._record_to_prop` / `_build_report_row` (staticmethod class attributes, so
+  the existing API — including the tests and the instance monkeypatch — is unchanged), and
+  `poc_nicegui/app.py` imports them instead of keeping verbatim copies. Pure refactor, no
+  behaviour change; all 1401 tests pass.
+
 ## [4.1.0] — 2026-11-02
 
 _Desktop app: property edit & delete._
