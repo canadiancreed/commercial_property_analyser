@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.1.0] — 2026-11-02
+
+_Desktop app: property edit & delete._
+
+### Added
+
+- **Edit & delete** in the NiceGUI desktop app. The report dialog gains Edit and Delete
+  actions. **Edit** loads the record into the type-aware form (reshaped to its property
+  type and prefilled), re-runs the analyzer on save, and updates in place — removing the
+  original first so an address / listing-date change can't create a duplicate. **Delete**
+  asks for confirmation, then removes the record from the database.
+- Report iframes are cache-busted (`?t=…`) so a reused report slot always renders the
+  current record's HTML rather than a stale cached file.
+
 ## [4.0.0] — 2026-11-02
 
 _Database-backed storage and a desktop application. Property and rent data move out of

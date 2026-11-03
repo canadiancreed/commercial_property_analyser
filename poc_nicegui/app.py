@@ -15,6 +15,7 @@ All financial logic and storage are the project's production code, called direct
 import os
 import sys
 import re
+import time
 import shutil
 import asyncio
 import statistics
@@ -352,7 +353,14 @@ async def open_report(idx: int):
     with ui.dialog() as dialog, ui.card().classes("w-[92vw] max-w-[1200px] h-[88vh] p-0 flex flex-col"):
         with ui.row().classes("w-full items-center justify-between px-4 py-2 bg-slate-900 text-white"):
             ui.label(p.get("address") or "Property report").classes("font-semibold")
-            ui.button(icon="close", on_click=dialog.close).props("flat round color=white")
+            with ui.row().classes("items-center gap-1"):
+                ui.button("Edit", icon="edit",
+                          on_click=lambda: (dialog.close(), load_for_edit(idx))
+                          ).props("flat dense no-caps color=white")
+                ui.button("Delete", icon="delete",
+                          on_click=lambda: confirm_delete(idx, dialog)
+                          ).props("flat dense no-caps color=white")
+                ui.button(icon="close", on_click=dialog.close).props("flat round color=white")
         body = ui.column().classes("w-full flex-1 p-0 items-center justify-center")
         with body:
             ui.spinner(size="lg")
@@ -371,7 +379,7 @@ async def open_report(idx: int):
         with body:
             # ui.html() strips <iframe>, so create a real iframe element. The report
             # is a full HTML document, so it renders isolated inside the frame.
-            ui.element("iframe").props(f"src=/reports/report_{idx}.html").style(
+            ui.element("iframe").props(f"src=/reports/report_{idx}.html?t={time.time_ns()}").style(
                 "width:100%;height:100%;border:0;").classes("w-full h-full")
     except Exception as ex:
         body.clear()
@@ -384,12 +392,32 @@ async def open_report(idx: int):
 # ── Page 2: dynamic, type-aware Add/Edit form ─────────────────────────────────
 state = {"type": "Hotel"}
 FIELDS = {}  # name → input element, rebuilt each time the form reshapes
+# index=None → add mode; otherwise editing the record at that position (load order).
+edit_ctx = {"index": None, "orig_key": None, "record": None}
 
 
 @ui.refreshable
 def dynamic_form():
     FIELDS.clear()
+    rec = edit_ctx["record"] or {}
+    um  = rec.get("unit_mix") or {}
     groups = ["common"] + TYPE_GROUPS.get(state["type"], [])
+
+    def pv(key, default=None):
+        """Prefill value for an existing field (edit mode), else the default."""
+        v = rec.get(key, default)
+        return v if v not in ("", None) else default
+
+    def pvpct(key):
+        v = rec.get(key)
+        return round(v * 100, 2) if isinstance(v, (int, float)) else None
+
+    # Add vs edit banner.
+    if edit_ctx["index"] is not None:
+        with ui.row().classes("w-full items-center gap-2 mb-2"):
+            ui.badge("Editing").props("color=orange")
+            ui.label(rec.get("address") or "—").classes("text-sm font-medium text-slate-700")
+            ui.button("New / cancel", icon="close", on_click=reset_form).props("flat dense no-caps")
 
     # Live indicator of which groups this type activates.
     with ui.row().classes("gap-2 flex-wrap mb-2"):
@@ -408,33 +436,33 @@ def dynamic_form():
     # Common — always shown.
     with card("Core details", "description"):
         with ui.row().classes("w-full gap-3"):
-            FIELDS["address"]  = ui.input("Address").classes("flex-1")
-            FIELDS["city"]     = ui.input("City").classes("w-40")
-            FIELDS["province"] = ui.input("Province").classes("w-28")
+            FIELDS["address"]  = ui.input("Address", value=pv("address", "")).classes("flex-1")
+            FIELDS["city"]     = ui.input("City", value=pv("city", "")).classes("w-40")
+            FIELDS["province"] = ui.input("Province", value=pv("province", "")).classes("w-28")
         with ui.row().classes("w-full gap-3"):
-            FIELDS["asking_price"]   = ui.number("Asking price", prefix="$", format="%.0f").classes("flex-1")
-            FIELDS["total_sq_ft"]    = ui.number("Total sq ft", format="%.0f").classes("flex-1")
-            FIELDS["property_taxes"] = ui.number("Property taxes / yr", prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["asking_price"]   = ui.number("Asking price", value=pv("asking_price"), prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["total_sq_ft"]    = ui.number("Total sq ft", value=pv("total_sq_ft"), format="%.0f").classes("flex-1")
+            FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f").classes("flex-1")
         with ui.row().classes("w-full gap-3"):
-            FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value="Normal", label="Lease type").classes("w-40")
-            FIELDS["status"]       = ui.select(["active", "inactive"], value="active", label="Status").classes("w-40")
-            FIELDS["listing_date"] = ui.input("Listing date").props("type=date").classes("w-48")
+            FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value=pv("lease_type", "Normal"), label="Lease type").classes("w-40")
+            FIELDS["status"]       = ui.select(["active", "inactive"], value=pv("status", "active"), label="Status").classes("w-40")
+            FIELDS["listing_date"] = ui.input("Listing date", value=pv("listing_date", "")).props("type=date").classes("w-48")
 
     if "commercial" in groups:
         with card("Commercial lease", "storefront"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", prefix="$", format="%.0f").classes("flex-1")
-                FIELDS["market_cap_rate"] = ui.number("Market cap rate", suffix="%", format="%.2f").classes("flex-1")
-                FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", suffix="%", format="%.2f").classes("flex-1")
+                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", value=pv("commercial_rent"), prefix="$", format="%.0f").classes("flex-1")
+                FIELDS["market_cap_rate"] = ui.number("Market cap rate", value=pvpct("market_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
+                FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", value=pvpct("exit_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
 
     if "residential" in groups:
         with card("Residential unit mix", "apartment"):
             with ui.row().classes("w-full gap-3 flex-wrap"):
                 for key, lbl in [("bachelor", "Bachelor"), ("one_br", "1 BR"), ("two_br", "2 BR"),
                                  ("three_br", "3 BR"), ("four_br", "4 BR"), ("unknown", "Unknown")]:
-                    FIELDS[f"um_{key}"] = ui.number(lbl, value=0, format="%d").classes("w-28")
+                    FIELDS[f"um_{key}"] = ui.number(lbl, value=um.get(key, 0) or 0, format="%d").classes("w-28")
             with ui.row().classes("w-full gap-3"):
-                FIELDS["floors"] = ui.number("Floors", value=1, format="%d").classes("w-28")
+                FIELDS["floors"] = ui.number("Floors", value=um.get("floors", rec.get("floors", 1)) or 1, format="%d").classes("w-28")
                 ui.label("Per-unit rent overrides optional — blank uses the city "
                          "market rate from the residential_rents table.").classes(
                     "text-xs text-slate-500 self-center")
@@ -442,23 +470,23 @@ def dynamic_form():
     if "hotel" in groups:
         with card("Hotel operations", "hotel"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["hotel_rooms"]     = ui.number("Rooms", format="%d").classes("flex-1")
-                FIELDS["hotel_adr"]       = ui.number("ADR (avg daily rate)", prefix="$", format="%.0f").classes("flex-1")
-                FIELDS["hotel_occupancy"] = ui.number("Occupancy", suffix="%", format="%.1f").classes("flex-1")
+                FIELDS["hotel_rooms"]     = ui.number("Rooms", value=pv("hotel_rooms"), format="%d").classes("flex-1")
+                FIELDS["hotel_adr"]       = ui.number("ADR (avg daily rate)", value=pv("hotel_adr"), prefix="$", format="%.0f").classes("flex-1")
+                FIELDS["hotel_occupancy"] = ui.number("Occupancy", value=pvpct("hotel_occupancy"), suffix="%", format="%.1f").classes("flex-1")
 
     if "industrial" in groups:
         with card("Industrial building detail", "factory"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["ind_warehouse_sqft"] = ui.number("Warehouse sq ft", format="%.0f").classes("flex-1")
-                FIELDS["ind_office_sqft"]    = ui.number("Office sq ft", format="%.0f").classes("flex-1")
-                FIELDS["ind_yard_sqft"]      = ui.number("Yard sq ft", format="%.0f").classes("flex-1")
+                FIELDS["ind_warehouse_sqft"] = ui.number("Warehouse sq ft", value=pv("ind_warehouse_sqft"), format="%.0f").classes("flex-1")
+                FIELDS["ind_office_sqft"]    = ui.number("Office sq ft", value=pv("ind_office_sqft"), format="%.0f").classes("flex-1")
+                FIELDS["ind_yard_sqft"]      = ui.number("Yard sq ft", value=pv("ind_yard_sqft"), format="%.0f").classes("flex-1")
             with ui.row().classes("w-full gap-3"):
-                FIELDS["ind_dock_doors"]      = ui.number("Dock doors", format="%d").classes("flex-1")
-                FIELDS["ind_drive_in_doors"]  = ui.number("Drive-in doors", format="%d").classes("flex-1")
-                FIELDS["ind_clear_height_ft"] = ui.number("Clear height (ft)", format="%.1f").classes("flex-1")
+                FIELDS["ind_dock_doors"]      = ui.number("Dock doors", value=pv("ind_dock_doors"), format="%d").classes("flex-1")
+                FIELDS["ind_drive_in_doors"]  = ui.number("Drive-in doors", value=pv("ind_drive_in_doors"), format="%d").classes("flex-1")
+                FIELDS["ind_clear_height_ft"] = ui.number("Clear height (ft)", value=pv("ind_clear_height_ft"), format="%.1f").classes("flex-1")
             with ui.row().classes("w-full gap-3"):
-                FIELDS["ind_office_rate"] = ui.number("Office rate $/sq ft", prefix="$", format="%.2f").classes("flex-1")
-                FIELDS["ind_yard_rate"]   = ui.number("Yard rate $/sq ft", prefix="$", format="%.2f").classes("flex-1")
+                FIELDS["ind_office_rate"] = ui.number("Office rate $/sq ft", value=pv("ind_office_rate"), prefix="$", format="%.2f").classes("flex-1")
+                FIELDS["ind_yard_rate"]   = ui.number("Yard rate $/sq ft", value=pv("ind_yard_rate"), prefix="$", format="%.2f").classes("flex-1")
 
 
 def _fval(name, default=None):
@@ -523,19 +551,75 @@ def save_property_from_form():
         record = build_partial_record(prop)   # no market rate yet — save without analysis
         analyzed = False
 
+    editing = edit_ctx["index"] is not None
+    if editing:
+        # Remove the original first (handles an address / listing-date change), then
+        # insert the rebuilt record.
+        store.delete_property(edit_ctx["index"])
     store.save_property(record)
     if prop.city and prop.province:
         store.ensure_city_in_rates(prop.city, prop.province)
 
+    reset_form()
     refresh_portfolio()
     if _ui.get("tabs") is not None and _ui.get("t_list") is not None:
         _ui["tabs"].set_value(_ui["t_list"])
     ui.notify(
-        f'Saved "{address}" to the database'
+        f'{"Updated" if editing else "Saved"} "{address}"'
         + (" — full analysis computed." if analyzed
            else " — no market rate for that city yet, saved without analysis."),
         type="positive",
     )
+
+
+def reset_form():
+    """Return the form to add mode and clear it."""
+    edit_ctx.update(index=None, orig_key=None, record=None)
+    dynamic_form.refresh()
+
+
+def load_for_edit(index: int):
+    """Load an existing property into the type-aware form for in-place editing."""
+    props = store.load_properties()
+    if index is None or index >= len(props):
+        return
+    p = props[index]
+    edit_ctx.update(index=index,
+                    orig_key=(p.get("address", ""), p.get("listing_date", "")),
+                    record=p)
+    state["type"] = p.get("property_type") or state["type"]
+    if _ui.get("type_select") is not None:
+        _ui["type_select"].set_value(state["type"])
+    dynamic_form.refresh()
+    if _ui.get("tabs") is not None and _ui.get("t_form") is not None:
+        _ui["tabs"].set_value(_ui["t_form"])
+
+
+async def confirm_delete(index: int, parent_dialog=None):
+    """Confirm, then permanently remove a property from the database."""
+    props = store.load_properties()
+    if index is None or index >= len(props):
+        return
+    addr = props[index].get("address") or "this property"
+    with ui.dialog() as d, ui.card().classes("p-4 gap-2"):
+        ui.label(f'Delete "{addr}"?').classes("font-semibold text-slate-800")
+        ui.label("This removes it from the database and cannot be undone.").classes(
+            "text-sm text-slate-500")
+        with ui.row().classes("w-full justify-end gap-2 mt-2"):
+            ui.button("Cancel", on_click=d.close).props("flat")
+
+            def do_delete():
+                store.delete_property(index)
+                d.close()
+                if parent_dialog is not None:
+                    parent_dialog.close()
+                if edit_ctx["index"] == index:
+                    reset_form()
+                refresh_portfolio()
+                ui.notify(f'Deleted "{addr}".', type="warning")
+
+            ui.button("Delete", icon="delete", on_click=do_delete).props("unelevated color=negative")
+    d.open()
 
 
 def form_tab():
@@ -552,7 +636,7 @@ def form_tab():
                 state["type"] = e.value
                 dynamic_form.refresh()
 
-            ui.select(sorted(PROPERTY_TYPES), value=state["type"],
+            _ui["type_select"] = ui.select(sorted(PROPERTY_TYPES), value=state["type"],
                       label="Property type", on_change=on_type).classes("w-56 ml-auto")
 
     dynamic_form()
@@ -611,7 +695,7 @@ async def open_html_report(title: str, build_fn):
         out.write_text(html, encoding="utf-8")
         body.clear()
         with body:
-            ui.element("iframe").props(f"src=/reports/report_{key}.html").style(
+            ui.element("iframe").props(f"src=/reports/report_{key}.html?t={time.time_ns()}").style(
                 "width:100%;height:100%;border:0;").classes("w-full h-full")
     except Exception as ex:
         body.clear()
@@ -853,6 +937,7 @@ def index():
             t_set  = ui.tab("Settings", icon="settings")
         _ui["tabs"] = tabs          # so a save can switch back to the portfolio
         _ui["t_list"] = t_list
+        _ui["t_form"] = t_form      # so "Edit" can jump to the form
         with ui.tab_panels(tabs, value=t_list).classes("w-full bg-transparent"):
             with ui.tab_panel(t_list):
                 portfolio_tab()
