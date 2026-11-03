@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.5.0] — 2026-11-03
+
+_Scoring sub-editors in the desktop app. (CSV import is intentionally omitted — it's a
+deprecated path; realtor.ca URL import moves to 4.6.0 with the scraper it depends on.)_
+
+### Added
+
+- Settings: a **City opportunity** editor — the 14 city-ranker signal weights plus the
+  model knobs (depth weight / reference, outlier cap-rate / CoCR ceilings), saved through
+  the scorer config.
+- A new **City data** tab with two editors: **Distances** (nearest regional centre + km,
+  which drives the Location score) and **Demographics** (2021 + 2016 census population →
+  auto-computed annualised growth, which feeds the city-opportunity ranker). Both write to
+  the per-user data dir, never the tracked repo files.
+
 ## [4.4.0] — 2026-11-03
 
 _Fuller add/edit form + input validation (desktop app)._

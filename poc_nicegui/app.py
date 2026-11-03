@@ -874,6 +874,164 @@ def settings_tab():
 
         ui.button("Save scoring", icon="save", on_click=save_scoring).props("unelevated").classes("mt-2")
 
+    # City-opportunity weights (the city ranker)
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mt-4"):
+        with ui.row().classes("items-center gap-2 mb-1"):
+            ui.icon("location_city").classes("text-blue-600")
+            ui.label("City opportunity — signal weights & model knobs").classes("font-semibold text-slate-800")
+        ui.label("Relative quality weights for the city ranker (auto-normalized). Opportunity "
+                 "blends quality with market depth via the knobs below.").classes(
+            "text-xs text-slate-500 mb-2")
+        ccfg = scorer.load_config()
+        cweights = dict(ccfg.get("city_score_weights", {}))
+        cw_inputs = {}
+        with ui.row().classes("w-full gap-2 flex-wrap"):
+            for k in cweights:
+                cw_inputs[k] = ui.number(k, value=round(cweights[k] * 100, 1), suffix="%",
+                                         format="%.1f").props("dense").classes("w-32")
+        ui.label("Model knobs").classes("text-xs font-semibold text-slate-500 mt-2")
+        with ui.row().classes("w-full gap-3"):
+            k_exp = ui.number("Depth weight (0–1)", value=ccfg.get("opportunity_depth_exp", 0.4), format="%.2f").classes("w-40")
+            k_ref = ui.number("Depth ref (# active)", value=ccfg.get("opportunity_depth_ref", 50), format="%.0f").classes("w-40")
+            k_cap = ui.number("Outlier cap ceiling", value=ccfg.get("outlier_max_cap_rate", 12.0), suffix="%", format="%.1f").classes("w-40")
+            k_coc = ui.number("Outlier CoCR ceiling", value=ccfg.get("outlier_max_coc", 25.0), suffix="%", format="%.1f").classes("w-40")
+
+        def save_city_scoring():
+            try:
+                cfg = scorer.load_config()
+                cfg["city_score_weights"] = {k: round((i.value or 0) / 100, 4) for k, i in cw_inputs.items()}
+                if k_exp.value is not None and 0 <= k_exp.value < 1:
+                    cfg["opportunity_depth_exp"] = round(k_exp.value, 3)
+                if k_ref.value and k_ref.value > 1:
+                    cfg["opportunity_depth_ref"] = round(k_ref.value, 2)
+                cfg["outlier_max_cap_rate"] = round(float(k_cap.value), 2)
+                cfg["outlier_max_coc"] = round(float(k_coc.value), 2)
+                scorer.save_config(cfg)
+                ui.notify("Saved city opportunity weights & knobs.", type="positive")
+            except (TypeError, ValueError):
+                ui.notify("Please enter valid numbers.", type="warning")
+
+        ui.button("Save city weights", icon="save", on_click=save_city_scoring).props("unelevated").classes("mt-2")
+
+
+# ── Page 6: city reference data (distances + demographics) ─────────────────────
+_CITY_DISTANCES_FILE = "json/city_distances.json"
+_CITY_DEMOGRAPHICS_FILE = "json/city_demographics.json"
+
+
+def _read_json_file(path):
+    return store._read(path) if os.path.exists(path) else {}
+
+
+def _distances_editor():
+    raw = {"d": _read_json_file(_CITY_DISTANCES_FILE)}
+    sel = {"val": _NEW_CITY}
+
+    @ui.refreshable
+    def form():
+        row = raw["d"].get(sel["val"]) if sel["val"] != _NEW_CITY else None
+        f = {}
+        with ui.row().classes("w-full gap-3"):
+            f["city"] = ui.input("City", value=(sel["val"] if row else "")).classes("w-48")
+            if row:
+                f["city"].props("readonly")
+            f["centre"] = ui.input("Nearest regional centre",
+                                    value=(row or {}).get("nearest_centre", "")).classes("w-56")
+            f["km"] = ui.number("Distance (km)", value=(row or {}).get("distance_km"),
+                                format="%.0f").classes("w-40")
+
+        def save():
+            city = (f["city"].value or "").strip().title()
+            if not city:
+                ui.notify("City is required.", type="warning"); return
+            raw["d"][city] = {"distance_km": f["km"].value,
+                              "nearest_centre": (f["centre"].value or "").strip()}
+            store._write(_CITY_DISTANCES_FILE, raw["d"])
+            sel["val"] = city
+            city_select.set_options([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=city)
+            form.refresh()
+            ui.notify(f"Saved distance for {city}.", type="positive")
+
+        ui.button("Save distance", icon="save", on_click=save).props("unelevated").classes("mt-1")
+
+    def on_city(e):
+        sel["val"] = e.value
+        form.refresh()
+
+    city_select = ui.select([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=_NEW_CITY,
+                            label="City to edit", on_change=on_city).classes("w-72 mb-3")
+    form()
+
+
+def _demographics_editor():
+    raw = {"d": _read_json_file(_CITY_DEMOGRAPHICS_FILE)}
+    sel = {"val": _NEW_CITY}
+
+    @ui.refreshable
+    def form():
+        key = sel["val"].lower() if sel["val"] != _NEW_CITY else None
+        row = raw["d"].get(key) if key else None
+        f = {}
+        with ui.row().classes("w-full gap-3"):
+            f["city"] = ui.input("City", value=(sel["val"] if row else "")).classes("w-48")
+            if row:
+                f["city"].props("readonly")
+            f["pop"] = ui.number("Population (2021)", value=(row or {}).get("population"),
+                                 format="%.0f").classes("w-44")
+            f["pop16"] = ui.number("Population (2016)", value=(row or {}).get("population_2016"),
+                                   format="%.0f").classes("w-44")
+        with ui.row().classes("w-full gap-3"):
+            f["source"] = ui.input("Source", value=(row or {}).get("source", "")).classes("flex-1")
+        ui.label("Annualised growth is computed from the two census populations.").classes(
+            "text-xs text-slate-500")
+
+        def save():
+            city = (f["city"].value or "").strip().title()
+            if not city:
+                ui.notify("City is required.", type="warning"); return
+            pop = int(f["pop"].value) if f["pop"].value else 0
+            pop16 = int(f["pop16"].value) if f["pop16"].value else 0
+            growth = round(((pop / pop16) ** (1 / 5) - 1) * 100, 2) if pop and pop16 else (row or {}).get("growth_pct_annual")
+            raw["d"][city.lower()] = {
+                "population": pop, "population_2016": pop16,
+                "growth_pct_annual": growth,
+                "source": (f["source"].value or "").strip() or "Stats Canada 2021 Census",
+                "notes": (row or {}).get("notes", ""),
+            }
+            store._write(_CITY_DEMOGRAPHICS_FILE, raw["d"])
+            sel["val"] = city
+            city_select.set_options([_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower), value=city)
+            form.refresh()
+            ui.notify(f"Saved demographics for {city} (growth {growth:+.2f}%/yr)."
+                      if growth is not None else f"Saved demographics for {city}.", type="positive")
+
+    def on_city(e):
+        sel["val"] = e.value
+        form.refresh()
+
+    city_select = ui.select([_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower),
+                            value=_NEW_CITY, label="City to edit", on_change=on_city).classes("w-72 mb-3")
+    form()
+
+
+def city_data_tab():
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
+        with ui.row().classes("items-center gap-4"):
+            ui.icon("public").classes("text-2xl text-blue-600")
+            with ui.column().classes("gap-0"):
+                ui.label("City reference data").classes("font-semibold text-slate-800")
+                ui.label("Distances to the nearest regional centre (drives the Location score) and "
+                         "census population / growth (feeds the city-opportunity ranker).").classes(
+                    "text-xs text-slate-500")
+    with ui.tabs().classes("w-full") as sub:
+        s_dist = ui.tab("Distances")
+        s_demo = ui.tab("Demographics")
+    with ui.tab_panels(sub, value=s_dist).classes("w-full bg-transparent"):
+        with ui.tab_panel(s_dist):
+            _distances_editor()
+        with ui.tab_panel(s_demo):
+            _demographics_editor()
+
 
 # ── App shell (explicit @ui.page → required for a packaged onefile exe) ────────
 # All UI lives inside the page function; nothing is created in global scope. This
@@ -890,6 +1048,7 @@ def index():
             t_form = ui.tab("Add / Edit Property", icon="add_box")
             t_rpts = ui.tab("Reports", icon="summarize")
             t_rate = ui.tab("Rates", icon="payments")
+            t_city = ui.tab("City data", icon="public")
             t_set  = ui.tab("Settings", icon="settings")
         _ui["tabs"] = tabs          # so a save can switch back to the portfolio
         _ui["t_list"] = t_list
@@ -903,6 +1062,8 @@ def index():
                 reports_tab()
             with ui.tab_panel(t_rate):
                 rates_tab()
+            with ui.tab_panel(t_city):
+                city_data_tab()
             with ui.tab_panel(t_set):
                 settings_tab()
 
