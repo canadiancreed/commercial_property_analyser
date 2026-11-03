@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.0.0] — 2026-11-02
+
+_Database-backed storage and a desktop application. Property and rent data move out of
+single JSON files into a SQLite database (behind the unchanged `DataStore` API), and a
+NiceGUI desktop proof-of-concept — packaged as a standalone Windows `.exe` — reuses the
+whole analysis engine and HTML reports. Major version bump: the storage layer changed
+and the app gained a graphical front end alongside the CLI._
+
+### Added
+
+- **SQLite data layer.** Property records now live in a `properties` table and rent data
+  in dedicated `commercial_rents` + `residential_rents` tables, replacing the
+  fully-rewritten-on-every-save JSON files. Each property is stored losslessly as a JSON
+  blob with a few mirrored, indexed columns (city / province / status / type / price).
+  A single save is now one row write instead of rewriting the whole file.
+- **Transparent one-time migration.** On first run the app imports the legacy
+  `properties.json` and the rent JSON into the database (`ensure_properties_migrated` /
+  `ensure_rates_migrated`), guarded so it never re-runs or clobbers later edits, and
+  never modifies the source JSON. Rate lookups trigger it lazily; `main.py` runs it at
+  startup.
+- **Editable rate views** — `DataStore.load_commercial_rate_rows()` /
+  `load_residential_rate_rows()` return city + province + per-type/unit values for
+  editing UIs.
+- **Desktop application (proof-of-concept)** under `poc_nicegui/` — a NiceGUI app packaged
+  into one double-click Windows `.exe` (PyInstaller), running as a native window and
+  reading/writing a persistent per-user SQLite database. Tabs: Portfolio (searchable
+  grid), type-aware Add form, all seven reports embedded (reusing each generator's
+  `render()`), commercial/residential rate editing, and global settings (financing
+  defaults + scoring weights). See `poc_nicegui/README.md`.
+- **Tests** — `tests/test_data_store_sqlite.py` (persistence, lossless nested round-trip,
+  mirrored columns, insertion order, migration guard, rate tables).
+
+### Changed
+
+- `DataStore` property + rate methods are reimplemented on SQLite while keeping their
+  public signatures and return shapes identical — no other module changed. Missing-cities
+  and price-check progress remain JSON (read-mostly / scratch data).
+- `PROPERTIES_PATH` default is now `properties.db`; the legacy `properties.json` becomes
+  a one-time migration seed.
+
 ## [3.7.0] — Unreleased
 
 _Regional vacancy pipeline. The hardcoded per-type vacancy constant is replaced by a

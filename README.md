@@ -1,4 +1,4 @@
-# Commercial Property Analyser v1.0
+# Commercial Property Analyser v4.0.0
 
 A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
 
@@ -14,7 +14,11 @@ pip install -r requirements.txt
 python main.py
 ```
 
-No database or internet connection required. All data is stored in the `json/` directory.
+No internet connection required. As of v4.0.0, property records and rent rates are stored
+in a local **SQLite database** (`properties.db`), migrated automatically on first run from
+the legacy `properties.json` and the rate files in `json/`. The remaining reference and
+configuration data (demographics, distances, vacancy, scoring/financing config) stay as
+JSON in `json/` and `config/`.
 
 ---
 
@@ -38,7 +42,7 @@ commercial_property_analyser_v2/
 │   ├── property_input.py      # PropertyInput, UnitMix dataclasses
 │   └── report_row.py          # ReportRow (metric / value / grade)
 │
-├── data/                      # JSON persistence layer
+├── data/                      # Persistence layer (SQLite for properties + rents; JSON for reference data)
 │   └── store.py               # DataStore, CommercialRentLoader, ResidentialRentLoader
 │
 ├── config/                    # House assumptions (editable, no code changes needed)

@@ -1,0 +1,880 @@
+"""
+NiceGUI proof-of-concept for the Commercial Property Analyser desktop UI.
+
+Proves the desktop path against the REAL data before committing to a full build —
+  1. A modern, non-"Windows 98" look.
+  2. A type-aware dynamic form (fields appear/disappear by property type).
+  3. The existing HTML reports drop straight into the desktop shell with zero rework.
+  4. It READS AND WRITES the live SQLite database via the project's DataStore — a
+     persistent, per-user DB migrated once from the bundled seed data. Adding a
+     property persists it and the portfolio refreshes.
+
+All financial logic and storage are the project's production code, called directly.
+"""
+
+import os
+import sys
+import re
+import shutil
+import asyncio
+import statistics
+import tempfile
+from pathlib import Path
+
+# ── Locate the project + a WRITABLE data directory ────────────────────────────
+WORKTREE = Path(__file__).resolve().parents[1]
+
+if getattr(sys, "frozen", False):
+    # Packaged (.exe): project code + seed data are bundled read-only under _MEIPASS,
+    # which is wiped on exit — so the live DB must live in a persistent user dir.
+    BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
+    LEGACY_PROPS = BASE / "properties.json"            # bundled one-time seed
+    _data_base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
+    DATA_DIR = _data_base / "CommercialPropertyAnalyser"
+else:
+    # Dev: run from the worktree; seed from the LIVE repo-root properties.json.
+    BASE = WORKTREE
+    _live = WORKTREE.parents[2] / "properties.json"
+    LEGACY_PROPS = _live if _live.exists() else WORKTREE / "properties.json"
+    DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
+
+sys.path.insert(0, str(BASE))  # import the project packages from the code location
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+# Seed writable copies of config/ + the reference json/ into the data dir on first run,
+# then run FROM there, so every relative path the engine uses (config/financing.json,
+# json/score_weights.json, json/vacancy_rates.json, …) is writable. The packaged bundle
+# (_MEIPASS) is read-only, and in dev this keeps edits out of the tracked repo files.
+for _sub in ("config", "json"):
+    _dst = DATA_DIR / _sub
+    if not _dst.exists() and (BASE / _sub).exists():
+        shutil.copytree(BASE / _sub, _dst)
+
+# pywebview derives a default base_uri from sys.argv[0] AT IMPORT TIME; once we chdir
+# into the data dir a relative argv[0] would no longer resolve, so pin it to an absolute
+# path first (a frozen exe already has an absolute argv[0]).
+if not getattr(sys, "frozen", False):
+    sys.argv[0] = str(Path(__file__).resolve())
+
+os.chdir(DATA_DIR)             # run from the writable data dir (config/ + json/ copies)
+DB_PATH = DATA_DIR / "properties.db"
+
+from datetime import date
+
+from data.store import DataStore, CommercialRentLoader, ResidentialRentLoader
+from analysis.rent_resolver import RentResolver
+from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
+from analysis.financing_config import (
+    resolve_financing, mixed_use_commercial_gfa_share,
+    load_financing_config, save_financing_config,
+)
+from scoring.scorer import PropertyScorer
+from scoring.city_ranker import CityRanker
+from reporting.property_report import PropertyReportGenerator
+from reporting.city_report import CityReportGenerator
+from reporting.deal_watchlist_report import DealWatchlistReportGenerator
+from reporting.negotiation_report import NegotiationReportGenerator
+from reporting.vacancy_report import VacancyReportGenerator
+from reporting.price_drop_report import PriceDropReportGenerator
+from reporting.benchmark_report import BenchmarkReportGenerator
+from models.property_input import PropertyInput, UnitMix
+from models.constants import PROPERTY_TYPES
+
+from nicegui import ui, app, native
+
+# Persistent SQLite store, migrated once from the bundled/legacy JSON seed. All of the
+# store's own relative paths (json/commercial_rents.json, missing_cities.json, …) now
+# resolve under the writable DATA_DIR because we chdir'd there above.
+store = DataStore(properties_path=str(DB_PATH))
+store.ensure_properties_migrated(str(LEGACY_PROPS))
+store.ensure_rates_migrated()
+
+resolver = RentResolver(
+    commercial_loader  = CommercialRentLoader(store),
+    residential_loader = ResidentialRentLoader(store),
+    data_store         = store,
+)
+scorer    = PropertyScorer(store)
+ranker    = CityRanker(scorer)
+prop_rpt  = PropertyReportGenerator()
+city_rpt  = CityReportGenerator()
+watch_rpt = DealWatchlistReportGenerator()
+nego_rpt  = NegotiationReportGenerator()
+vac_rpt   = VacancyReportGenerator()
+drop_rpt  = PriceDropReportGenerator()
+bench_rpt = BenchmarkReportGenerator()
+
+# Static directory where rendered reports are served into an <iframe> — proving
+# the existing report HTML renders intact inside the desktop shell.
+REPORTS_DIR = Path(tempfile.gettempdir()) / "cpa_poc_reports"
+REPORTS_DIR.mkdir(exist_ok=True)
+app.add_static_files("/reports", str(REPORTS_DIR))
+
+
+# ── Production report helpers ─────────────────────────────────────────────────
+# Copied verbatim from ui/menu.py (PropertyMenu._record_to_prop / _build_report_row).
+# In the real build these move into the Stage-A service layer; replicated here only
+# so the POC exe doesn't import the CLI menu (which drags in Playwright). The
+# financial logic itself is untouched project code.
+def record_to_prop(p: dict) -> PropertyInput:
+    um_data   = p.get("unit_mix") or {}
+    has_units = any(um_data.get(k, 0) for k in
+                    ("bachelor", "one_br", "two_br", "three_br", "four_br", "unknown"))
+    if has_units:
+        unit_mix = UnitMix(
+            bachelor=um_data.get("bachelor", 0), one_br=um_data.get("one_br", 0),
+            two_br=um_data.get("two_br", 0), three_br=um_data.get("three_br", 0),
+            four_br=um_data.get("four_br", 0), unknown=um_data.get("unknown", 0),
+            floors=um_data.get("floors", p.get("floors", 1)),
+        )
+    else:
+        unit_mix = UnitMix(floors=um_data.get("floors", p.get("floors", 1)))
+    _units = unit_mix.total_units if unit_mix else 0
+    _share = mixed_use_commercial_gfa_share(
+        p.get("property_type"), unit_mix.floors if unit_mix else p.get("floors", 1))
+    fin = resolve_financing(p.get("asking_price", 0), p.get("property_type"), _units,
+                            commercial_gfa_share=_share)
+    return PropertyInput(
+        address=p["address"], mls_number=p.get("mls_number", ""),
+        status=p.get("status", "active"),
+        original_price=p.get("original_price", p.get("asking_price", 0)),
+        asking_price=p.get("asking_price", 0), total_sq_ft=p.get("total_sq_ft", 0),
+        property_taxes=p.get("property_taxes", 0),
+        down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
+        term_years=fin["term_years"], hold_years=fin["hold_years"],
+        expense_ratio=p.get("expense_ratio", None), lease_type=p.get("lease_type", "Normal"),
+        commercial_lease_expiry=p.get("commercial_lease_expiry"),
+        construction_cost=p.get("construction_cost", 0) or 0,
+        listing_date=p.get("listing_date", date.today().isoformat()),
+        commercial_rent=p.get("commercial_rent") or None,
+        residential_rent=p.get("residential_rent") or None,
+        annual_rent=(p.get("annual_rent") or None) if not (
+            p.get("commercial_rent") or p.get("residential_rent")) else None,
+        city=p.get("city"), province=p.get("province"),
+        property_type=p.get("property_type"), unit_mix=unit_mix,
+        hotel_rooms=p.get("hotel_rooms", 0) or 0, hotel_adr=p.get("hotel_adr"),
+        hotel_occupancy=p.get("hotel_occupancy"),
+        ind_warehouse_sqft=p.get("ind_warehouse_sqft", 0) or 0,
+        ind_office_sqft=p.get("ind_office_sqft", 0) or 0,
+        ind_yard_sqft=p.get("ind_yard_sqft", 0) or 0,
+        ind_dock_doors=p.get("ind_dock_doors", 0) or 0,
+        ind_drive_in_doors=p.get("ind_drive_in_doors", 0) or 0,
+        ind_clear_height_ft=p.get("ind_clear_height_ft", 0) or 0,
+        ind_office_rate=p.get("ind_office_rate"), ind_yard_rate=p.get("ind_yard_rate"),
+        vacancy_rate=p.get("vacancy_rate"), noi_growth_rate=p.get("noi_growth_rate"),
+        commercial_rent_user_entered=p.get("commercial_rent_user_entered",
+                                           p.get("rent_manually_entered", False)),
+        residential_rent_user_entered=p.get("residential_rent_user_entered",
+                                            p.get("rent_manually_entered", False)),
+    )
+
+
+def build_report_row(p: dict, scored: dict, targets: dict) -> dict:
+    return {
+        "address": p.get("address", "—"), "mls": p.get("mls_number", "—"),
+        "status": p.get("status", "—"), "city": p.get("city") or "",
+        "province": p.get("province") or "", "type": p.get("property_type") or "—",
+        "asking": p.get("asking_price", 0), "sqft": p.get("total_sq_ft", 0),
+        "listed": p.get("listing_date", "—"), "analyzed": p.get("analyzed_on") or "—",
+        "notes": p.get("notes") or "", "construction": p.get("construction_cost") or 0,
+        "dist_km": scored.get("dist_km"), "dist_centre": scored.get("dist_centre") or "",
+        "comm_rent": p.get("commercial_rent") or 0, "res_rent": p.get("residential_rent") or 0,
+        "score": scored.get("score"), "breakdown": scored.get("breakdown", {}),
+        "weights": scored.get("weights", {}),
+        "robustness_pending": scored.get("robustness_pending", False),
+        "mli_eligible": scored.get("mli_eligible", False),
+        "select_score": scored.get("select_score"), "select_gap": scored.get("select_gap"),
+        "cap_rate": scored.get("cap_rate", 0), "coc": scored.get("coc", 0),
+        "dscr": scored.get("dscr", 0), "irr": scored.get("irr"), "em": scored.get("em", 0),
+        "cf_annual": scored.get("cf_annual", 0), "price_drop": scored.get("price_drop", 0),
+        "dom": scored.get("dom", 0), "dom_band": scored.get("dom_band"),
+        "price_drop_band": scored.get("price_drop_band"),
+        "liquidity_band": scored.get("liquidity_band"),
+        "market_signal_multiplier": scored.get("market_signal_multiplier"),
+        "deal_context_read": scored.get("deal_context_read"),
+        "verified_income_pct": scored.get("verified_income_pct"),
+        "original": p.get("original_price", 0), "taxes": p.get("property_taxes", 0),
+        "down_pct": p.get("down_payment_pct", 0), "rate": p.get("interest_rate", 0),
+        "term": p.get("term_years", 0), "hold": p.get("hold_years", 0),
+        "expense_ratio": p.get("expense_ratio", 0), "lease_type": p.get("lease_type", ""),
+        "results": p.get("results", []), "income_confidence": p.get("income_confidence"),
+        "income_size_band": p.get("income_size_band"), "targets": targets,
+        "hotel_rooms": p.get("hotel_rooms", 0) or 0, "hotel_adr": p.get("hotel_adr") or 0,
+        "hotel_occ": p.get("hotel_occupancy") or 0,
+        "rent_breakdown": p.get("rent_breakdown", []),
+    }
+
+
+# ── Field-group model: the single source of truth a dynamic form reads ────────
+# This mirrors how the ENGINE already branches on property type (HotelMetrics,
+# IndustrialMetrics, unit-mix resolution, mixed-use component engine). The form
+# just renders whichever groups a type uses — nothing bolted on.
+TYPE_GROUPS = {
+    "Office":        ["commercial"],
+    "Retail":        ["commercial"],
+    "Retail-Office": ["commercial"],
+    "Mixed-Use":     ["commercial", "residential"],
+    "Industrial":    ["commercial", "industrial"],
+    "Hotel":         ["hotel"],
+    "Residential":   ["residential"],
+    "Multi-Family":  ["residential"],
+}
+GROUP_LABEL = {
+    "commercial":  "Commercial lease",
+    "residential": "Residential unit mix",
+    "hotel":       "Hotel operations",
+    "industrial":  "Industrial building detail",
+}
+
+
+def _metric(record: dict, name: str) -> str:
+    for r in record.get("results", []):
+        if r.get("metric") == name:
+            return r.get("value", "—")
+    return "—"
+
+
+def _has_analysis(record: dict) -> bool:
+    return bool(record.get("results"))
+
+
+# ── Shared styling ────────────────────────────────────────────────────────────
+STAT_CARD = "flex-1 min-w-[150px] rounded-xl shadow-sm border border-slate-200 bg-white p-4"
+
+# Cross-tab UI handles so a save on the form can refresh the portfolio list.
+_ui = {}
+
+
+def header():
+    with ui.header().classes("items-center justify-between px-6 py-3 bg-slate-900 text-white shadow"):
+        with ui.row().classes("items-center gap-3"):
+            ui.icon("domain").classes("text-2xl text-blue-400")
+            with ui.column().classes("gap-0"):
+                ui.label("Commercial Property Analyser").classes("text-lg font-semibold leading-tight")
+                ui.label("Desktop UI — proof of concept").classes("text-xs text-slate-400 leading-tight")
+        ui.label("live SQLite database").classes("text-xs text-slate-300")
+
+
+def _load_rows() -> list:
+    rows = []
+    for i, p in enumerate(store.load_properties()):
+        rows.append({
+            "id": i,
+            "address": p.get("address") or "—",
+            "city": (f"{p.get('city')}, {p.get('province')}"
+                     if p.get("city") else "—"),
+            "type": p.get("property_type") or "—",
+            "asking": p.get("asking_price", 0),
+            "sqft": p.get("total_sq_ft", 0),
+            "cap": _metric(p, "Cap Rate"),
+            "status": p.get("status") or "—",
+            "analyzed": "✓" if _has_analysis(p) else "—",
+        })
+    return rows
+
+
+def refresh_portfolio():
+    """Re-read the DB and refresh the stat tiles + grid (called after a save)."""
+    if "stats" in _ui:
+        _ui["stats"].refresh()
+    grid = _ui.get("grid")
+    if grid is not None:
+        grid.options["rowData"] = _load_rows()
+        grid.update()
+
+
+# ── Page 1: Portfolio list ────────────────────────────────────────────────────
+def portfolio_tab():
+
+    @ui.refreshable
+    def stats():
+        props = store.load_properties()
+        prices = [p.get("asking_price", 0) for p in props if p.get("asking_price")]
+        cities = {p.get("city") for p in props if p.get("city")}
+        analyzed = sum(1 for p in props if _has_analysis(p))
+        with ui.row().classes("w-full gap-3 mb-4"):
+            for label, value in [
+                ("Properties", f"{len(props):,}"),
+                ("Cities", f"{len(cities):,}"),
+                ("Analyzed", f"{analyzed:,}"),
+                ("Median asking", f"${statistics.median(prices):,.0f}" if prices else "—"),
+            ]:
+                with ui.column().classes(STAT_CARD + " gap-1"):
+                    ui.label(value).classes("text-2xl font-bold text-slate-900")
+                    ui.label(label).classes("text-xs uppercase tracking-wide text-slate-500")
+
+    stats()
+    _ui["stats"] = stats
+
+    grid = ui.aggrid({
+        "columnDefs": [
+            {"headerName": "Address", "field": "address", "flex": 2, "filter": True},
+            {"headerName": "City", "field": "city", "flex": 1, "filter": True},
+            {"headerName": "Type", "field": "type", "width": 130, "filter": True},
+            {"headerName": "Asking", "field": "asking", "width": 130,
+             "valueFormatter": "'$' + (value||0).toLocaleString()",
+             "type": "numericColumn"},
+            {"headerName": "Sq Ft", "field": "sqft", "width": 110,
+             "valueFormatter": "(value||0).toLocaleString()", "type": "numericColumn"},
+            {"headerName": "Cap Rate", "field": "cap", "width": 110},
+            {"headerName": "Status", "field": "status", "width": 100},
+            {"headerName": "Rpt", "field": "analyzed", "width": 70},
+        ],
+        "rowData": _load_rows(),
+        "rowSelection": "single",
+        "defaultColDef": {"sortable": True, "resizable": True},
+        "pagination": True,
+        "paginationPageSize": 25,
+    }).classes("h-[62vh]")
+    _ui["grid"] = grid
+
+    ui.label("Tip: click any row to open that property's investment report "
+             "(the existing HTML, rendered inside the app).").classes(
+        "text-xs text-slate-500 mt-2")
+
+    async def on_click(e):
+        # Extract ONLY the row's `data` client-side (3rd arg below). Sending the whole
+        # AG Grid event fails with "circular structure to JSON" (context/beans refs),
+        # which silently drops the event before it reaches Python.
+        row = (e.args or {}).get("data") or {}
+        if row.get("id") is not None:
+            await open_report(row["id"])
+
+    grid.on("rowClicked", on_click, args=["data"])
+
+
+async def open_report(idx: int):
+    props = store.load_properties()
+    if idx is None or idx >= len(props):
+        return
+    p = props[idx]
+    with ui.dialog() as dialog, ui.card().classes("w-[92vw] max-w-[1200px] h-[88vh] p-0 flex flex-col"):
+        with ui.row().classes("w-full items-center justify-between px-4 py-2 bg-slate-900 text-white"):
+            ui.label(p.get("address") or "Property report").classes("font-semibold")
+            ui.button(icon="close", on_click=dialog.close).props("flat round color=white")
+        body = ui.column().classes("w-full flex-1 p-0 items-center justify-center")
+        with body:
+            ui.spinner(size="lg")
+            ui.label("Building report with the production scorer…").classes("text-slate-500")
+    dialog.open()
+
+    try:
+        scored  = scorer.score_property(p)
+        targets = scorer.solve_targets(
+            p, record_to_prop, CommercialPropertyAnalyzer, resolver)
+        row  = build_report_row(p, scored, targets)
+        html = prop_rpt.render([row])
+        out  = REPORTS_DIR / f"report_{idx}.html"
+        out.write_text(html, encoding="utf-8")
+        body.clear()
+        with body:
+            # ui.html() strips <iframe>, so create a real iframe element. The report
+            # is a full HTML document, so it renders isolated inside the frame.
+            ui.element("iframe").props(f"src=/reports/report_{idx}.html").style(
+                "width:100%;height:100%;border:0;").classes("w-full h-full")
+    except Exception as ex:
+        body.clear()
+        with body:
+            ui.icon("info").classes("text-4xl text-amber-500")
+            ui.label("No report for this record").classes("font-medium")
+            ui.label(str(ex)).classes("text-xs text-slate-500 max-w-[600px] text-center")
+
+
+# ── Page 2: dynamic, type-aware Add/Edit form ─────────────────────────────────
+state = {"type": "Hotel"}
+FIELDS = {}  # name → input element, rebuilt each time the form reshapes
+
+
+@ui.refreshable
+def dynamic_form():
+    FIELDS.clear()
+    groups = ["common"] + TYPE_GROUPS.get(state["type"], [])
+
+    # Live indicator of which groups this type activates.
+    with ui.row().classes("gap-2 flex-wrap mb-2"):
+        ui.label("Active field groups:").classes("text-sm text-slate-500 self-center")
+        for g in groups:
+            ui.badge(GROUP_LABEL.get(g, "Core details")).props("color=primary" if g != "common" else "color=grey-6")
+
+    def card(title, icon):
+        c = ui.card().classes("w-full mb-3 rounded-xl border border-slate-200 shadow-sm")
+        with c:
+            with ui.row().classes("items-center gap-2 mb-1"):
+                ui.icon(icon).classes("text-blue-600")
+                ui.label(title).classes("font-semibold text-slate-800")
+        return c
+
+    # Common — always shown.
+    with card("Core details", "description"):
+        with ui.row().classes("w-full gap-3"):
+            FIELDS["address"]  = ui.input("Address").classes("flex-1")
+            FIELDS["city"]     = ui.input("City").classes("w-40")
+            FIELDS["province"] = ui.input("Province").classes("w-28")
+        with ui.row().classes("w-full gap-3"):
+            FIELDS["asking_price"]   = ui.number("Asking price", prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["total_sq_ft"]    = ui.number("Total sq ft", format="%.0f").classes("flex-1")
+            FIELDS["property_taxes"] = ui.number("Property taxes / yr", prefix="$", format="%.0f").classes("flex-1")
+        with ui.row().classes("w-full gap-3"):
+            FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value="Normal", label="Lease type").classes("w-40")
+            FIELDS["status"]       = ui.select(["active", "inactive"], value="active", label="Status").classes("w-40")
+            FIELDS["listing_date"] = ui.input("Listing date").props("type=date").classes("w-48")
+
+    if "commercial" in groups:
+        with card("Commercial lease", "storefront"):
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", prefix="$", format="%.0f").classes("flex-1")
+                FIELDS["market_cap_rate"] = ui.number("Market cap rate", suffix="%", format="%.2f").classes("flex-1")
+                FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", suffix="%", format="%.2f").classes("flex-1")
+
+    if "residential" in groups:
+        with card("Residential unit mix", "apartment"):
+            with ui.row().classes("w-full gap-3 flex-wrap"):
+                for key, lbl in [("bachelor", "Bachelor"), ("one_br", "1 BR"), ("two_br", "2 BR"),
+                                 ("three_br", "3 BR"), ("four_br", "4 BR"), ("unknown", "Unknown")]:
+                    FIELDS[f"um_{key}"] = ui.number(lbl, value=0, format="%d").classes("w-28")
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["floors"] = ui.number("Floors", value=1, format="%d").classes("w-28")
+                ui.label("Per-unit rent overrides optional — blank uses the city "
+                         "market rate from the residential_rents table.").classes(
+                    "text-xs text-slate-500 self-center")
+
+    if "hotel" in groups:
+        with card("Hotel operations", "hotel"):
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["hotel_rooms"]     = ui.number("Rooms", format="%d").classes("flex-1")
+                FIELDS["hotel_adr"]       = ui.number("ADR (avg daily rate)", prefix="$", format="%.0f").classes("flex-1")
+                FIELDS["hotel_occupancy"] = ui.number("Occupancy", suffix="%", format="%.1f").classes("flex-1")
+
+    if "industrial" in groups:
+        with card("Industrial building detail", "factory"):
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["ind_warehouse_sqft"] = ui.number("Warehouse sq ft", format="%.0f").classes("flex-1")
+                FIELDS["ind_office_sqft"]    = ui.number("Office sq ft", format="%.0f").classes("flex-1")
+                FIELDS["ind_yard_sqft"]      = ui.number("Yard sq ft", format="%.0f").classes("flex-1")
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["ind_dock_doors"]      = ui.number("Dock doors", format="%d").classes("flex-1")
+                FIELDS["ind_drive_in_doors"]  = ui.number("Drive-in doors", format="%d").classes("flex-1")
+                FIELDS["ind_clear_height_ft"] = ui.number("Clear height (ft)", format="%.1f").classes("flex-1")
+            with ui.row().classes("w-full gap-3"):
+                FIELDS["ind_office_rate"] = ui.number("Office rate $/sq ft", prefix="$", format="%.2f").classes("flex-1")
+                FIELDS["ind_yard_rate"]   = ui.number("Yard rate $/sq ft", prefix="$", format="%.2f").classes("flex-1")
+
+
+def _fval(name, default=None):
+    el = FIELDS.get(name)
+    if el is None or el.value in ("", None):
+        return default
+    return el.value
+
+
+def _pct(name):
+    v = _fval(name)
+    return (float(v) / 100) if v not in (None, "") else None
+
+
+def save_property_from_form():
+    """Build a record from the form and persist it through the production pipeline."""
+    address = (_fval("address") or "").strip()
+    if not address:
+        ui.notify("Address is required to save.", type="warning")
+        return
+
+    ptype   = state["type"]
+    asking  = float(_fval("asking_price", 0) or 0)
+    um = UnitMix(
+        bachelor=int(_fval("um_bachelor", 0) or 0), one_br=int(_fval("um_one_br", 0) or 0),
+        two_br=int(_fval("um_two_br", 0) or 0), three_br=int(_fval("um_three_br", 0) or 0),
+        four_br=int(_fval("um_four_br", 0) or 0), unknown=int(_fval("um_unknown", 0) or 0),
+        floors=int(_fval("floors", 1) or 1),
+    )
+    units = um.total_units
+    share = mixed_use_commercial_gfa_share(ptype, um.floors)
+    fin   = resolve_financing(asking, ptype, units, commercial_gfa_share=share)
+
+    prop = PropertyInput(
+        original_price=asking, asking_price=asking,
+        total_sq_ft=float(_fval("total_sq_ft", 0) or 0),
+        property_taxes=float(_fval("property_taxes", 0) or 0),
+        down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
+        term_years=fin["term_years"], hold_years=fin["hold_years"],
+        address=address, city=_fval("city"), province=_fval("province"),
+        property_type=ptype, status=_fval("status", "active"),
+        lease_type=_fval("lease_type", "Normal"),
+        listing_date=_fval("listing_date") or date.today().isoformat(),
+        unit_mix=um if units else None,
+        commercial_rent=_fval("commercial_rent"),
+        market_cap_rate=_pct("market_cap_rate"), exit_cap_rate=_pct("exit_cap_rate"),
+        hotel_rooms=int(_fval("hotel_rooms", 0) or 0), hotel_adr=_fval("hotel_adr"),
+        hotel_occupancy=_pct("hotel_occupancy"),
+        ind_warehouse_sqft=float(_fval("ind_warehouse_sqft", 0) or 0),
+        ind_office_sqft=float(_fval("ind_office_sqft", 0) or 0),
+        ind_yard_sqft=float(_fval("ind_yard_sqft", 0) or 0),
+        ind_dock_doors=int(_fval("ind_dock_doors", 0) or 0),
+        ind_drive_in_doors=int(_fval("ind_drive_in_doors", 0) or 0),
+        ind_clear_height_ft=float(_fval("ind_clear_height_ft", 0) or 0),
+        ind_office_rate=_fval("ind_office_rate"), ind_yard_rate=_fval("ind_yard_rate"),
+    )
+
+    try:
+        record = CommercialPropertyAnalyzer(prop, resolver).to_record()
+        analyzed = True
+    except Exception:
+        record = build_partial_record(prop)   # no market rate yet — save without analysis
+        analyzed = False
+
+    store.save_property(record)
+    if prop.city and prop.province:
+        store.ensure_city_in_rates(prop.city, prop.province)
+
+    refresh_portfolio()
+    if _ui.get("tabs") is not None and _ui.get("t_list") is not None:
+        _ui["tabs"].set_value(_ui["t_list"])
+    ui.notify(
+        f'Saved "{address}" to the database'
+        + (" — full analysis computed." if analyzed
+           else " — no market rate for that city yet, saved without analysis."),
+        type="positive",
+    )
+
+
+def form_tab():
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
+        with ui.row().classes("items-center gap-4"):
+            ui.icon("tune").classes("text-2xl text-blue-600")
+            with ui.column().classes("gap-0"):
+                ui.label("Type-aware entry").classes("font-semibold text-slate-800")
+                ui.label("Change the property type and watch the form reshape — "
+                         "no residential fields on a hotel, no dock doors on an apartment block.").classes(
+                    "text-xs text-slate-500")
+
+            def on_type(e):
+                state["type"] = e.value
+                dynamic_form.refresh()
+
+            ui.select(sorted(PROPERTY_TYPES), value=state["type"],
+                      label="Property type", on_change=on_type).classes("w-56 ml-auto")
+
+    dynamic_form()
+    with ui.row().classes("w-full justify-end items-center gap-3 mt-1"):
+        ui.label("Saves to the live database and refreshes the portfolio.").classes(
+            "text-xs text-slate-400 mr-auto self-center")
+        ui.button("Save property", icon="save",
+                  on_click=save_property_from_form).props("unelevated")
+
+
+# ── Page 3: portfolio-wide reports (reuse the production HTML generators) ──────
+# Every generator already exposes render()->str, and the row shapes come from the
+# same build_report_row() the CLI uses. Reports that need lever-solving targets
+# (investment, negotiation) call solve_targets per property; the rest don't.
+def _rows_with_targets() -> list:
+    rows = []
+    for p in store.load_properties():
+        scored  = scorer.score_property(p)
+        targets = scorer.solve_targets(p, record_to_prop, CommercialPropertyAnalyzer, resolver)
+        rows.append(build_report_row(p, scored, targets))
+    return rows
+
+
+def _rows_simple() -> list:
+    return [build_report_row(p, scorer.score_property(p), {})
+            for p in store.load_properties()]
+
+
+REPORTS = [
+    ("Investment report",            "assessment",     lambda: prop_rpt.render(_rows_with_targets())),
+    ("City opportunity",             "location_city",  lambda: city_rpt.render(ranker.rank(store.load_properties()))),
+    ("Deal watchlist",               "star",           lambda: watch_rpt.render(_rows_simple())),
+    ("Negotiation targets",          "handshake",      lambda: nego_rpt.render(_rows_with_targets())),
+    ("Vacancy sensitivity",          "warning",        lambda: vac_rpt.render(_rows_simple())),
+    ("Price-drop alerts",            "trending_down",  lambda: drop_rpt.render(_rows_simple())),
+    ("Cap-rate & $/sqft benchmarks", "bar_chart",      lambda: bench_rpt.render(_rows_simple())),
+]
+
+
+async def open_html_report(title: str, build_fn):
+    with ui.dialog() as dialog, ui.card().classes("w-[92vw] max-w-[1200px] h-[88vh] p-0 flex flex-col"):
+        with ui.row().classes("w-full items-center justify-between px-4 py-2 bg-slate-900 text-white"):
+            ui.label(title).classes("font-semibold")
+            ui.button(icon="close", on_click=dialog.close).props("flat round color=white")
+        body = ui.column().classes("w-full flex-1 p-0 items-center justify-center")
+        with body:
+            ui.spinner(size="lg")
+            ui.label(f"Building “{title}” across the portfolio…").classes("text-slate-500")
+    dialog.open()
+    try:
+        # Off the event loop so the spinner renders; the heavy reports solve targets
+        # for every property, which can take a few seconds at full scale.
+        html = await asyncio.to_thread(build_fn)
+        key  = re.sub(r"\W+", "_", title).strip("_").lower()
+        out  = REPORTS_DIR / f"report_{key}.html"
+        out.write_text(html, encoding="utf-8")
+        body.clear()
+        with body:
+            ui.element("iframe").props(f"src=/reports/report_{key}.html").style(
+                "width:100%;height:100%;border:0;").classes("w-full h-full")
+    except Exception as ex:
+        body.clear()
+        with body:
+            ui.icon("info").classes("text-4xl text-amber-500")
+            ui.label("Couldn't build this report").classes("font-medium")
+            ui.label(str(ex)).classes("text-xs text-slate-500 max-w-[600px] text-center")
+
+
+def reports_tab():
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
+        with ui.row().classes("items-center gap-4"):
+            ui.icon("summarize").classes("text-2xl text-blue-600")
+            with ui.column().classes("gap-0"):
+                ui.label("Portfolio reports").classes("font-semibold text-slate-800")
+                ui.label("Each opens the existing HTML report — the same ones the CLI "
+                         "launches in a browser — rendered inside the app.").classes(
+                    "text-xs text-slate-500")
+    with ui.row().classes("w-full flex-wrap gap-3"):
+        for title, icon, build in REPORTS:
+            ui.button(title, icon=icon,
+                      on_click=lambda t=title, b=build: open_html_report(t, b)
+                      ).props("outline no-caps").classes("grow-0")
+
+
+# ── Page 4: rate editing (commercial + residential) ───────────────────────────
+RATE_COMM_TYPES = ["Office", "Retail", "Industrial", "Mixed-Use"]
+RATE_RES_FIELDS = [("bachelor", "Bachelor"), ("one_br", "1 BR"), ("two_br", "2 BR"),
+                   ("three_br", "3 BR"), ("four_br", "4 BR")]
+_NEW_CITY = "➕ Add a new city…"
+
+
+def commercial_rates_editor():
+    data = {"rows": store.load_commercial_rate_rows()}
+    sel = {"val": _NEW_CITY}
+
+    def labels():
+        return {f"{r['city']}, {r['province']}": r for r in data["rows"]}
+
+    @ui.refreshable
+    def form():
+        row = labels().get(sel["val"])
+        f = {}
+        with ui.row().classes("w-full gap-3"):
+            f["city"] = ui.input("City", value=(row["city"] if row else "")).classes("w-48")
+            f["province"] = ui.input("Province", value=(row["province"] if row else "")).classes("w-28")
+            if row:
+                f["city"].props("readonly"); f["province"].props("readonly")
+        with ui.row().classes("w-full gap-3 flex-wrap"):
+            for t in RATE_COMM_TYPES:
+                cur = row["types"].get(t) if row else None
+                f[t] = ui.number(f"{t} $/sq ft", value=cur, prefix="$", format="%.2f").classes("w-40")
+
+        def save():
+            city = (f["city"].value or "").strip()
+            prov = (f["province"].value or "").strip().upper()
+            if not city or not prov:
+                ui.notify("City and province are required.", type="warning"); return
+            rates = {t: float(f[t].value) for t in RATE_COMM_TYPES if f[t].value not in (None, "")}
+            store.save_commercial_city(city, prov, rates)
+            data["rows"] = store.load_commercial_rate_rows()
+            sel["val"] = next((k for k, r in labels().items()
+                               if r["city"].lower() == city.lower() and r["province"] == prov), _NEW_CITY)
+            city_select.set_options([_NEW_CITY] + sorted(labels(), key=str.lower), value=sel["val"])
+            form.refresh()
+            ui.notify(f"Saved commercial rates for {city}, {prov}.", type="positive")
+
+        ui.button("Save rates", icon="save", on_click=save).props("unelevated").classes("mt-1")
+
+    def on_city(e):
+        sel["val"] = e.value
+        form.refresh()
+
+    city_select = ui.select([_NEW_CITY] + sorted(labels(), key=str.lower), value=_NEW_CITY,
+                            label="City to edit", on_change=on_city).classes("w-72 mb-3")
+    form()
+
+
+def residential_rates_editor():
+    data = {"rows": store.load_residential_rate_rows()}
+    sel = {"val": _NEW_CITY}
+
+    def labels():
+        return {f"{r['city']}, {r['province']}": r for r in data["rows"]}
+
+    @ui.refreshable
+    def form():
+        row = labels().get(sel["val"])
+        f = {}
+        with ui.row().classes("w-full gap-3"):
+            f["city"] = ui.input("City", value=(row["city"] if row else "")).classes("w-48")
+            f["province"] = ui.input("Province", value=(row["province"] if row else "")).classes("w-28")
+            if row:
+                f["city"].props("readonly"); f["province"].props("readonly")
+        with ui.row().classes("w-full gap-3 flex-wrap"):
+            for key, lbl in RATE_RES_FIELDS:
+                cur = row["units"].get(key) if row else None
+                f[key] = ui.number(f"{lbl} $/mo", value=cur, prefix="$", format="%.0f").classes("w-32")
+        ui.label("The “unknown” unit rate is auto-set to the average of the entered "
+                 "unit rents (matches the CLI).").classes("text-xs text-slate-500")
+
+        def save():
+            city = (f["city"].value or "").strip()
+            prov = (f["province"].value or "").strip().upper()
+            if not city or not prov:
+                ui.notify("City and province are required.", type="warning"); return
+            units = {key: float(f[key].value) for key, _ in RATE_RES_FIELDS if f[key].value not in (None, "")}
+            known = list(units.values())
+            if known:
+                units["unknown"] = round(sum(known) / len(known), 2)
+            store.save_residential_city(city, prov, units)
+            data["rows"] = store.load_residential_rate_rows()
+            sel["val"] = next((k for k, r in labels().items()
+                               if r["city"].lower() == city.lower() and r["province"] == prov), _NEW_CITY)
+            city_select.set_options([_NEW_CITY] + sorted(labels(), key=str.lower), value=sel["val"])
+            form.refresh()
+            ui.notify(f"Saved residential rates for {city}, {prov}.", type="positive")
+
+        ui.button("Save rates", icon="save", on_click=save).props("unelevated").classes("mt-1")
+
+    def on_city(e):
+        sel["val"] = e.value
+        form.refresh()
+
+    city_select = ui.select([_NEW_CITY] + sorted(labels(), key=str.lower), value=_NEW_CITY,
+                            label="City to edit", on_change=on_city).classes("w-72 mb-3")
+    form()
+
+
+def rates_tab():
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
+        with ui.row().classes("items-center gap-4"):
+            ui.icon("payments").classes("text-2xl text-blue-600")
+            with ui.column().classes("gap-0"):
+                ui.label("Market rent rates").classes("font-semibold text-slate-800")
+                ui.label("Edit the commercial ($/sq ft/yr) and residential ($/mo) rents "
+                         "stored in the database. Saving updates the rate tables directly.").classes(
+                    "text-xs text-slate-500")
+    with ui.tabs().classes("w-full") as sub:
+        s_comm = ui.tab("Commercial")
+        s_res  = ui.tab("Residential")
+    with ui.tab_panels(sub, value=s_comm).classes("w-full bg-transparent"):
+        with ui.tab_panel(s_comm):
+            commercial_rates_editor()
+        with ui.tab_panel(s_res):
+            residential_rates_editor()
+
+
+# ── Page 5: global settings (financing defaults + scoring formula) ─────────────
+def settings_tab():
+    # Financing defaults
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-4"):
+        with ui.row().classes("items-center gap-2 mb-1"):
+            ui.icon("account_balance").classes("text-blue-600")
+            ui.label("Global financing defaults").classes("font-semibold text-slate-800")
+        ui.label("House-wide — applied to every property, not entered per listing. "
+                 "Re-analyze (CLI 'r') to push changes into stored results.").classes(
+            "text-xs text-slate-500 mb-2")
+        cfg = load_financing_config()
+        with ui.row().classes("w-full gap-3"):
+            dp = ui.number("Down payment %", value=cfg["down_payment_pct"] * 100, suffix="%", format="%.2f").classes("w-40")
+            ir = ui.number("Interest rate %", value=cfg["interest_rate"] * 100, suffix="%", format="%.2f").classes("w-40")
+            tm = ui.number("Amortization (yrs)", value=cfg["term_years"], format="%d").classes("w-40")
+            hy = ui.number("Hold period (yrs)", value=cfg["hold_years"], format="%d").classes("w-40")
+
+        def save_fin():
+            try:
+                d = float(dp.value); d = d / 100 if d > 1 else d
+                r = float(ir.value); r = r / 100 if r > 1 else r
+                if not (0 <= d < 1) or r < 0:
+                    ui.notify("Down payment 0–100%, rate ≥ 0.", type="warning"); return
+                save_financing_config(round(d, 4), round(r, 4), int(tm.value), int(hy.value))
+                ui.notify("Saved global financing defaults.", type="positive")
+            except (TypeError, ValueError):
+                ui.notify("Please enter valid numbers.", type="warning")
+
+        ui.button("Save financing", icon="save", on_click=save_fin).props("unelevated")
+
+    # Scoring formula weights
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm"):
+        with ui.row().classes("items-center gap-2 mb-1"):
+            ui.icon("tune").classes("text-blue-600")
+            ui.label("Scoring formula — weights & thresholds").classes("font-semibold text-slate-800")
+        scfg = scorer.load_config()
+        weights = dict(scfg.get("weights", {}))
+        thresholds = {k: list(v) for k, v in scfg.get("thresholds", {}).items()}
+        total_lbl = ui.label().classes("text-xs text-slate-500 mb-2")
+
+        def _update_total():
+            s = sum((ins["w"].value or 0) for ins in w_inputs.values()) / 100
+            total_lbl.set_text(f"Weights sum to {s:.2f} (scores are auto-normalized; set 0 to disable).")
+
+        w_inputs = {}
+        with ui.grid(columns=4).classes("w-full gap-x-4 gap-y-1 items-center"):
+            ui.label("Component").classes("text-xs font-semibold text-slate-500")
+            ui.label("Weight %").classes("text-xs font-semibold text-slate-500")
+            ui.label("Floor (score 0)").classes("text-xs font-semibold text-slate-500")
+            ui.label("Ceiling (score 10)").classes("text-xs font-semibold text-slate-500")
+            for k in weights:
+                lo, hi = thresholds.get(k, [0, 1])
+                ui.label(k).classes("text-sm text-slate-700")
+                w_inputs[k] = {
+                    "w":  ui.number(value=round(weights[k] * 100, 1), format="%.1f", on_change=_update_total).props("dense"),
+                    "lo": ui.number(value=lo, format="%.2f").props("dense"),
+                    "hi": ui.number(value=hi, format="%.2f").props("dense"),
+                }
+        _update_total()
+
+        def save_scoring():
+            try:
+                for k, ins in w_inputs.items():
+                    weights[k] = round((ins["w"].value or 0) / 100, 4)
+                    thresholds[k] = [float(ins["lo"].value), float(ins["hi"].value)]
+                scfg["weights"] = weights
+                scfg["thresholds"] = thresholds
+                scorer.save_config(scfg)
+                ui.notify("Saved scoring weights & thresholds.", type="positive")
+            except (TypeError, ValueError):
+                ui.notify("Please enter valid numbers.", type="warning")
+
+        ui.button("Save scoring", icon="save", on_click=save_scoring).props("unelevated").classes("mt-2")
+
+
+# ── App shell (explicit @ui.page → required for a packaged onefile exe) ────────
+# All UI lives inside the page function; nothing is created in global scope. This
+# stops NiceGUI from re-executing the script per request (which fails once the
+# "script" is a frozen .exe binary).
+@ui.page("/")
+def index():
+    ui.colors(primary="#2563eb", secondary="#0f172a", accent="#10b981")
+    ui.add_head_html('<style>body{background:#f1f5f9;}</style>')
+    header()
+    with ui.column().classes("w-full max-w-[1300px] mx-auto px-6 py-4 gap-0"):
+        with ui.tabs().classes("w-full") as tabs:
+            t_list = ui.tab("Portfolio", icon="table_view")
+            t_form = ui.tab("Add / Edit Property", icon="add_box")
+            t_rpts = ui.tab("Reports", icon="summarize")
+            t_rate = ui.tab("Rates", icon="payments")
+            t_set  = ui.tab("Settings", icon="settings")
+        _ui["tabs"] = tabs          # so a save can switch back to the portfolio
+        _ui["t_list"] = t_list
+        with ui.tab_panels(tabs, value=t_list).classes("w-full bg-transparent"):
+            with ui.tab_panel(t_list):
+                portfolio_tab()
+            with ui.tab_panel(t_form):
+                form_tab()
+            with ui.tab_panel(t_rpts):
+                reports_tab()
+            with ui.tab_panel(t_rate):
+                rates_tab()
+            with ui.tab_panel(t_set):
+                settings_tab()
+
+
+if __name__ in {"__main__", "__mp_main__"}:
+    import multiprocessing
+    multiprocessing.freeze_support()  # required for PyInstaller onefile + native mode
+    if os.environ.get("CPA_WEB") == "1":
+        # Dev/test mode: serve in the browser (set CPA_WEB=1) so the UI can be
+        # previewed and clicked without a native window. The packaged exe never
+        # sets this, so it always runs as a native desktop window.
+        ui.run(reload=False, port=8080, show=False,
+               title="Commercial Property Analyser POC")
+    else:
+        ui.run(native=True, reload=False, window_size=(1320, 860),
+               port=native.find_open_port(),
+               title="Commercial Property Analyser POC")

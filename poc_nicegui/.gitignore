@@ -1,0 +1,8 @@
+# PyInstaller / build artifacts — do not commit (the exe is ~100 MB)
+dist/
+build/
+*.spec
+__pycache__/
+
+# Local runtime database (migrated from seed data on first run)
+_data/

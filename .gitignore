@@ -9,6 +9,9 @@ __pycache__/
 .claude
 *.json.bak
 *.json.tmp
+properties.db
+properties.db-journal
+properties.db-wal
 properties - Copy.json
 properties copy_v1.json
 json/reanalyze_errors.log
