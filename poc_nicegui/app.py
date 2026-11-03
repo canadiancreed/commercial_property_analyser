@@ -65,7 +65,7 @@ from datetime import date
 from data.store import DataStore, CommercialRentLoader, ResidentialRentLoader
 from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
-from analysis.report_builder import record_to_prop, build_report_row
+from analysis.report_builder import record_to_prop, build_report_row, reanalyze_properties
 from analysis.financing_config import (
     resolve_financing, mixed_use_commercial_gfa_share,
     load_financing_config, save_financing_config,
@@ -241,9 +241,26 @@ def portfolio_tab():
     }).classes("h-[62vh]")
     _ui["grid"] = grid
 
-    ui.label("Tip: click any row to open that property's investment report "
-             "(the existing HTML, rendered inside the app).").classes(
-        "text-xs text-slate-500 mt-2")
+    async def on_reanalyze_all():
+        note = ui.notification("Re-analyzing all properties…", spinner=True, timeout=None)
+        try:
+            res = await asyncio.to_thread(reanalyze_properties, store, resolver,
+                                          CommercialPropertyAnalyzer)
+        finally:
+            note.dismiss()
+        refresh_portfolio()
+        ui.notify(
+            f"Re-analyzed {res['updated']}/{res['total']} "
+            f"({res['skipped']} skipped, {res['errors']} error(s)).",
+            type="positive",
+        )
+
+    with ui.row().classes("w-full items-center mt-2"):
+        ui.label("Tip: click any row to open that property's investment report "
+                 "(the existing HTML, rendered inside the app).").classes(
+            "text-xs text-slate-500 mr-auto")
+        ui.button("Re-analyze all", icon="refresh",
+                  on_click=on_reanalyze_all).props("outline no-caps dense")
 
     async def on_click(e):
         # Extract ONLY the row's `data` client-side (3rd arg below). Sending the whole
@@ -667,12 +684,19 @@ def commercial_rates_editor():
                 ui.notify("City and province are required.", type="warning"); return
             rates = {t: float(f[t].value) for t in RATE_COMM_TYPES if f[t].value not in (None, "")}
             store.save_commercial_city(city, prov, rates)
+            res = reanalyze_properties(
+                store, resolver, CommercialPropertyAnalyzer,
+                predicate=lambda p: (p.get("city", "") or "").strip().lower() == city.lower()
+                and (p.get("province", "") or "").strip().upper() == prov)
             data["rows"] = store.load_commercial_rate_rows()
             sel["val"] = next((k for k, r in labels().items()
                                if r["city"].lower() == city.lower() and r["province"] == prov), _NEW_CITY)
             city_select.set_options([_NEW_CITY] + sorted(labels(), key=str.lower), value=sel["val"])
             form.refresh()
-            ui.notify(f"Saved commercial rates for {city}, {prov}.", type="positive")
+            refresh_portfolio()
+            msg = f"Saved commercial rates for {city}, {prov}"
+            msg += f" — re-analyzed {res['updated']} affected propert{'y' if res['updated'] == 1 else 'ies'}." if res["considered"] else "."
+            ui.notify(msg, type="positive")
 
         ui.button("Save rates", icon="save", on_click=save).props("unelevated").classes("mt-1")
 
@@ -718,12 +742,19 @@ def residential_rates_editor():
             if known:
                 units["unknown"] = round(sum(known) / len(known), 2)
             store.save_residential_city(city, prov, units)
+            res = reanalyze_properties(
+                store, resolver, CommercialPropertyAnalyzer,
+                predicate=lambda p: (p.get("city", "") or "").strip().lower() == city.lower()
+                and (p.get("province", "") or "").strip().upper() == prov)
             data["rows"] = store.load_residential_rate_rows()
             sel["val"] = next((k for k, r in labels().items()
                                if r["city"].lower() == city.lower() and r["province"] == prov), _NEW_CITY)
             city_select.set_options([_NEW_CITY] + sorted(labels(), key=str.lower), value=sel["val"])
             form.refresh()
-            ui.notify(f"Saved residential rates for {city}, {prov}.", type="positive")
+            refresh_portfolio()
+            msg = f"Saved residential rates for {city}, {prov}"
+            msg += f" — re-analyzed {res['updated']} affected propert{'y' if res['updated'] == 1 else 'ies'}." if res["considered"] else "."
+            ui.notify(msg, type="positive")
 
         ui.button("Save rates", icon="save", on_click=save).props("unelevated").classes("mt-1")
 
@@ -779,7 +810,8 @@ def settings_tab():
                 if not (0 <= d < 1) or r < 0:
                     ui.notify("Down payment 0–100%, rate ≥ 0.", type="warning"); return
                 save_financing_config(round(d, 4), round(r, 4), int(tm.value), int(hy.value))
-                ui.notify("Saved global financing defaults.", type="positive")
+                ui.notify("Saved global financing defaults — run “Re-analyze all” "
+                          "(Portfolio tab) to apply it to stored results.", type="positive")
             except (TypeError, ValueError):
                 ui.notify("Please enter valid numbers.", type="warning")
 

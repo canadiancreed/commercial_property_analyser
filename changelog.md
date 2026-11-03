@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.3.0] — 2026-11-03
+
+_Re-analysis on data change (desktop app) — edits to rates or financing no longer leave
+stored results stale._
+
+### Added
+
+- **`reanalyze_properties(store, resolver, analyzer_cls, predicate=None)`** in
+  `analysis/report_builder.py` — a headless re-run of analysis for stored properties
+  (record → PropertyInput → analyzer → `to_record(existing)` → `update_property`),
+  mirroring the CLI `_reanalyze_all` core loop; `predicate` limits it to a subset
+  (e.g. one city). Returns updated / skipped / error counts.
+- Desktop app: a **Re-analyze all** action on the Portfolio tab runs it in a background
+  thread with a spinner and reports the counts. Saving a commercial or residential rate
+  now **auto-re-analyzes that city's** properties and refreshes the portfolio; the
+  financing-defaults save prompts the user to run Re-analyze all.
+
 ## [4.2.0] — 2026-11-03
 
 _Stage A: shared service layer — the record↔model and report-row mappings now live in

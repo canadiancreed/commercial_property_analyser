@@ -67,6 +67,36 @@ def record_to_prop(p: dict) -> PropertyInput:
     )
 
 
+def reanalyze_properties(store, resolver, analyzer_cls, predicate=None) -> dict:
+    """Re-run analysis for stored properties and save the refreshed records in place.
+
+    Mirrors the CLI `_reanalyze_all` core loop (minus the CLI-only console reporting):
+    record → PropertyInput → analyzer → to_record(existing) → update_property. A
+    ValueError means no market rate for that city yet (expected → skipped); any other
+    exception is counted as an error. Pass `predicate(record)->bool` to limit the set
+    (e.g. one city after a rate edit). Returns a counts dict.
+    """
+    props = store.load_properties()
+    updated = skipped = errors = considered = 0
+    for i, p in enumerate(props):
+        if predicate is not None and not predicate(p):
+            continue
+        considered += 1
+        try:
+            prop   = record_to_prop(p)
+            record = analyzer_cls(prop, resolver).to_record(existing=p)
+            if p.get("notes"):
+                record["notes"] = p["notes"]
+            store.update_property(i, record)
+            updated += 1
+        except ValueError:
+            skipped += 1          # no market rent rates for this city yet — expected
+        except Exception:
+            errors += 1
+    return {"updated": updated, "skipped": skipped, "errors": errors,
+            "considered": considered, "total": len(props)}
+
+
 def build_report_row(p: dict, scored: dict, targets: dict) -> dict:
     return {
         "address": p.get("address", "—"), "mls": p.get("mls_number", "—"),

@@ -6,7 +6,7 @@ README title and the top `changelog.md` entry in sync with it.
 **Convention:** each completed step below is a **minor** bump (4.1.0, 4.2.0, …);
 **major** only for a storage/architecture break; **patch** for fixes.
 
-**Current — v4.2.0:** SQLite data layer (properties + commercial_rents +
+**Current — v4.3.0:** SQLite data layer (properties + commercial_rents +
 residential_rents tables behind the unchanged `DataStore` API, guarded JSON→DB
 migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware
 Add/Edit form (**edit & delete done in 4.1.0**), all 7 reports embedded, rate editing,
@@ -31,10 +31,10 @@ per-user database.
   loops — `_rows_simple` / `_rows_with_targets` and the CLI `_open_*` — are still per
   front-end; a fuller service is optional later.)
 
-### 4.3.0 — Re-analysis on data change
-- After a rate or financing edit, re-analyze affected stored properties (mirror the CLI
-  `_reanalyze_city` / `_reanalyze_all`) so stored results don't go stale.
-- Add a "Re-analyze all" action to the desktop app.
+### ✅ 4.3.0 — Re-analysis on data change (DONE)
+- `reanalyze_properties()` in `analysis/report_builder.py` (headless, predicate-filterable).
+- "Re-analyze all" action on the Portfolio tab (threaded + spinner). Rate saves
+  auto-re-analyze the affected city; financing save nudges to Re-analyze all.
 
 ### 4.4.0 — Full add/edit field surface + validation
 - Wire the remaining per-type inputs into the saved record (commercial rent semantics,
