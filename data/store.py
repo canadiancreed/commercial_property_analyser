@@ -307,6 +307,13 @@ class DataStore:
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
     """
 
+    # Current on-disk schema version (SQLite PRAGMA user_version). The baseline schema
+    # above is version 1. When the schema changes in a future release, bump this and add
+    # the forward step to _MIGRATIONS below; _apply_migrations runs the pending steps and
+    # restamps user_version on the next connect. Keeps old databases upgradable in place.
+    SCHEMA_VERSION = 1
+    _MIGRATIONS = {}   # {target_version: callable(conn)} — baseline (v1) needs no step
+
     def _connect(self) -> sqlite3.Connection:
         """Open the properties DB, creating the file + schema on first use."""
         parent = os.path.dirname(self._properties_path)
@@ -315,7 +322,21 @@ class DataStore:
         conn = sqlite3.connect(self._properties_path)
         conn.row_factory = sqlite3.Row
         conn.executescript(self._SCHEMA)
+        self._apply_migrations(conn)
         return conn
+
+    def _apply_migrations(self, conn) -> None:
+        """Run any pending forward migrations and stamp the schema version."""
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version >= self.SCHEMA_VERSION:
+            return
+        for target in range(version + 1, self.SCHEMA_VERSION + 1):
+            step = self._MIGRATIONS.get(target)
+            if step is not None:
+                step(conn)
+        # PRAGMA can't be parameterised; SCHEMA_VERSION is a trusted int constant.
+        conn.execute(f"PRAGMA user_version = {int(self.SCHEMA_VERSION)}")
+        conn.commit()
 
     @staticmethod
     def _row_columns(record: dict) -> tuple:

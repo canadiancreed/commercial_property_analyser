@@ -178,3 +178,23 @@ class TestRateTables:
         s.save_commercial_rates("Ottawa", "ON", {"Office": 99.0})   # user edit
         # A fresh instance must not re-import the JSON over the edit (guard persisted)
         assert _store(tmp_path).load_commercial_rates()["ottawa"]["office"] == 99.0
+
+
+class TestSchemaVersion:
+    def _user_version(self, tmp_path):
+        conn = sqlite3.connect(str(tmp_path / "props.db"))
+        v = conn.execute("PRAGMA user_version").fetchone()[0]
+        conn.close()
+        return v
+
+    def test_fresh_db_stamped_current(self, tmp_path):
+        _store(tmp_path).load_properties()                 # triggers _connect
+        assert self._user_version(tmp_path) == DataStore.SCHEMA_VERSION
+
+    def test_old_db_upgraded_in_place(self, tmp_path):
+        s = _store(tmp_path)
+        s.load_properties()
+        conn = sqlite3.connect(str(tmp_path / "props.db"))  # simulate pre-versioning DB
+        conn.execute("PRAGMA user_version = 0"); conn.commit(); conn.close()
+        s.load_properties()                                 # next connect restamps
+        assert self._user_version(tmp_path) == DataStore.SCHEMA_VERSION

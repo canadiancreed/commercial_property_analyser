@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.7.0] — 2026-11-03
+
+_Packaging polish: a database schema-version + migration scaffold, a reproducible build
+script, and an app icon. (A Windows installer and bundling the Firefox browser binary
+into the exe remain.)_
+
+### Added
+
+- **DB schema versioning.** The SQLite database now carries a `user_version` (baseline = 1),
+  and `DataStore` applies any pending forward migrations on connect (`SCHEMA_VERSION` +
+  `_MIGRATIONS`), so a future schema change can upgrade an old database in place instead of
+  breaking it. Pre-versioning databases are stamped to the current version on next open.
+- **`poc_nicegui/build.py`** — a single reproducible build command (onefile by default,
+  `--onedir` for faster startup) that bundles NiceGUI, the json/ + config/ + properties
+  seed, the Playwright driver, and the app icon.
+- **App icon** (`poc_nicegui/icon.ico`), wired into the build.
+
+### Remaining (environment-heavy)
+
+- A Windows **installer** (e.g. Inno Setup / NSIS) — needs a packaging toolchain.
+- Bundling the **Firefox browser binary** into the exe, so scraping needs no separate
+  `python -m playwright install firefox` on the target machine.
+
 ## [4.6.0] — 2026-11-03
 
 _Scraper: realtor.ca URL import in the desktop app (lazy-loaded), and Playwright now

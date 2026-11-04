@@ -6,7 +6,7 @@ README title and the top `changelog.md` entry in sync with it.
 **Convention:** each completed step below is a **minor** bump (4.1.0, 4.2.0, …);
 **major** only for a storage/architecture break; **patch** for fixes.
 
-**Current — v4.6.0:** SQLite data layer (properties + commercial_rents +
+**Current — v4.7.0:** SQLite data layer (properties + commercial_rents +
 residential_rents tables behind the unchanged `DataStore` API, guarded JSON→DB
 migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware
 Add/Edit form (**edit & delete done in 4.1.0**), all 7 reports embedded, rate editing,
@@ -55,10 +55,12 @@ per-user database.
 - DEFERRED: realtor.ca **price-check sweep** (multi-hour, interactive) — stays in the CLI.
 - DEFERRED to 4.7.0: bundle the **Firefox browser binary** into the exe (no separate install).
 
-### 4.7.0 — Packaging & robustness polish
-- App icon; `--onedir` build option (faster startup than onefile); an installer.
-- DB `user_version` pragma + a schema-migration path for future changes.
-- Optionally move missing-cities / price-check progress into the DB.
+### ◑ 4.7.0 — Packaging & robustness polish (partly DONE)
+- DONE: app icon (`icon.ico`); reproducible `build.py` (onefile + `--onedir`); DB
+  `user_version` + migration scaffold (`SCHEMA_VERSION` / `_MIGRATIONS`).
+- REMAINING: a Windows installer (needs Inno Setup / NSIS); bundle the Firefox browser
+  binary into the exe (no separate `playwright install firefox`); optionally move
+  missing-cities / price-check progress into the DB.
 
 ---
 
