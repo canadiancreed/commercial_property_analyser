@@ -6,6 +6,168 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.7.0] — 2026-11-03
+
+_Packaging polish: a database schema-version + migration scaffold, a reproducible build
+script, and an app icon. (A Windows installer and bundling the Firefox browser binary
+into the exe remain.)_
+
+### Added
+
+- **DB schema versioning.** The SQLite database now carries a `user_version` (baseline = 1),
+  and `DataStore` applies any pending forward migrations on connect (`SCHEMA_VERSION` +
+  `_MIGRATIONS`), so a future schema change can upgrade an old database in place instead of
+  breaking it. Pre-versioning databases are stamped to the current version on next open.
+- **`poc_nicegui/build.py`** — a single reproducible build command (onefile by default,
+  `--onedir` for faster startup) that bundles NiceGUI, the json/ + config/ + properties
+  seed, the Playwright driver, and the app icon.
+- **App icon** (`poc_nicegui/icon.ico`), wired into the build.
+
+### Remaining (environment-heavy)
+
+- A Windows **installer** (e.g. Inno Setup / NSIS) — needs a packaging toolchain.
+- Bundling the **Firefox browser binary** into the exe, so scraping needs no separate
+  `python -m playwright install firefox` on the target machine.
+
+## [4.6.0] — 2026-11-03
+
+_Scraper: realtor.ca URL import in the desktop app (lazy-loaded), and Playwright now
+bundles into the exe. The multi-hour price-check sweep stays a CLI feature for now, and
+bundling the Firefox browser binary itself is left to packaging (4.7.0)._
+
+### Added
+
+- **Add from realtor.ca URL** (Portfolio toolbar): paste a listing URL → it opens Firefox,
+  reads the listing, and saves an incomplete record (mirrors the CLI `_add_from_url`), to
+  be completed via Edit. The scraper is imported **lazily**, so the app still starts
+  without Playwright, and a missing / blocked scraper degrades to a friendly message
+  rather than crashing.
+- The onefile exe now bundles the Playwright driver (`--collect-all playwright`) and still
+  starts cleanly (~145 MB). Live scraping needs a system Firefox
+  (`python -m playwright install firefox`) and may require solving a CAPTCHA in the browser
+  window it opens.
+
+### Deferred
+
+- The realtor.ca **price-check sweep** (every stored property's current price) — a
+  multi-hour, interactive, bot-detection-prone operation — stays in the CLI for now.
+- Bundling the Firefox **browser binary** into the exe (so no separate install) is 4.7.0
+  packaging work.
+
+## [4.5.0] — 2026-11-03
+
+_Scoring sub-editors in the desktop app. (CSV import is intentionally omitted — it's a
+deprecated path; realtor.ca URL import moves to 4.6.0 with the scraper it depends on.)_
+
+### Added
+
+- Settings: a **City opportunity** editor — the 14 city-ranker signal weights plus the
+  model knobs (depth weight / reference, outlier cap-rate / CoCR ceilings), saved through
+  the scorer config.
+- A new **City data** tab with two editors: **Distances** (nearest regional centre + km,
+  which drives the Location score) and **Demographics** (2021 + 2016 census population →
+  auto-computed annualised growth, which feeds the city-opportunity ranker). Both write to
+  the per-user data dir, never the tracked repo files.
+
+## [4.4.0] — 2026-11-03
+
+_Fuller add/edit form + input validation (desktop app)._
+
+### Added
+
+- The Add/Edit form now captures **construction cost** (core group) and **commercial
+  lease expiry** (commercial group), and flags a commercial rent you type as
+  user-entered (advertised/actual, not a market estimate). All are wired into the saved
+  record and prefilled when editing.
+- **Validation:** inline rules (asking price must be > 0, sq ft can't be negative) plus
+  a save-time guard that blocks saving without an address or with a non-positive asking
+  price.
+
+## [4.3.0] — 2026-11-03
+
+_Re-analysis on data change (desktop app) — edits to rates or financing no longer leave
+stored results stale._
+
+### Added
+
+- **`reanalyze_properties(store, resolver, analyzer_cls, predicate=None)`** in
+  `analysis/report_builder.py` — a headless re-run of analysis for stored properties
+  (record → PropertyInput → analyzer → `to_record(existing)` → `update_property`),
+  mirroring the CLI `_reanalyze_all` core loop; `predicate` limits it to a subset
+  (e.g. one city). Returns updated / skipped / error counts.
+- Desktop app: a **Re-analyze all** action on the Portfolio tab runs it in a background
+  thread with a spinner and reports the counts. Saving a commercial or residential rate
+  now **auto-re-analyzes that city's** properties and refreshes the portfolio; the
+  financing-defaults save prompts the user to run Re-analyze all.
+
+## [4.2.0] — 2026-11-03
+
+_Stage A: shared service layer — the record↔model and report-row mappings now live in
+one place instead of being duplicated across the CLI and the desktop app._
+
+### Changed
+
+- Extracted `record_to_prop` and `build_report_row` into **`analysis/report_builder.py`**,
+  the single source used by both front-ends. `ui/menu.py` exposes them as
+  `PropertyMenu._record_to_prop` / `_build_report_row` (staticmethod class attributes, so
+  the existing API — including the tests and the instance monkeypatch — is unchanged), and
+  `poc_nicegui/app.py` imports them instead of keeping verbatim copies. Pure refactor, no
+  behaviour change; all 1401 tests pass.
+
+## [4.1.0] — 2026-11-02
+
+_Desktop app: property edit & delete._
+
+### Added
+
+- **Edit & delete** in the NiceGUI desktop app. The report dialog gains Edit and Delete
+  actions. **Edit** loads the record into the type-aware form (reshaped to its property
+  type and prefilled), re-runs the analyzer on save, and updates in place — removing the
+  original first so an address / listing-date change can't create a duplicate. **Delete**
+  asks for confirmation, then removes the record from the database.
+- Report iframes are cache-busted (`?t=…`) so a reused report slot always renders the
+  current record's HTML rather than a stale cached file.
+
+## [4.0.0] — 2026-11-02
+
+_Database-backed storage and a desktop application. Property and rent data move out of
+single JSON files into a SQLite database (behind the unchanged `DataStore` API), and a
+NiceGUI desktop proof-of-concept — packaged as a standalone Windows `.exe` — reuses the
+whole analysis engine and HTML reports. Major version bump: the storage layer changed
+and the app gained a graphical front end alongside the CLI._
+
+### Added
+
+- **SQLite data layer.** Property records now live in a `properties` table and rent data
+  in dedicated `commercial_rents` + `residential_rents` tables, replacing the
+  fully-rewritten-on-every-save JSON files. Each property is stored losslessly as a JSON
+  blob with a few mirrored, indexed columns (city / province / status / type / price).
+  A single save is now one row write instead of rewriting the whole file.
+- **Transparent one-time migration.** On first run the app imports the legacy
+  `properties.json` and the rent JSON into the database (`ensure_properties_migrated` /
+  `ensure_rates_migrated`), guarded so it never re-runs or clobbers later edits, and
+  never modifies the source JSON. Rate lookups trigger it lazily; `main.py` runs it at
+  startup.
+- **Editable rate views** — `DataStore.load_commercial_rate_rows()` /
+  `load_residential_rate_rows()` return city + province + per-type/unit values for
+  editing UIs.
+- **Desktop application (proof-of-concept)** under `poc_nicegui/` — a NiceGUI app packaged
+  into one double-click Windows `.exe` (PyInstaller), running as a native window and
+  reading/writing a persistent per-user SQLite database. Tabs: Portfolio (searchable
+  grid), type-aware Add form, all seven reports embedded (reusing each generator's
+  `render()`), commercial/residential rate editing, and global settings (financing
+  defaults + scoring weights). See `poc_nicegui/README.md`.
+- **Tests** — `tests/test_data_store_sqlite.py` (persistence, lossless nested round-trip,
+  mirrored columns, insertion order, migration guard, rate tables).
+
+### Changed
+
+- `DataStore` property + rate methods are reimplemented on SQLite while keeping their
+  public signatures and return shapes identical — no other module changed. Missing-cities
+  and price-check progress remain JSON (read-mostly / scratch data).
+- `PROPERTIES_PATH` default is now `properties.db`; the legacy `properties.json` becomes
+  a one-time migration seed.
+
 ## [3.7.0] — Unreleased
 
 _Regional vacancy pipeline. The hardcoded per-type vacancy constant is replaced by a

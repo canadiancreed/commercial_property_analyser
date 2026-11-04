@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import sqlite3
 from datetime import date
 
 
@@ -12,7 +13,8 @@ class DataStore:
 
     COMMERCIAL_PATH  = "json/commercial_rents.json"
     RESIDENTIAL_PATH = "json/residential_rents.json"
-    PROPERTIES_PATH  = "properties.json"
+    PROPERTIES_PATH  = "properties.db"        # SQLite database (was properties.json)
+    PROPERTIES_JSON_LEGACY = "properties.json"  # imported once into the DB on first run
     MISSING_PATH     = "json/missing_cities.json"
     MISSING_RENT_PATH = "json/missing_rent_data.json"
     PRICE_CHECK_PROGRESS_PATH = "json/price_check_progress.json"
@@ -46,37 +48,133 @@ class DataStore:
         os.replace(tmp, path)
 
     # ------------------------------------------------------------------
+    # Rent rates (SQLite-backed: commercial_rents + residential_rents tables)
+    #
+    # Rents moved out of commercial_rents.json / residential_rents.json into their
+    # own normalised tables (one row per city+type / city+unit). The JSON files
+    # remain the one-time migration source (imported transparently on first use,
+    # guarded so it never re-runs or overwrites DB edits). Return shapes are
+    # unchanged, so RentResolver / the loaders / the rate editor are untouched.
+    # ------------------------------------------------------------------
+
+    def ensure_rates_migrated(self) -> None:
+        """Import the legacy rent JSON files into the rate tables ONCE per database.
+
+        Instance-cached so repeated rate lookups don't re-query the guard. Guarded
+        by a meta flag (persisted), and imports with INSERT OR IGNORE so it never
+        clobbers rows already written to the DB."""
+        if getattr(self, "_rates_migrated_checked", False):
+            return
+        conn = self._connect()
+        try:
+            done = conn.execute(
+                "SELECT value FROM meta WHERE key = 'migrated_rates'"
+            ).fetchone()
+        finally:
+            conn.close()
+        if not done:
+            self._import_rates_from_json()
+            conn = self._connect()
+            try:
+                conn.execute(
+                    "INSERT OR REPLACE INTO meta (key, value) VALUES ('migrated_rates', ?)",
+                    (date.today().isoformat(),),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        self._rates_migrated_checked = True
+
+    def _import_rates_from_json(self) -> None:
+        conn = self._connect()
+        try:
+            if os.path.exists(self._commercial_path):
+                try:
+                    raw = self._read(self._commercial_path)
+                except Exception:
+                    raw = {"cities": {}}
+                for city, cdata in raw.get("cities", {}).items():
+                    city_key = city.strip().lower()
+                    province = cdata.get("province")
+                    source   = cdata.get("source") or ""
+                    for ptype, rate in cdata.get("types", {}).items():
+                        conn.execute(
+                            "INSERT OR IGNORE INTO commercial_rents "
+                            "(city_key, city, province, property_type, rate, source) "
+                            "VALUES (?, ?, ?, ?, ?, ?)",
+                            (city_key, city, province, ptype, rate, source),
+                        )
+            if os.path.exists(self._residential_path):
+                try:
+                    raw = self._read(self._residential_path)
+                except Exception:
+                    raw = {"cities": {}}
+                for city, cdata in raw.get("cities", {}).items():
+                    city_key = city.strip().lower()
+                    province = cdata.get("province")
+                    for unit, rent in cdata.get("units", {}).items():
+                        conn.execute(
+                            "INSERT OR IGNORE INTO residential_rents "
+                            "(city_key, city, province, unit_type, rent) "
+                            "VALUES (?, ?, ?, ?, ?)",
+                            (city_key, city, province, unit, rent),
+                        )
+            conn.commit()
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
     # Commercial rates
     # ------------------------------------------------------------------
 
     def load_commercial_rates(self) -> dict:
         """Returns {city_lower: {type_lower: rate}} for fast lookup."""
-        raw = self._read(self._commercial_path)
+        self.ensure_rates_migrated()
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT city_key, property_type, rate FROM commercial_rents"
+            ).fetchall()
+        finally:
+            conn.close()
         index = {}
-        for city, city_data in raw["cities"].items():
-            city_key = city.strip().lower()
-            index[city_key] = {
-                t.strip().lower(): rate
-                for t, rate in city_data["types"].items()
-            }
+        for r in rows:
+            index.setdefault(r["city_key"], {})[r["property_type"].strip().lower()] = r["rate"]
         return index
 
     def load_commercial_sources(self) -> dict:
-        """Returns {city_lower: source_string} from the commercial rates file.
+        """Returns {city_lower: source_string} from the commercial rate table.
 
         The per-city ``source`` field is prefixed ``Src:`` (sourced from a broker
         report) or ``Est:`` (estimate); used to grade rate confidence.
         """
-        raw = self._read(self._commercial_path)
-        return {
-            city.strip().lower(): (city_data.get("source") or "")
-            for city, city_data in raw["cities"].items()
-        }
+        self.ensure_rates_migrated()
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT city_key, source FROM commercial_rents"
+            ).fetchall()
+        finally:
+            conn.close()
+        return {r["city_key"]: (r["source"] or "") for r in rows}
 
     def save_commercial_rates(self, city: str, province: str, rates: dict):
-        data = self._read(self._commercial_path)
-        data["cities"][city] = {"province": province, "types": rates}
-        self._write(self._commercial_path, data)
+        """Replace a city's commercial rates (mirrors the old whole-city overwrite)."""
+        self.ensure_rates_migrated()
+        city_key = city.strip().lower()
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM commercial_rents WHERE city_key = ?", (city_key,))
+            for ptype, rate in rates.items():
+                conn.execute(
+                    "INSERT INTO commercial_rents "
+                    "(city_key, city, province, property_type, rate, source) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (city_key, city, province, ptype, rate, None),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------------
     # Residential rates
@@ -84,79 +182,315 @@ class DataStore:
 
     def load_residential_rates(self) -> dict:
         """Returns {city_lower: {unit_type: monthly_rent_or_None}} for fast lookup."""
-        raw = self._read(self._residential_path)
+        self.ensure_rates_migrated()
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT city_key, unit_type, rent FROM residential_rents"
+            ).fetchall()
+        finally:
+            conn.close()
         index = {}
-        for city, city_data in raw["cities"].items():
-            city_key = city.strip().lower()
-            index[city_key] = {
-                k: (float(v) if v is not None else None)
-                for k, v in city_data["units"].items()
-            }
+        for r in rows:
+            rent = float(r["rent"]) if r["rent"] is not None else None
+            index.setdefault(r["city_key"], {})[r["unit_type"]] = rent
         return index
 
     def save_residential_rates(self, city: str, province: str, units: dict):
-        data = self._read(self._residential_path)
-        data["cities"][city] = {"province": province, "units": units}
-        self._write(self._residential_path, data)
+        """Replace a city's residential rates (mirrors the old whole-city overwrite)."""
+        self.ensure_rates_migrated()
+        city_key = city.strip().lower()
+        conn = self._connect()
+        try:
+            conn.execute("DELETE FROM residential_rents WHERE city_key = ?", (city_key,))
+            for unit, rent in units.items():
+                conn.execute(
+                    "INSERT INTO residential_rents "
+                    "(city_key, city, province, unit_type, rent) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (city_key, city, province, unit, rent),
+                )
+            conn.commit()
+        finally:
+            conn.close()
 
     # ------------------------------------------------------------------
-    # Property analyses
+    # Editable rate views (city + province + per-type/unit values)
     # ------------------------------------------------------------------
+
+    def load_commercial_rate_rows(self) -> list:
+        """Editable view: [{city, province, types: {Type: rate}, source}] by city."""
+        self.ensure_rates_migrated()
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT city_key, city, province, property_type, rate, source "
+                "FROM commercial_rents ORDER BY city, property_type"
+            ).fetchall()
+        finally:
+            conn.close()
+        out = {}
+        for r in rows:
+            e = out.setdefault(r["city_key"], {
+                "city": r["city"], "province": r["province"],
+                "types": {}, "source": r["source"] or "",
+            })
+            e["types"][r["property_type"]] = r["rate"]
+        return sorted(out.values(), key=lambda e: (e["city"] or "").lower())
+
+    def load_residential_rate_rows(self) -> list:
+        """Editable view: [{city, province, units: {unit: rent}}] by city."""
+        self.ensure_rates_migrated()
+        conn = self._connect()
+        try:
+            rows = conn.execute(
+                "SELECT city_key, city, province, unit_type, rent "
+                "FROM residential_rents ORDER BY city, unit_type"
+            ).fetchall()
+        finally:
+            conn.close()
+        out = {}
+        for r in rows:
+            e = out.setdefault(r["city_key"], {
+                "city": r["city"], "province": r["province"], "units": {},
+            })
+            e["units"][r["unit_type"]] = r["rent"]
+        return sorted(out.values(), key=lambda e: (e["city"] or "").lower())
+
+    # ------------------------------------------------------------------
+    # Property analyses (SQLite-backed)
+    #
+    # Properties are the only high-churn, frequently-rewritten data, so they live
+    # in a SQLite database (self._properties_path) rather than one JSON file that
+    # was fully rewritten (all ~8 MB) on every single save. Each record is stored
+    # losslessly as a JSON blob in `data`; a few columns (city/province/status/
+    # type/price) are mirrored for indexing and future queries. The public API —
+    # load/save/delete/update and the index-based positions — is unchanged, so no
+    # other module needs to know the storage changed. Rates / missing / progress
+    # stay JSON (read-mostly reference data).
+    # ------------------------------------------------------------------
+
+    _SCHEMA = """
+        CREATE TABLE IF NOT EXISTS properties (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            address       TEXT NOT NULL,
+            listing_date  TEXT NOT NULL DEFAULT '',
+            city          TEXT,
+            province      TEXT,
+            status        TEXT,
+            property_type TEXT,
+            asking_price  REAL,
+            data          TEXT NOT NULL,
+            UNIQUE(address, listing_date)
+        );
+        CREATE INDEX IF NOT EXISTS idx_properties_city   ON properties(city);
+        CREATE INDEX IF NOT EXISTS idx_properties_status ON properties(status);
+
+        CREATE TABLE IF NOT EXISTS commercial_rents (
+            city_key      TEXT NOT NULL,          -- lowercased lookup key
+            city          TEXT NOT NULL,          -- display casing
+            province      TEXT,
+            property_type TEXT NOT NULL,          -- 'Office', 'Retail', ...
+            rate          REAL,                   -- $/sqft, NULL = unfilled stub
+            source        TEXT,                   -- per-city 'Src:'/'Est:' provenance
+            PRIMARY KEY (city_key, property_type)
+        );
+        CREATE TABLE IF NOT EXISTS residential_rents (
+            city_key  TEXT NOT NULL,              -- lowercased lookup key
+            city      TEXT NOT NULL,              -- display casing
+            province  TEXT,
+            unit_type TEXT NOT NULL,              -- 'bachelor', 'one_br', ...
+            rent      REAL,                       -- monthly rent, NULL = unfilled stub
+            PRIMARY KEY (city_key, unit_type)
+        );
+
+        CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+    """
+
+    # Current on-disk schema version (SQLite PRAGMA user_version). The baseline schema
+    # above is version 1. When the schema changes in a future release, bump this and add
+    # the forward step to _MIGRATIONS below; _apply_migrations runs the pending steps and
+    # restamps user_version on the next connect. Keeps old databases upgradable in place.
+    SCHEMA_VERSION = 1
+    _MIGRATIONS = {}   # {target_version: callable(conn)} — baseline (v1) needs no step
+
+    def _connect(self) -> sqlite3.Connection:
+        """Open the properties DB, creating the file + schema on first use."""
+        parent = os.path.dirname(self._properties_path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+        conn = sqlite3.connect(self._properties_path)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(self._SCHEMA)
+        self._apply_migrations(conn)
+        return conn
+
+    def _apply_migrations(self, conn) -> None:
+        """Run any pending forward migrations and stamp the schema version."""
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version >= self.SCHEMA_VERSION:
+            return
+        for target in range(version + 1, self.SCHEMA_VERSION + 1):
+            step = self._MIGRATIONS.get(target)
+            if step is not None:
+                step(conn)
+        # PRAGMA can't be parameterised; SCHEMA_VERSION is a trusted int constant.
+        conn.execute(f"PRAGMA user_version = {int(self.SCHEMA_VERSION)}")
+        conn.commit()
+
+    @staticmethod
+    def _row_columns(record: dict) -> tuple:
+        """The mirrored (indexable) columns + JSON blob pulled from a record."""
+        return (
+            record.get("address", ""),
+            record.get("listing_date", ""),
+            record.get("city"),
+            record.get("province"),
+            record.get("status"),
+            record.get("property_type"),
+            record.get("asking_price"),
+            json.dumps(record, ensure_ascii=False),
+        )
 
     def load_properties(self) -> list:
-        if not os.path.exists(self._properties_path):
-            return []
-        return self._read(self._properties_path).get("properties", [])
+        conn = self._connect()
+        try:
+            rows = conn.execute("SELECT data FROM properties ORDER BY id").fetchall()
+        finally:
+            conn.close()
+        return [json.loads(r["data"]) for r in rows]
 
     def save_property(self, record: dict):
-        """Appends or replaces a property record (matched on address + listing_date)."""
-        if os.path.exists(self._properties_path):
-            data = self._read(self._properties_path)
-        else:
-            data = {"properties": []}
+        """Insert or replace a property record (matched on address + listing_date).
 
-        key = (record.get("address", ""), record.get("listing_date", ""))
-        data["properties"] = [
-            p for p in data["properties"]
-            if (p.get("address", ""), p.get("listing_date", "")) != key
-        ]
-        data["properties"].append(record)
-        self._write(self._properties_path, data)
+        Mirrors the old JSON behaviour: an existing record with the same key is
+        removed and the new one appended (so it sorts last by insertion order)."""
+        addr    = record.get("address", "")
+        listing = record.get("listing_date", "")
+        conn = self._connect()
+        try:
+            conn.execute(
+                "DELETE FROM properties WHERE address = ? AND listing_date = ?",
+                (addr, listing),
+            )
+            conn.execute(
+                "INSERT INTO properties "
+                "(address, listing_date, city, province, status, property_type, asking_price, data) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                self._row_columns(record),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _ordered_ids(self, conn) -> list:
+        return [r["id"] for r in conn.execute("SELECT id FROM properties ORDER BY id")]
 
     def delete_property(self, index: int) -> bool:
-        data = self._read(self._properties_path) if os.path.exists(self._properties_path) else {"properties": []}
-        props = data.get("properties", [])
-        if index < 0 or index >= len(props):
-            return False
-        del props[index]
-        data["properties"] = props
-        self._write(self._properties_path, data)
-        return True
+        conn = self._connect()
+        try:
+            ids = self._ordered_ids(conn)
+            if index < 0 or index >= len(ids):
+                return False
+            conn.execute("DELETE FROM properties WHERE id = ?", (ids[index],))
+            conn.commit()
+            return True
+        finally:
+            conn.close()
 
     def update_property(self, index: int, fields: dict) -> bool:
-        data = self._read(self._properties_path) if os.path.exists(self._properties_path) else {"properties": []}
-        props = data.get("properties", [])
-        if index < 0 or index >= len(props):
-            return False
-        props[index].update(fields)
-        data["properties"] = props
-        self._write(self._properties_path, data)
-        return True
+        conn = self._connect()
+        try:
+            rows = conn.execute("SELECT id, data FROM properties ORDER BY id").fetchall()
+            if index < 0 or index >= len(rows):
+                return False
+            row    = rows[index]
+            record = json.loads(row["data"])
+            record.update(fields)
+            conn.execute(
+                "UPDATE properties SET address=?, listing_date=?, city=?, province=?, "
+                "status=?, property_type=?, asking_price=?, data=? WHERE id=?",
+                (*self._row_columns(record), row["id"]),
+            )
+            conn.commit()
+            return True
+        finally:
+            conn.close()
 
     def migrate_vacancy_rate_to_null(self) -> int:
         """One-time migration: clears frozen vacancy_rate values so they re-resolve
-        from VACANCY_RATE_DEFAULTS on next analysis. Safe to run on every startup;
+        from the vacancy resolver on next analysis. Safe to run on every startup;
         returns the number of records updated (0 once migration is complete)."""
-        if not os.path.exists(self._properties_path):
+        conn = self._connect()
+        try:
+            rows  = conn.execute("SELECT id, data FROM properties").fetchall()
+            count = 0
+            for r in rows:
+                record = json.loads(r["data"])
+                if record.get("vacancy_rate") is not None:
+                    record["vacancy_rate"] = None
+                    conn.execute(
+                        "UPDATE properties SET data = ? WHERE id = ?",
+                        (json.dumps(record, ensure_ascii=False), r["id"]),
+                    )
+                    count += 1
+            if count:
+                conn.commit()
+            return count
+        finally:
+            conn.close()
+
+    # ------------------------------------------------------------------
+    # One-time JSON → SQLite migration
+    # ------------------------------------------------------------------
+
+    def import_properties_from_json(self, json_path: str = None) -> int:
+        """Load every record from a legacy properties.json into the database.
+        Returns the number of records imported. Non-destructive: the JSON file is
+        left untouched."""
+        path = json_path or self.PROPERTIES_JSON_LEGACY
+        if not os.path.exists(path):
             return 0
-        data  = self._read(self._properties_path)
-        props = data.get("properties", [])
-        count = sum(1 for p in props if p.get("vacancy_rate") is not None)
-        if count:
-            for p in props:
-                p["vacancy_rate"] = None
-            data["properties"] = props
-            self._write(self._properties_path, data)
+        with open(path, "r", encoding="utf-8") as f:
+            records = json.load(f).get("properties", [])
+        conn = self._connect()
+        try:
+            for record in records:
+                conn.execute(
+                    "INSERT OR REPLACE INTO properties "
+                    "(address, listing_date, city, province, status, property_type, asking_price, data) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    self._row_columns(record),
+                )
+            conn.commit()
+        finally:
+            conn.close()
+        return len(records)
+
+    def ensure_properties_migrated(self, json_path: str = None) -> int:
+        """Auto-import the legacy properties.json ONCE, the first time the app runs
+        against the new database. Guarded by a meta flag so emptying the database
+        never re-triggers the import, and the JSON file is never modified. Returns
+        the number of records imported (0 if already migrated or no JSON present)."""
+        conn = self._connect()
+        try:
+            done = conn.execute(
+                "SELECT value FROM meta WHERE key = 'migrated_from_json'"
+            ).fetchone()
+        finally:
+            conn.close()
+        if done:
+            return 0
+        count = self.import_properties_from_json(json_path)
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('migrated_from_json', ?)",
+                (date.today().isoformat(),),
+            )
+            conn.commit()
+        finally:
+            conn.close()
         return count
 
     # ------------------------------------------------------------------
@@ -256,58 +590,54 @@ class DataStore:
         os.makedirs(os.path.dirname(self._missing_path), exist_ok=True)
         self._write(self._missing_path, data)
 
+    _COMMERCIAL_STUB_TYPES = ("Office", "Retail", "Industrial", "Mixed-Use")
+    _RESIDENTIAL_STUB_UNITS = ("bachelor", "one_br", "two_br", "three_br",
+                               "four_br", "unknown")
+
     def ensure_city_in_rates(self, city: str, province: str):
         """Adds None-filled stubs for missing cities; migrates old zero stubs to None."""
+        self.ensure_rates_migrated()
         city     = city.strip().title()
         province = province.strip().upper()
         key      = f"{city}, {province}"
+        city_lower = city.lower()
 
-        comm_data = self._read(self._commercial_path)
-        res_data  = self._read(self._residential_path)
+        conn = self._connect()
+        try:
+            # Migrate any legacy zero-filled stubs → None so the resolver's None
+            # guards fire correctly instead of treating $0/sqft as a valid rate.
+            conn.execute("UPDATE commercial_rents  SET rate = NULL WHERE rate = 0")
+            conn.execute("UPDATE residential_rents SET rent = NULL WHERE rent = 0")
 
-        comm_cities = {k.strip().lower() for k in comm_data.get("cities", {})}
-        res_cities  = {k.strip().lower() for k in res_data.get("cities", {})}
-        city_lower  = city.lower()
+            comm_exists = conn.execute(
+                "SELECT 1 FROM commercial_rents WHERE city_key = ? LIMIT 1", (city_lower,)
+            ).fetchone()
+            res_exists = conn.execute(
+                "SELECT 1 FROM residential_rents WHERE city_key = ? LIMIT 1", (city_lower,)
+            ).fetchone()
 
-        needs_update = False
-        comm_changed = False
-        res_changed  = False
-
-        # Migrate any legacy zero-filled stubs → None so the resolver's None
-        # guards fire correctly instead of treating $0/sqft as a valid rate.
-        for c_data in comm_data.get("cities", {}).values():
-            for t, v in list(c_data.get("types", {}).items()):
-                if v == 0:
-                    c_data["types"][t] = None
-                    comm_changed = True
-
-        for c_data in res_data.get("cities", {}).values():
-            for u, v in list(c_data.get("units", {}).items()):
-                if v == 0:
-                    c_data["units"][u] = None
-                    res_changed = True
-
-        if city_lower not in comm_cities:
-            comm_data.setdefault("cities", {})[city] = {
-                "province": province,
-                "types": {"Office": None, "Retail": None, "Industrial": None, "Mixed-Use": None}
-            }
-            comm_changed = True
-            needs_update = True
-
-        if city_lower not in res_cities:
-            res_data.setdefault("cities", {})[city] = {
-                "province": province,
-                "units": {"bachelor": None, "one_br": None, "two_br": None,
-                          "three_br": None, "four_br": None, "unknown": None}
-            }
-            res_changed = True
-            needs_update = True
-
-        if comm_changed:
-            self._write(self._commercial_path, comm_data)
-        if res_changed:
-            self._write(self._residential_path, res_data)
+            needs_update = False
+            if not comm_exists:
+                for ptype in self._COMMERCIAL_STUB_TYPES:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO commercial_rents "
+                        "(city_key, city, province, property_type, rate, source) "
+                        "VALUES (?, ?, ?, ?, NULL, NULL)",
+                        (city_lower, city, province, ptype),
+                    )
+                needs_update = True
+            if not res_exists:
+                for unit in self._RESIDENTIAL_STUB_UNITS:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO residential_rents "
+                        "(city_key, city, province, unit_type, rent) "
+                        "VALUES (?, ?, ?, ?, NULL)",
+                        (city_lower, city, province, unit),
+                    )
+                needs_update = True
+            conn.commit()
+        finally:
+            conn.close()
 
         if needs_update:
             missing = {}

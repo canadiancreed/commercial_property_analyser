@@ -83,16 +83,14 @@ class TestSentinelAndMigration:
     def test_new_stub_commercial_values_are_none(self, tmp_path):
         store = _make_store(tmp_path)
         store.ensure_city_in_rates("Stubville", "ON")
-        raw = DataStore._read(store._commercial_path)
-        types = raw["cities"]["Stubville"]["types"]
+        types = store.load_commercial_rates()["stubville"]
         assert all(v is None for v in types.values()), \
             "New commercial stubs must be None, not 0"
 
     def test_new_stub_residential_values_are_none(self, tmp_path):
         store = _make_store(tmp_path)
         store.ensure_city_in_rates("Stubville", "ON")
-        raw = DataStore._read(store._residential_path)
-        units = raw["cities"]["Stubville"]["units"]
+        units = store.load_residential_rates()["stubville"]
         assert all(v is None for v in units.values()), \
             "New residential stubs must be None, not 0"
 
@@ -105,8 +103,7 @@ class TestSentinelAndMigration:
         }
         store = _make_store(tmp_path, comm_cities=old_comm)
         store.ensure_city_in_rates("Othercity", "ON")
-        raw = DataStore._read(store._commercial_path)
-        types = raw["cities"]["Oldcity"]["types"]
+        types = store.load_commercial_rates()["oldcity"]
         assert all(v is None for v in types.values()), \
             "Legacy zero commercial stubs must be migrated to None"
 
@@ -120,8 +117,7 @@ class TestSentinelAndMigration:
         }
         store = _make_store(tmp_path, res_cities=old_res)
         store.ensure_city_in_rates("Othercity", "ON")
-        raw = DataStore._read(store._residential_path)
-        units = raw["cities"]["Oldcity"]["units"]
+        units = store.load_residential_rates()["oldcity"]
         assert all(v is None for v in units.values()), \
             "Legacy zero residential stubs must be migrated to None"
 
