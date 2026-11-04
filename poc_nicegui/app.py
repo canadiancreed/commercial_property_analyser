@@ -259,6 +259,8 @@ def portfolio_tab():
         ui.label("Tip: click any row to open that property's investment report "
                  "(the existing HTML, rendered inside the app).").classes(
             "text-xs text-slate-500 mr-auto")
+        ui.button("Add from URL", icon="link",
+                  on_click=open_url_import).props("outline no-caps dense")
         ui.button("Re-analyze all", icon="refresh",
                   on_click=on_reanalyze_all).props("outline no-caps dense")
 
@@ -586,6 +588,94 @@ def form_tab():
             "text-xs text-slate-400 mr-auto self-center")
         ui.button("Save property", icon="save",
                   on_click=save_property_from_form).props("unelevated")
+
+
+# ── realtor.ca URL import (scraper, lazily imported) ───────────────────────────
+# The scraper is imported INSIDE the handler so the app/exe starts without Playwright;
+# a missing Playwright/Firefox degrades to a friendly message instead of a crash. The
+# live fetch opens a real Firefox window and may require solving a CAPTCHA by hand.
+def _parse_city_province_simple(addr: str):
+    parts = [p.strip() for p in (addr or "").split(",") if p.strip()]
+    city = province = ""
+    if len(parts) >= 2:
+        tail = parts[-1].split()
+        if tail and len(tail[-1]) == 2 and tail[-1].isalpha():
+            province = tail[-1].upper()
+            city = parts[-2]
+        else:
+            city = parts[-1]
+    return city, province
+
+
+def _import_from_url(url: str):
+    """Fetch a realtor.ca listing → partial record. Returns (record, error_msg)."""
+    url = (url or "").strip()
+    if "realtor.ca" not in url.lower():
+        return None, "That doesn't look like a realtor.ca URL."
+    try:
+        from scraping.realtor_scraper import RealtorScraper, OUTCOME_FOUND
+    except Exception as e:
+        return None, (f"Scraper unavailable — Playwright isn't installed. "
+                      f"Run: python -m playwright install firefox. ({e})")
+    try:
+        with RealtorScraper() as scraper:
+            data = scraper.fetch_listing(url)
+    except Exception as e:
+        return None, (f"Browser error: {e}. Make sure Firefox is installed "
+                      f"(python -m playwright install firefox).")
+    if data.outcome != OUTCOME_FOUND or not data.address:
+        return None, f"Could not read that listing ({data.outcome}). Nothing saved."
+    city, province = _parse_city_province_simple(data.address)
+    price = data.asking_price or 0
+    fin = load_financing_config()
+    prop = PropertyInput(
+        address=data.address, mls_number=data.mls_number, status="active",
+        original_price=price, asking_price=price,
+        total_sq_ft=data.total_sq_ft, property_taxes=data.property_taxes or 0,
+        down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
+        term_years=fin["term_years"], hold_years=fin["hold_years"],
+        expense_ratio=None, lease_type="Normal", property_type=None,
+        listing_date=data.listing_date or date.today().isoformat(),
+        city=city, province=province, unit_mix=UnitMix(floors=data.floors or 1),
+    )
+    record = build_partial_record(prop)
+    record["notes"] = (
+        f"⚠ Imported from realtor.ca on {date.today().isoformat()}: "
+        f"{getattr(data, 'listing_url', url)}. Auto-filled price, MLS, taxes, sq ft, "
+        f"listing date. VERIFY/ADD: property type, unit count & type, lease type.")
+    return record, None
+
+
+async def open_url_import():
+    with ui.dialog() as dialog, ui.card().classes("w-[560px] max-w-[92vw] p-4 gap-2"):
+        ui.label("Add from a realtor.ca URL").classes("font-semibold text-slate-800")
+        ui.label("Opens a Firefox window to read the listing — solve any CAPTCHA there if "
+                 "prompted. Saves an incomplete record; add property type + units via Edit.").classes(
+            "text-xs text-slate-500")
+        url_in = ui.input("realtor.ca listing URL").classes("w-full")
+        with ui.row().classes("w-full justify-end gap-2 mt-1"):
+            ui.button("Cancel", on_click=dialog.close).props("flat")
+
+            async def do_fetch():
+                note = ui.notification("Opening Firefox and reading the listing…",
+                                       spinner=True, timeout=None)
+                try:
+                    record, err = await asyncio.to_thread(_import_from_url, url_in.value)
+                finally:
+                    note.dismiss()
+                if err:
+                    ui.notify(err, type="warning", multi_line=True, timeout=9000)
+                    return
+                store.save_property(record)
+                if record.get("city") and record.get("province"):
+                    store.ensure_city_in_rates(record["city"], record["province"])
+                dialog.close()
+                refresh_portfolio()
+                ui.notify(f'Imported "{record.get("address")}" — complete it via Edit.',
+                          type="positive")
+
+            ui.button("Fetch & add", icon="download", on_click=do_fetch).props("unelevated")
+    dialog.open()
 
 
 # ── Page 3: portfolio-wide reports (reuse the production HTML generators) ──────

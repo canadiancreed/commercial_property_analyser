@@ -6,7 +6,7 @@ README title and the top `changelog.md` entry in sync with it.
 **Convention:** each completed step below is a **minor** bump (4.1.0, 4.2.0, …);
 **major** only for a storage/architecture break; **patch** for fixes.
 
-**Current — v4.5.0:** SQLite data layer (properties + commercial_rents +
+**Current — v4.6.0:** SQLite data layer (properties + commercial_rents +
 residential_rents tables behind the unchanged `DataStore` API, guarded JSON→DB
 migration) + a NiceGUI desktop app (`poc_nicegui/`) with Portfolio, type-aware
 Add/Edit form (**edit & delete done in 4.1.0**), all 7 reports embedded, rate editing,
@@ -47,11 +47,13 @@ per-user database.
 - CSV import: intentionally skipped (deprecated path).
 - realtor.ca URL import: moved to 4.6.0 (it needs the scraper / Playwright).
 
-### 4.6.0 — Scraper (the hard packaging one, "Stage E")
-- Bundle Playwright + Firefox into the `.exe`; wire the realtor.ca price-check sweep with
-  a progress UI, **and the realtor.ca URL import** (deferred from 4.5.0 — both need the
-  scraper). Expect real trial-and-error here — bundling a headless browser is the
-  fiddliest part of shipping the exe.
+### ◑ 4.6.0 — Scraper: URL import DONE; sweep + browser-binary deferred
+- DONE: "Add from realtor.ca URL" (lazy scraper import, graceful degradation); Playwright
+  driver bundles into the exe (`--collect-all playwright`) and the app still starts.
+- NOTE: live fetch opens Firefox + may need a CAPTCHA; needs `playwright install firefox`
+  on the target machine. Not driven in automated verification (third-party + CAPTCHA).
+- DEFERRED: realtor.ca **price-check sweep** (multi-hour, interactive) — stays in the CLI.
+- DEFERRED to 4.7.0: bundle the **Firefox browser binary** into the exe (no separate install).
 
 ### 4.7.0 — Packaging & robustness polish
 - App icon; `--onedir` build option (faster startup than onefile); an installer.

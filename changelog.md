@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.6.0] — 2026-11-03
+
+_Scraper: realtor.ca URL import in the desktop app (lazy-loaded), and Playwright now
+bundles into the exe. The multi-hour price-check sweep stays a CLI feature for now, and
+bundling the Firefox browser binary itself is left to packaging (4.7.0)._
+
+### Added
+
+- **Add from realtor.ca URL** (Portfolio toolbar): paste a listing URL → it opens Firefox,
+  reads the listing, and saves an incomplete record (mirrors the CLI `_add_from_url`), to
+  be completed via Edit. The scraper is imported **lazily**, so the app still starts
+  without Playwright, and a missing / blocked scraper degrades to a friendly message
+  rather than crashing.
+- The onefile exe now bundles the Playwright driver (`--collect-all playwright`) and still
+  starts cleanly (~145 MB). Live scraping needs a system Firefox
+  (`python -m playwright install firefox`) and may require solving a CAPTCHA in the browser
+  window it opens.
+
+### Deferred
+
+- The realtor.ca **price-check sweep** (every stored property's current price) — a
+  multi-hour, interactive, bot-detection-prone operation — stays in the CLI for now.
+- Bundling the Firefox **browser binary** into the exe (so no separate install) is 4.7.0
+  packaging work.
+
 ## [4.5.0] — 2026-11-03
 
 _Scoring sub-editors in the desktop app. (CSV import is intentionally omitted — it's a
