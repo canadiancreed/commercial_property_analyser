@@ -370,8 +370,20 @@ async def open_report(idx: int):
 # ── Page 2: dynamic, type-aware Add/Edit form ─────────────────────────────────
 state = {"type": "Hotel"}
 FIELDS = {}  # name → input element, rebuilt each time the form reshapes
+_draft = {}  # last-entered field values, carried across a type switch so reshaping the
+             # form never discards what's already typed (cleared on reset / edit / save).
 # index=None → add mode; otherwise editing the record at that position (load order).
 edit_ctx = {"index": None, "orig_key": None, "record": None}
+
+
+def _snapshot_form():
+    """Capture the current input values into _draft so changing the property type (which
+    rebuilds the form) preserves everything already entered."""
+    for k, w in FIELDS.items():
+        try:
+            _draft[k] = w.value
+        except Exception:
+            pass
 
 
 @ui.refreshable
@@ -382,11 +394,14 @@ def dynamic_form():
     groups = ["common"] + TYPE_GROUPS.get(state["type"], [])
 
     def pv(key, default=None):
-        """Prefill value for an existing field (edit mode), else the default."""
-        v = rec.get(key, default)
+        """Prefill value: a carried draft entry (type-switch) first, else the edited
+        record, else the default."""
+        v = _draft[key] if key in _draft else rec.get(key, default)
         return v if v not in ("", None) else default
 
     def pvpct(key):
+        if key in _draft:               # draft holds the display %, use it as-is
+            return _draft[key]
         v = rec.get(key)
         return round(v * 100, 2) if isinstance(v, (int, float)) else None
 
@@ -395,10 +410,10 @@ def dynamic_form():
     # rent is only prefilled when the record flags it as owner-entered; the direct total
     # (annual_rent) is only prefilled when there is no component rent to recompute from
     # — the same guard record_to_prop uses for re-analysis.
-    comm_prefill   = pv("commercial_rent")  if rec.get("commercial_rent_user_entered")  else None
-    res_prefill    = pv("residential_rent") if rec.get("residential_rent_user_entered") else None
+    comm_prefill   = pv("commercial_rent")  if ("commercial_rent" in _draft or rec.get("commercial_rent_user_entered"))  else None
+    res_prefill    = pv("residential_rent") if ("residential_rent" in _draft or rec.get("residential_rent_user_entered")) else None
     _has_component = bool(rec.get("commercial_rent")) or bool(rec.get("residential_rent"))
-    annual_prefill = None if _has_component else pv("annual_rent")
+    annual_prefill = pv("annual_rent") if "annual_rent" in _draft else (None if _has_component else pv("annual_rent"))
 
     # Resolved (global) financing — shown read-only so the form is complete; down
     # payment / rate / amortization live in Settings, not per property.
@@ -452,8 +467,9 @@ def dynamic_form():
             FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value=pv("lease_type", "Normal"), label="Lease type").classes("w-40")
             FIELDS["status"]       = ui.select(["active", "inactive"], value=pv("status", "active"), label="Status").classes("w-40")
             FIELDS["listing_date"] = ui.input("Listing date", value=pv("listing_date", "")).props("type=date").classes("w-48")
-            FIELDS["hold_years"]   = ui.number("Hold years", value=pv("hold_years", _fin_preview.get("hold_years", 10)),
-                                               format="%d").classes("w-32")
+            # hold_years is NOT per-property — it's a global house-wide setting
+            # (config/financing.json defaults, edited on the Settings tab) applied to every
+            # property. It is deliberately not on this form.
         if _fin_preview:
             # This is the per-type RESOLVED financing actually applied to this property
             # (per-type lending rules priced over the LIVE Bank of Canada base rate),
@@ -572,11 +588,10 @@ def save_property_from_form():
         original_price=float(_fval("original_price", asking) or asking), asking_price=asking,
         total_sq_ft=float(_fval("total_sq_ft", 0) or 0),
         property_taxes=float(_fval("property_taxes", 0) or 0),
-        # Down payment / rate / amortization are global (config/financing.json, Settings
-        # tab); hold_years is the one per-property financing input.
+        # Down payment / rate / amortization / hold period are ALL global (config/financing.json,
+        # Settings tab) — never entered per property, so every listing uses the house-wide values.
         down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
-        term_years=fin["term_years"],
-        hold_years=int(_fval("hold_years", fin["hold_years"]) or fin["hold_years"]),
+        term_years=fin["term_years"], hold_years=fin["hold_years"],
         address=address, mls_number=_fval("mls_number", "") or "",
         city=_fval("city"), province=_fval("province"),
         property_type=ptype, status=_fval("status", "active"),
@@ -645,6 +660,7 @@ def save_property_from_form():
 def reset_form():
     """Return the form to add mode and clear it."""
     edit_ctx.update(index=None, orig_key=None, record=None)
+    _draft.clear()
     dynamic_form.refresh()
 
 
@@ -657,6 +673,7 @@ def load_for_edit(index: int):
     edit_ctx.update(index=index,
                     orig_key=(p.get("address", ""), p.get("listing_date", "")),
                     record=p)
+    _draft.clear()   # show the record being edited, not a leftover add-mode draft
     state["type"] = p.get("property_type") or state["type"]
     if _ui.get("type_select") is not None:
         _ui["type_select"].set_value(state["type"])
@@ -703,6 +720,7 @@ def form_tab():
                     "text-xs text-slate-500")
 
             def on_type(e):
+                _snapshot_form()          # keep what's already entered across the reshape
                 state["type"] = e.value
                 dynamic_form.refresh()
 

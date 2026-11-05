@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.9.4] — 2026-11-05
+
+_Add/Edit form: hold period is global (removed from the form), and changing property type no longer wipes what you entered._
+
+### Fixed
+
+- **`Hold years` is no longer editable per property.** It's a house-wide setting
+  (`config/financing.json` defaults, edited on the **Settings** tab) applied to every
+  property — like down payment, interest rate, and amortization. The stray `Hold years`
+  input on the Add/Edit form was removed, and saving now always uses the global value, so
+  every listing is underwritten on the same hold period.
+- **Changing the property type no longer destroys entered data.** The type-aware form
+  reshapes on a type change (different fields per asset class); it now snapshots the current
+  inputs into a draft first and re-applies them, so shared fields (address, price, rents,
+  etc.) keep their values. The draft is cleared on reset, when loading a record to edit, and
+  after a successful save.
+
+---
+
 ## [4.9.3] — 2026-11-05
 
 _The build writes the exe straight to the project root, so the copy you launch is always the latest._
