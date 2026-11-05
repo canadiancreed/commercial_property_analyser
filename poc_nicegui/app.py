@@ -186,14 +186,25 @@ def _load_rows() -> list:
     return rows
 
 
+def _apply_portfolio_filter():
+    """Push the cached rows into the grid, narrowed to the live address search term."""
+    grid = _ui.get("grid")
+    if grid is None:
+        return
+    rows = _ui.get("all_rows") or []
+    term = (_ui.get("search_term") or "").strip().lower()
+    if term:
+        rows = [r for r in rows if term in (r.get("address") or "").lower()]
+    grid.options["rowData"] = rows
+    grid.update()
+
+
 def refresh_portfolio():
     """Re-read the DB and refresh the stat tiles + grid (called after a save)."""
     if "stats" in _ui:
         _ui["stats"].refresh()
-    grid = _ui.get("grid")
-    if grid is not None:
-        grid.options["rowData"] = _load_rows()
-        grid.update()
+    _ui["all_rows"] = _load_rows()
+    _apply_portfolio_filter()
 
 
 # ── Page 1: Portfolio list ────────────────────────────────────────────────────
@@ -219,6 +230,18 @@ def portfolio_tab():
     stats()
     _ui["stats"] = stats
 
+    _ui["all_rows"] = _load_rows()
+
+    def on_search(e):
+        _ui["search_term"] = e.value or ""
+        _apply_portfolio_filter()
+
+    with ui.row().classes("w-full items-center mb-2"):
+        search = (ui.input(placeholder="Search by address…", on_change=on_search)
+                  .props('clearable dense outlined input-class=text-sm')
+                  .classes("w-full max-w-md"))
+        _ui["search"] = search
+
     grid = ui.aggrid({
         "columnDefs": [
             {"headerName": "Address", "field": "address", "flex": 2, "filter": True},
@@ -233,7 +256,7 @@ def portfolio_tab():
             {"headerName": "Status", "field": "status", "width": 100},
             {"headerName": "Rpt", "field": "analyzed", "width": 70},
         ],
-        "rowData": _load_rows(),
+        "rowData": _ui["all_rows"],
         "rowSelection": "single",
         "defaultColDef": {"sortable": True, "resizable": True},
         "pagination": True,
