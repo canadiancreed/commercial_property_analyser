@@ -146,14 +146,12 @@ class PropertyScorer:
     # ── Config persistence ────────────────────────────────────────────────
 
     def load_config(self) -> dict:
-        return self._store._read(SCORE_CONFIG_PATH)
+        # DB-backed (the `config` table), seeded once from the JSON default. The
+        # city-opportunity weights/knobs ride inside this same document.
+        return self._store.read_config("score_weights", SCORE_CONFIG_PATH)
 
     def save_config(self, cfg: dict):
-        os.makedirs(
-            os.path.dirname(SCORE_CONFIG_PATH) if os.path.dirname(SCORE_CONFIG_PATH) else ".",
-            exist_ok=True,
-        )
-        self._store._write(SCORE_CONFIG_PATH, cfg)
+        self._store.write_config("score_weights", cfg)
 
     # ── Geo / demographic data ─────────────────────────────────────────────
 

@@ -1,4 +1,4 @@
-# Commercial Property Analyser v4.8.0
+# Commercial Property Analyser v4.9.0
 
 A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
 
@@ -350,6 +350,15 @@ button in Settings. Each per-type rate is `base + an asset-class credit spread`:
 base is sourced; the spreads remain documented lender-credit estimates. Re-analyze (`r`)
 after a refresh to apply new rates. Bank of Canada data carries the attribution "Source:
 Bank of Canada" and is not an endorsement.
+
+**Settings config in the database (4.9).** The editable Settings config — financing
+(`config/financing.json`) and scoring + city-opportunity config (`json/score_weights.json`) —
+is stored in the SQLite `config` table (`DataStore.read_config`/`write_config`), one JSON
+document per name. The JSON files stay as the **shipped defaults**: a missing row seeds from
+its file once, then the DB is the live source. Every per-asset-class lending rule (spread/
+LTV/amortization/DSCR), the CMHC sub-blocks, and the base-rate anchor are editable on the
+**Settings** tab, with an advanced raw-JSON editor for the complete financing document.
+Re-analyze (`r`) to apply changes.
 
 ---
 
