@@ -57,6 +57,7 @@ _MULTIFAMILY_5PLUS_UNITS = 5
 _cache = None
 _RATE_SENTINEL = object()
 _rate_cache = _RATE_SENTINEL   # distinct from a loaded None (file absent)
+_store = None                  # when set, config is read/written via the DB config table
 
 
 class FinancingConfigError(RuntimeError):
@@ -138,12 +139,36 @@ def base_rate_info() -> dict:
     }
 
 
-# ── Raw load / defaults ────────────────────────────────────────────────────
+# ── Store injection / raw load / defaults ───────────────────────────────────
+
+def set_store(store):
+    """Route financing-config reads/writes through a DataStore's ``config`` table
+    (the DB becomes the live source, seeded once from config/financing.json). Call
+    once at app/CLI startup. Pass None to revert to direct file access (tests/CLI
+    without a store keep the file path)."""
+    global _store, _cache
+    _store = store
+    _cache = None   # drop any file-cached copy so the next read hits the store
+
 
 def _load_raw(force_reload: bool = False) -> dict:
     global _cache
     if _cache is not None and not force_reload:
         return _cache
+    if _store is not None:
+        # DB-backed: the `config` table, seeded from the JSON default on first read.
+        try:
+            data = _store.read_config("financing", _CONFIG_PATH)
+        except Exception as e:
+            raise FinancingConfigError(
+                f"Could not read financing config from the data store: {e}"
+            ) from e
+        if not data:
+            raise FinancingConfigError(
+                f"Financing config is empty and no seed found at {_CONFIG_PATH!r}."
+            )
+        _cache = data
+        return data
     try:
         with open(_CONFIG_PATH, encoding="utf-8") as f:
             data = json.load(f)
@@ -158,6 +183,30 @@ def _load_raw(force_reload: bool = False) -> dict:
         ) from e
     _cache = data
     return data
+
+
+def _persist_raw(data: dict) -> dict:
+    """Write a full config document to the live source (DB when a store is set,
+    else the JSON file) and refresh the module cache."""
+    global _cache
+    if _store is not None:
+        _store.write_config("financing", data)
+    else:
+        tmp = _CONFIG_PATH + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        os.replace(tmp, _CONFIG_PATH)
+    _cache = data
+    return data
+
+
+def save_raw(data: dict) -> dict:
+    """Persist a COMPLETE financing-config document (the Settings advanced raw-JSON
+    editor). Validates the defaults block, then stores it and refreshes the cache."""
+    if not isinstance(data, dict):
+        raise FinancingConfigError("Financing config must be a JSON object.")
+    _defaults(data)   # raises if the defaults block is missing/incomplete
+    return _persist_raw(data)
 
 
 def _defaults(raw: dict) -> dict:
@@ -177,6 +226,13 @@ def load_financing_config(force_reload: bool = False) -> dict:
     """Backward-compatible accessor: returns the flat ``defaults`` block (the four
     house-wide scalars), exactly as before the two-layer restructure."""
     return _defaults(_load_raw(force_reload))
+
+
+def get_raw_config() -> dict:
+    """A deep copy of the full financing-config document — for the Settings editors,
+    which mutate it and persist via save_raw()."""
+    import copy
+    return copy.deepcopy(_load_raw())
 
 
 def get(key: str):
@@ -461,7 +517,6 @@ def save_financing_config(down_payment_pct: float, interest_rate: float,
     Values are stored in decimal form (0.20, not 20). Callers that accept
     human-entered percentages should normalise before calling here.
     """
-    global _cache
     # Preserve EVERY existing top-level key (property_types, stress_test_bump,
     # verified_date, rate_base, residential_covenant_dscr, the source notes, …);
     # menu 'f' / the Settings screen edits the defaults layer ONLY.
@@ -477,10 +532,4 @@ def save_financing_config(down_payment_pct: float, interest_rate: float,
         "term_years":       int(term_years),
         "hold_years":       int(hold_years),
     }
-
-    tmp = _CONFIG_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, _CONFIG_PATH)
-    _cache = data
-    return data
+    return _persist_raw(data)   # DB when a store is set, else the JSON file

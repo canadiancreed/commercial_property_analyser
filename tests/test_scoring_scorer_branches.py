@@ -386,15 +386,15 @@ class TestSolveTargetsBisectFalseBranch:
 # ── Config save / load ─────────────────────────────────────────────────────────
 
 class TestConfigSaveLoad:
-    def test_save_config_creates_file(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
-        cfg = scorer.load_config()
+    def test_save_config_persists_to_db(self, make_store):
+        store = make_store()
+        scorer = PropertyScorer(store)
+        cfg = scorer.load_config()               # seeds from the JSON default
         cfg["weights"]["Cap Rate"] = 0.30
-        score_path = str(tmp_path / "json" / "score_weights.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with patch("scoring.scorer.SCORE_CONFIG_PATH", score_path):
-            scorer.save_config(cfg)
-        assert os.path.exists(score_path)
+        scorer.save_config(cfg)                   # persists to the config table
+        # Readable back from the DB by a fresh scorer on the same store.
+        assert PropertyScorer(store).load_config()["weights"]["Cap Rate"] == pytest.approx(0.30)
+        assert store.read_config("score_weights")["weights"]["Cap Rate"] == pytest.approx(0.30)
 
     def test_load_config_from_file(self, make_store, tmp_path):
         scorer = PropertyScorer(make_store())
@@ -434,12 +434,13 @@ class TestConfigSaveLoad:
 class TestLoadConfigBranches:
     """Covers the load_config branches that require a patched SCORE_CONFIG_PATH."""
 
-    def test_load_config_file_not_found_raises(self, make_store, tmp_path):
-        """Missing config file raises — there are no hardcoded fallbacks."""
+    def test_load_config_missing_everything_returns_empty(self, make_store, tmp_path):
+        """DB row absent AND seed file missing -> empty config (a broken install),
+        never a silent hardcoded default. The scorer then fails loudly downstream
+        when it reads weights off an empty dict."""
         scorer = PropertyScorer(make_store())
         with patch("scoring.scorer.SCORE_CONFIG_PATH", str(tmp_path / "no_such_file.json")):
-            with pytest.raises(Exception):
-                scorer.load_config()
+            assert scorer.load_config() == {}
 
     def test_load_config_partial_file_returns_as_is(self, make_store, tmp_path):
         """A partial config file is returned exactly as stored — no merging."""

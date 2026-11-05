@@ -48,6 +48,52 @@ class DataStore:
         os.replace(tmp, path)
 
     # ------------------------------------------------------------------
+    # Settings config (SQLite-backed: the `config` table)
+    #
+    # financing.json + score_weights.json (scoring weights, thresholds, and the
+    # city-opportunity weights/knobs) live here as one JSON document per logical
+    # name. The JSON files remain the shipped DEFAULTS; read_config seeds a missing
+    # row from the file once, then the DB is the live source (edited in Settings).
+    # ------------------------------------------------------------------
+
+    def read_config(self, name: str, seed_path: str = None) -> dict:
+        """Return the config document for ``name``. If the row is absent, seed it
+        once from ``seed_path`` (when that file exists) and return that, otherwise
+        return {}. Self-healing migration-on-read — no explicit boot step needed."""
+        conn = self._connect()
+        try:
+            row = conn.execute(
+                "SELECT json FROM config WHERE name = ?", (name,)
+            ).fetchone()
+            if row is not None:
+                return json.loads(row["json"])
+            seed = {}
+            if seed_path and os.path.exists(seed_path):
+                with open(seed_path, "r", encoding="utf-8") as f:
+                    seed = json.load(f)
+                conn.execute(
+                    "INSERT OR IGNORE INTO config (name, json, updated_at) VALUES (?, ?, ?)",
+                    (name, json.dumps(seed, ensure_ascii=False), date.today().isoformat()),
+                )
+                conn.commit()
+            return seed
+        finally:
+            conn.close()
+
+    def write_config(self, name: str, cfg: dict) -> dict:
+        """Upsert the config document for ``name`` (the DB is the live source)."""
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO config (name, json, updated_at) VALUES (?, ?, ?)",
+                (name, json.dumps(cfg, ensure_ascii=False), date.today().isoformat()),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return cfg
+
+    # ------------------------------------------------------------------
     # Rent rates (SQLite-backed: commercial_rents + residential_rents tables)
     #
     # Rents moved out of commercial_rents.json / residential_rents.json into their
@@ -305,14 +351,25 @@ class DataStore:
         );
 
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
+
+        -- Settings config: one JSON document per logical name ('financing',
+        -- 'score_weights'). The JSON files remain the shipped defaults; read_config
+        -- seeds a missing row from the file once, then this table is the live source.
+        CREATE TABLE IF NOT EXISTS config (
+            name       TEXT PRIMARY KEY,
+            json       TEXT NOT NULL,
+            updated_at TEXT
+        );
     """
 
     # Current on-disk schema version (SQLite PRAGMA user_version). The baseline schema
     # above is version 1. When the schema changes in a future release, bump this and add
     # the forward step to _MIGRATIONS below; _apply_migrations runs the pending steps and
     # restamps user_version on the next connect. Keeps old databases upgradable in place.
-    SCHEMA_VERSION = 1
-    _MIGRATIONS = {}   # {target_version: callable(conn)} — baseline (v1) needs no step
+    #   v2 — added the `config` table (created above via IF NOT EXISTS, so existing DBs
+    #        gain it on connect; no data step needed — config rows seed on first read).
+    SCHEMA_VERSION = 2
+    _MIGRATIONS = {}   # {target_version: callable(conn)} — v1/v2 need no explicit step
 
     def _connect(self) -> sqlite3.Connection:
         """Open the properties DB, creating the file + schema on first use."""

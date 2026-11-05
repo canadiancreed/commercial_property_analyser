@@ -67,9 +67,11 @@ from data.store import DataStore, CommercialRentLoader, ResidentialRentLoader
 from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 from analysis.report_builder import record_to_prop, build_report_row, reanalyze_properties
+from analysis import financing_config
 from analysis.financing_config import (
     resolve_financing, mixed_use_commercial_gfa_share,
     load_financing_config, save_financing_config, base_rate_info,
+    get_raw_config, save_raw,
 )
 from scoring.scorer import PropertyScorer
 from scoring.city_ranker import CityRanker
@@ -92,6 +94,12 @@ from nicegui import ui, app, native
 store = DataStore(properties_path=str(DB_PATH))
 store.ensure_properties_migrated(str(LEGACY_PROPS))
 store.ensure_rates_migrated()
+
+# Route financing config through the DB `config` table (seeded once from the bundled
+# config/financing.json). Scoring/city config already go through the store. This makes
+# the DB the single live source for every Settings value; the JSON files stay as the
+# shipped defaults.
+financing_config.set_store(store)
 
 
 # ── Live base-rate feed (Bank of Canada GoC 5yr) ─────────────────────────────
@@ -1010,6 +1018,133 @@ def rates_tab():
             residential_rates_editor()
 
 
+# Editable scalar fields per conventional per-type block and per CMHC sub-block.
+# (key, label, kind) — kind drives %/ratio/int conversion on load + save.
+_FIN_TYPE_FIELDS = [
+    ("max_ltv", "Max LTV", "pct"),
+    ("rate_low", "Rate low", "pct"),
+    ("rate_high", "Rate high", "pct"),
+    ("amort_years", "Amort (yrs)", "int"),
+    ("dscr_floor", "DSCR floor", "ratio"),
+    ("fixed_expense_fraction", "Fixed exp frac", "pct"),
+]
+_FIN_CMHC_FIELDS = [f for f in _FIN_TYPE_FIELDS if f[0] != "fixed_expense_fraction"]
+
+
+def _financing_types_card():
+    """Edit every per-asset-class lending rule (spread/LTV/amortization/DSCR), the
+    CMHC Standard/Select sub-blocks, and the base-rate anchor — plus a raw-JSON
+    editor for the complete config. Persists to the DB `config` table via save_raw."""
+    raw = get_raw_config()
+    ptypes = raw.get("property_types") or {}
+    base = (raw.get("rate_base") or {}).get("value") or 0.0
+    num_inputs = []   # (container_dict, key, kind, widget)
+
+    def _add(container, key, label, kind):
+        cur = container.get(key)
+        has = isinstance(cur, (int, float)) and not isinstance(cur, bool)
+        if kind == "pct":
+            w = ui.number(label, value=(round(cur * 100, 4) if has else None),
+                          suffix="%", format="%.4g").props("dense").classes("w-28")
+        elif kind == "int":
+            w = ui.number(label, value=(int(cur) if has else None),
+                          format="%d").props("dense").classes("w-28")
+        else:  # ratio
+            w = ui.number(label, value=(round(cur, 4) if has else None),
+                          format="%.4g").props("dense").classes("w-28")
+        num_inputs.append((container, key, kind, w))
+
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mt-4"):
+        with ui.row().classes("items-center gap-2 mb-1"):
+            ui.icon("tune").classes("text-blue-600")
+            ui.label("Per-asset-class lending rules").classes("font-semibold text-slate-800")
+        ui.label("Each rate = the live base + this class's credit spread. Stored in the "
+                 "database; edit here and Re-analyze to apply. Spreads are estimates — "
+                 "only the base rate is sourced.").classes("text-xs text-slate-500 mb-2")
+
+        # Base-rate anchor (re-bases the live shift).
+        rb = raw.get("rate_base")
+        asof_input = None
+        if isinstance(rb, dict):
+            with ui.row().classes("w-full gap-3 items-center mb-1"):
+                _add(rb, "value", "Base anchor (GoC 5yr)", "pct")
+                asof_input = ui.input("Anchor as-of", value=rb.get("as_of") or "").props("dense").classes("w-40")
+            ui.label("The anchor the spreads were authored against; the live feed shifts "
+                     "every rate by (fetched − anchor).").classes("text-xs text-slate-400 mb-1")
+
+        for tkey, block in ptypes.items():
+            if not isinstance(block, dict):
+                continue
+            if "alias" in block:
+                ui.label(f"{tkey} → alias of {block['alias']} (edit that class)").classes(
+                    "text-xs text-slate-400")
+                continue
+            with ui.expansion(tkey.replace("_", " ")).classes("w-full"):
+                with ui.row().classes("w-full gap-3 flex-wrap items-center"):
+                    for key, label, kind in _FIN_TYPE_FIELDS:
+                        if key in block:
+                            _add(block, key, label, kind)
+                if isinstance(block.get("rate_low"), (int, float)) and isinstance(block.get("rate_high"), (int, float)):
+                    ui.label(f"≈ {(block['rate_low'] - base) * 10000:.0f}–"
+                             f"{(block['rate_high'] - base) * 10000:.0f} bps over the base rate"
+                             ).classes("text-xs text-slate-400")
+                cmhc = block.get("cmhc")
+                if isinstance(cmhc, dict):
+                    for sub in ("mli_standard", "mli_select"):
+                        sb = cmhc.get(sub)
+                        if isinstance(sb, dict):
+                            ui.label(f"CMHC · {sub.replace('_', ' ')}").classes(
+                                "text-xs font-semibold text-slate-500 mt-1")
+                            with ui.row().classes("w-full gap-3 flex-wrap items-center"):
+                                for key, label, kind in _FIN_CMHC_FIELDS:
+                                    if key in sb:
+                                        _add(sb, key, label, kind)
+
+        def save_types():
+            try:
+                for container, key, kind, w in num_inputs:
+                    v = w.value
+                    if v is None or v == "":
+                        if kind == "ratio":
+                            container[key] = None   # allow clearing a DSCR floor
+                        continue
+                    if kind == "pct":
+                        container[key] = round(float(v) / 100, 6)
+                    elif kind == "int":
+                        container[key] = int(v)
+                    else:
+                        container[key] = round(float(v), 4)
+                if asof_input is not None and isinstance(raw.get("rate_base"), dict):
+                    raw["rate_base"]["as_of"] = (asof_input.value or "").strip()
+                save_raw(raw)
+                ui.notify("Saved per-asset-class lending rules — Re-analyze to apply.",
+                          type="positive")
+            except Exception as e:
+                ui.notify(f"Could not save: {e}", type="warning")
+
+        ui.button("Save lending rules", icon="save", on_click=save_types).props("unelevated").classes("mt-2")
+
+        # Advanced: the complete config as raw JSON (covers nested CMHC point-tiers,
+        # conditional rules, aliases, source notes — genuinely every value).
+        with ui.expansion("Advanced — full financing config (raw JSON)").classes("w-full mt-2"):
+            import json as _json
+            ta = ui.textarea(value=_json.dumps(raw, indent=2, ensure_ascii=False)).props(
+                "outlined input-class=font-mono input-style=height:320px").classes("w-full")
+
+            def save_json():
+                try:
+                    parsed = _json.loads(ta.value)
+                except Exception as e:
+                    ui.notify(f"Not valid JSON: {e}", type="warning"); return
+                try:
+                    save_raw(parsed)
+                    ui.notify("Saved full financing config — Re-analyze to apply.", type="positive")
+                except Exception as e:
+                    ui.notify(f"Rejected: {e}", type="warning")
+
+            ui.button("Save raw JSON", icon="save", on_click=save_json).props("outline no-caps dense").classes("mt-1")
+
+
 # ── Page 5: global settings (financing defaults + scoring formula) ─────────────
 def settings_tab():
     # Financing defaults
@@ -1077,6 +1212,9 @@ def settings_tab():
 
         ui.button("Refresh base rate (Bank of Canada)", icon="cloud_download",
                   on_click=refresh_rates).props("outline no-caps dense").classes("mt-1")
+
+    # Per-asset-class lending rules (spreads / LTV / amortization / DSCR) + raw editor
+    _financing_types_card()
 
     # Scoring formula weights
     with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm"):

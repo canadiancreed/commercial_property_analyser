@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.9.0] — 2026-11-05
+
+_All Settings config moves into a DB table, and every financing value is editable in-app._
+
+### Added
+
+- **`config` DB table.** A new generic `config` table (one JSON document per logical
+  name) in the SQLite store, with `DataStore.read_config(name, seed_path)` /
+  `write_config(name, cfg)`. Financing (`config/financing.json`) and scoring + city
+  config (`json/score_weights.json`) now live here as the **live source**; the JSON
+  files remain the **shipped defaults**, seeding a missing row once on first read
+  (migration-on-read). Schema version bumped 1 → 2 (the table is created with
+  `IF NOT EXISTS`, so existing databases gain it on connect).
+- **Per-asset-class financing editor (Settings).** Edit every lending rule — per-type
+  Max LTV, rate band (with a live "bps over base" readout), amortization, DSCR floor,
+  fixed-expense fraction, the CMHC Standard/Select sub-blocks, and the base-rate anchor.
+  Plus an **Advanced — full financing config (raw JSON)** editor (parsed + validated on
+  save) so genuinely every value, including nested CMHC point-tiers and conditional
+  rules, is editable. `analysis/financing_config.py` gained `set_store` / `get_raw_config`
+  / `save_raw`.
+
+### Changed
+
+- `scoring/scorer.py` `load_config`/`save_config` now route through the `config` table
+  (the city-opportunity weights/knobs ride inside the same document). The desktop app
+  and CLI inject the store on boot (`financing_config.set_store(store)`); tests and any
+  store-less caller keep the JSON-file path unchanged.
+
+---
+
 ## [4.8.0] — 2026-11-05
 
 _Interest rates are now sourced from a live Bank of Canada feed instead of hand-typed estimates._
