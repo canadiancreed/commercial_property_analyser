@@ -365,6 +365,27 @@ def dynamic_form():
         v = rec.get(key)
         return round(v * 100, 2) if isinstance(v, (int, float)) else None
 
+    # Rent prefills are conditional on provenance so editing a record doesn't silently
+    # "freeze" a market-estimated figure as a user-entered one. A commercial/residential
+    # rent is only prefilled when the record flags it as owner-entered; the direct total
+    # (annual_rent) is only prefilled when there is no component rent to recompute from
+    # — the same guard record_to_prop uses for re-analysis.
+    comm_prefill   = pv("commercial_rent")  if rec.get("commercial_rent_user_entered")  else None
+    res_prefill    = pv("residential_rent") if rec.get("residential_rent_user_entered") else None
+    _has_component = bool(rec.get("commercial_rent")) or bool(rec.get("residential_rent"))
+    annual_prefill = None if _has_component else pv("annual_rent")
+
+    # Resolved (global) financing — shown read-only so the form is complete; down
+    # payment / rate / amortization live in Settings, not per property.
+    _um_counts = rec.get("unit_mix") or {}
+    _units_preview = sum(_um_counts.get(k, 0) or 0 for k in
+                         ("bachelor", "one_br", "two_br", "three_br", "four_br", "unknown"))
+    try:
+        _fin_preview = resolve_financing(rec.get("asking_price") or 0,
+                                         state["type"], _units_preview or None)
+    except Exception:
+        _fin_preview = {}
+
     # Add vs edit banner.
     if edit_ctx["index"] is not None:
         with ui.row().classes("w-full items-center gap-2 mb-2"):
@@ -393,21 +414,33 @@ def dynamic_form():
             FIELDS["city"]     = ui.input("City", value=pv("city", "")).classes("w-40")
             FIELDS["province"] = ui.input("Province", value=pv("province", "")).classes("w-28")
         with ui.row().classes("w-full gap-3"):
+            FIELDS["mls_number"] = ui.input("MLS #", value=pv("mls_number", "")).classes("w-48")
             FIELDS["asking_price"]   = ui.number("Asking price", value=pv("asking_price"), prefix="$", format="%.0f",
                                                  validation={"Must be greater than 0": lambda v: v is None or v > 0}).classes("flex-1")
+            FIELDS["original_price"] = ui.number("Original / list price", value=pv("original_price"), prefix="$", format="%.0f").classes("flex-1")
+        with ui.row().classes("w-full gap-3"):
             FIELDS["total_sq_ft"]    = ui.number("Total sq ft", value=pv("total_sq_ft"), format="%.0f",
                                                  validation={"Can't be negative": lambda v: v is None or v >= 0}).classes("flex-1")
             FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["construction_cost"] = ui.number("Construction cost", value=pv("construction_cost"), prefix="$", format="%.0f").classes("flex-1")
         with ui.row().classes("w-full gap-3"):
             FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value=pv("lease_type", "Normal"), label="Lease type").classes("w-40")
             FIELDS["status"]       = ui.select(["active", "inactive"], value=pv("status", "active"), label="Status").classes("w-40")
             FIELDS["listing_date"] = ui.input("Listing date", value=pv("listing_date", "")).props("type=date").classes("w-48")
-            FIELDS["construction_cost"] = ui.number("Construction cost", value=pv("construction_cost"), prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["hold_years"]   = ui.number("Hold years", value=pv("hold_years", _fin_preview.get("hold_years", 10)),
+                                               format="%d").classes("w-32")
+        if _fin_preview:
+            ui.label(
+                f"Financing (global — set in Settings): "
+                f"{_fin_preview.get('down_payment_pct', 0)*100:.0f}% down · "
+                f"{_fin_preview.get('interest_rate', 0)*100:.3g}% · "
+                f"{_fin_preview.get('term_years', 0)}-yr amortization"
+            ).classes("text-xs text-slate-500")
 
     if "commercial" in groups:
         with card("Commercial lease", "storefront"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", value=pv("commercial_rent"), prefix="$", format="%.0f").classes("flex-1")
+                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", value=comm_prefill, prefix="$", format="%.0f").classes("flex-1")
                 FIELDS["market_cap_rate"] = ui.number("Market cap rate", value=pvpct("market_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
                 FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", value=pvpct("exit_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
             with ui.row().classes("w-full gap-3"):
@@ -421,11 +454,14 @@ def dynamic_form():
                 for key, lbl in [("bachelor", "Bachelor"), ("one_br", "1 BR"), ("two_br", "2 BR"),
                                  ("three_br", "3 BR"), ("four_br", "4 BR"), ("unknown", "Unknown")]:
                     FIELDS[f"um_{key}"] = ui.number(lbl, value=um.get(key, 0) or 0, format="%d").classes("w-28")
-            with ui.row().classes("w-full gap-3"):
+            with ui.row().classes("w-full gap-3 items-center"):
                 FIELDS["floors"] = ui.number("Floors", value=um.get("floors", rec.get("floors", 1)) or 1, format="%d").classes("w-28")
-                ui.label("Per-unit rent overrides optional — blank uses the city "
-                         "market rate from the residential_rents table.").classes(
-                    "text-xs text-slate-500 self-center")
+                FIELDS["residential_rent"] = ui.number("Residential rent $/yr (override)", value=res_prefill,
+                                                       prefix="$", format="%.0f").classes("flex-1")
+            ui.label("Leave the residential rent blank to price the unit mix at the city "
+                     "market rate from the residential_rents table; enter a figure to use "
+                     "it as the in-place residential income instead.").classes(
+                "text-xs text-slate-500")
 
     if "hotel" in groups:
         with card("Hotel operations", "hotel"):
@@ -447,6 +483,20 @@ def dynamic_form():
             with ui.row().classes("w-full gap-3"):
                 FIELDS["ind_office_rate"] = ui.number("Office rate $/sq ft", value=pv("ind_office_rate"), prefix="$", format="%.2f").classes("flex-1")
                 FIELDS["ind_yard_rate"]   = ui.number("Yard rate $/sq ft", value=pv("ind_yard_rate"), prefix="$", format="%.2f").classes("flex-1")
+
+    # Assumptions & overrides — always shown. Each override is blank by default and
+    # falls back to the model's resolver when left empty, so nothing here is required.
+    with card("Income & assumptions (overrides)", "tune"):
+        with ui.row().classes("w-full gap-3"):
+            FIELDS["annual_rent"]     = ui.number("Direct total rent $/yr", value=annual_prefill, prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["expense_ratio"]   = ui.number("Expense ratio", value=pvpct("expense_ratio"), suffix="%", format="%.1f").classes("flex-1")
+            FIELDS["vacancy_rate"]    = ui.number("Vacancy rate", value=pvpct("vacancy_rate"), suffix="%", format="%.1f").classes("flex-1")
+            FIELDS["noi_growth_rate"] = ui.number("NOI growth", value=pvpct("noi_growth_rate"), suffix="%", format="%.2f").classes("flex-1")
+        ui.label("Direct total rent overrides every component calculation (use only when you "
+                 "have one in-place figure). Blank expense ratio = property-type default; blank "
+                 "vacancy = regional resolver; blank NOI growth = house default.").classes(
+            "text-xs text-slate-500")
+        FIELDS["notes"] = ui.textarea("Notes", value=pv("notes", "")).props("autogrow outlined").classes("w-full mt-1")
 
 
 def _fval(name, default=None):
@@ -483,21 +533,33 @@ def save_property_from_form():
     share = mixed_use_commercial_gfa_share(ptype, um.floors)
     fin   = resolve_financing(asking, ptype, units, commercial_gfa_share=share)
 
+    comm_rent = _fval("commercial_rent")
+    res_rent  = _fval("residential_rent")
     prop = PropertyInput(
-        original_price=asking, asking_price=asking,
+        original_price=float(_fval("original_price", asking) or asking), asking_price=asking,
         total_sq_ft=float(_fval("total_sq_ft", 0) or 0),
         property_taxes=float(_fval("property_taxes", 0) or 0),
+        # Down payment / rate / amortization are global (config/financing.json, Settings
+        # tab); hold_years is the one per-property financing input.
         down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
-        term_years=fin["term_years"], hold_years=fin["hold_years"],
-        address=address, city=_fval("city"), province=_fval("province"),
+        term_years=fin["term_years"],
+        hold_years=int(_fval("hold_years", fin["hold_years"]) or fin["hold_years"]),
+        address=address, mls_number=_fval("mls_number", "") or "",
+        city=_fval("city"), province=_fval("province"),
         property_type=ptype, status=_fval("status", "active"),
         lease_type=_fval("lease_type", "Normal"),
         listing_date=_fval("listing_date") or date.today().isoformat(),
         construction_cost=float(_fval("construction_cost", 0) or 0),
         commercial_lease_expiry=_fval("commercial_lease_expiry"),
         unit_mix=um if units else None,
-        commercial_rent=_fval("commercial_rent"),
-        commercial_rent_user_entered=_fval("commercial_rent") is not None,
+        annual_rent=_fval("annual_rent"),
+        commercial_rent=comm_rent,
+        commercial_rent_user_entered=comm_rent is not None,
+        residential_rent=res_rent,
+        residential_rent_user_entered=res_rent is not None,
+        expense_ratio=_pct("expense_ratio"),
+        vacancy_rate=_pct("vacancy_rate"),
+        noi_growth_rate=_pct("noi_growth_rate"),
         market_cap_rate=_pct("market_cap_rate"), exit_cap_rate=_pct("exit_cap_rate"),
         hotel_rooms=int(_fval("hotel_rooms", 0) or 0), hotel_adr=_fval("hotel_adr"),
         hotel_occupancy=_pct("hotel_occupancy"),
@@ -510,12 +572,21 @@ def save_property_from_form():
         ind_office_rate=_fval("ind_office_rate"), ind_yard_rate=_fval("ind_yard_rate"),
     )
 
+    # Pass the record being edited as `existing` so created_at (and other carried
+    # provenance) survives the rebuild — matching the re-analysis path.
+    existing = edit_ctx["record"] if edit_ctx["index"] is not None else None
     try:
-        record = CommercialPropertyAnalyzer(prop, resolver).to_record()
+        record = CommercialPropertyAnalyzer(prop, resolver).to_record(existing=existing)
         analyzed = True
     except Exception:
-        record = build_partial_record(prop)   # no market rate yet — save without analysis
+        record = build_partial_record(prop, existing=existing)  # no market rate yet
         analyzed = False
+
+    # Notes is not part of the analysis pipeline (to_record doesn't emit it), so carry
+    # the form value through explicitly. A blank field clears any prior note.
+    notes_val = (_fval("notes") or "").strip()
+    if notes_val:
+        record["notes"] = notes_val
 
     editing = edit_ctx["index"] is not None
     if editing:

@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.7.2] — 2026-11-04
+
+_Add/Edit form: every per-property input is now editable (plus two edit-path data-loss fixes)._
+
+### Added
+
+- **Full field editing.** The type-aware Add/Edit form now exposes every per-property
+  input the analysis pipeline honors, not just the core subset: `MLS #`, `Original / list
+  price`, `Hold years`, a direct `Residential rent $/yr` override, and a new **Income &
+  assumptions (overrides)** card with `Direct total rent`, `Expense ratio`, `Vacancy rate`,
+  `NOI growth`, and free-text `Notes`. Each override is blank by default and falls back to
+  the model's resolver when empty. Down payment / interest rate / amortization stay global
+  (Settings tab) and are shown read-only on the form so nothing looks missing.
+
+### Fixed
+
+- **`created_at` no longer reset on edit.** Saving an edit now passes the original record
+  as `existing` to the analyzer, so the creation date (and other carried provenance) is
+  preserved instead of being stamped to today — matching the re-analysis path.
+- **Notes no longer dropped on edit.** `notes` isn't part of the analysis record, so the
+  form value is now carried through explicitly on save (a blank field clears the note).
+- **Rent prefills respect provenance.** Editing a record no longer silently "freezes" a
+  market-estimated commercial/residential rent as owner-entered; those fields prefill only
+  when the record flags them as user-entered.
+
+---
+
 ## [4.7.1] — 2026-11-04
 
 _UI: a live address search on the Portfolio tab._
