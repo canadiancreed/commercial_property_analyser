@@ -18,6 +18,7 @@ import re
 import time
 import shutil
 import asyncio
+import threading
 import statistics
 import tempfile
 from pathlib import Path
@@ -68,7 +69,7 @@ from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 from analysis.report_builder import record_to_prop, build_report_row, reanalyze_properties
 from analysis.financing_config import (
     resolve_financing, mixed_use_commercial_gfa_share,
-    load_financing_config, save_financing_config,
+    load_financing_config, save_financing_config, base_rate_info,
 )
 from scoring.scorer import PropertyScorer
 from scoring.city_ranker import CityRanker
@@ -91,6 +92,24 @@ from nicegui import ui, app, native
 store = DataStore(properties_path=str(DB_PATH))
 store.ensure_properties_migrated(str(LEGACY_PROPS))
 store.ensure_rates_migrated()
+
+
+# ── Live base-rate feed (Bank of Canada GoC 5yr) ─────────────────────────────
+# Auto-refresh the sourced base rate on boot: one lightweight BoC Valet call,
+# throttled to once/day, fully offline-safe. A failed fetch keeps the last good
+# json/interest_rates.json (and the engine ultimately falls back to the anchor in
+# config/financing.json), so this never blocks or breaks startup. Runs off-thread.
+def _refresh_base_rate_async():
+    try:
+        from analysis.rate_feed import refresh_interest_rates
+        from analysis import financing_config
+        changed, _reason = refresh_interest_rates(max_age_hours=20)
+        if changed:
+            financing_config.reload_rate_feed()
+    except Exception:
+        pass
+
+threading.Thread(target=_refresh_base_rate_async, name="boc-rate-refresh", daemon=True).start()
 
 resolver = RentResolver(
     commercial_loader  = CommercialRentLoader(store),
@@ -430,11 +449,19 @@ def dynamic_form():
             FIELDS["hold_years"]   = ui.number("Hold years", value=pv("hold_years", _fin_preview.get("hold_years", 10)),
                                                format="%d").classes("w-32")
         if _fin_preview:
+            # This is the per-type RESOLVED financing actually applied to this property
+            # (per-type lending rules priced over the LIVE Bank of Canada base rate),
+            # NOT the raw Settings defaults — so it legitimately differs from the
+            # Settings screen for most types.
+            _bv = _fin_preview.get("base_rate_value")
+            _base_note = (f" · base {_bv*100:.3g}% GoC 5yr (BoC)"
+                          if isinstance(_bv, (int, float)) else "")
             ui.label(
-                f"Financing (global — set in Settings): "
+                f"Financing applied to this {state['type']}: "
                 f"{_fin_preview.get('down_payment_pct', 0)*100:.0f}% down · "
                 f"{_fin_preview.get('interest_rate', 0)*100:.3g}% · "
-                f"{_fin_preview.get('term_years', 0)}-yr amortization"
+                f"{_fin_preview.get('term_years', 0)}-yr amortization — "
+                f"per-type lending rules over a live Bank of Canada base rate{_base_note}"
             ).classes("text-xs text-slate-500")
 
     if "commercial" in groups:
@@ -1013,6 +1040,43 @@ def settings_tab():
                 ui.notify("Please enter valid numbers.", type="warning")
 
         ui.button("Save financing", icon="save", on_click=save_fin).props("unelevated")
+
+        ui.separator().classes("my-2")
+
+        @ui.refreshable
+        def _base_rate_row():
+            info = base_rate_info()
+            fetched, anchor = info.get("fetched"), (info.get("anchor") or 0)
+            adj = info.get("adjustment") or 0
+            with ui.row().classes("items-center gap-2"):
+                ui.icon("sync" if info.get("live") else "sync_problem").classes(
+                    "text-emerald-600" if info.get("live") else "text-amber-600")
+                if fetched is not None:
+                    txt = (f"Base rate (sourced): {info.get('series_label')} = {fetched*100:.3g}% "
+                           f"— {info.get('source')}, as of {info.get('fetched_as_of')}.")
+                else:
+                    txt = (f"Base rate anchor {anchor*100:.3g}% — no live feed yet "
+                           f"(using config default; click Refresh).")
+                ui.label(txt).classes("text-xs text-slate-600")
+            ui.label(
+                f"Every per-type rate = this sourced base + an asset-class credit spread. "
+                f"Live shift vs the authored anchor ({anchor*100:.3g}%): {adj*100:+.2f}%."
+            ).classes("text-xs text-slate-400")
+
+        _base_rate_row()
+
+        async def refresh_rates():
+            from analysis.rate_feed import refresh_interest_rates
+            from analysis import financing_config
+            changed, reason = await asyncio.to_thread(
+                lambda: refresh_interest_rates(force=True, timeout=30))
+            financing_config.reload_rate_feed()
+            _base_rate_row.refresh()
+            ui.notify(f"Base rate {reason}" + ("  — Re-analyze to apply." if changed else ""),
+                      type="positive" if changed else "warning")
+
+        ui.button("Refresh base rate (Bank of Canada)", icon="cloud_download",
+                  on_click=refresh_rates).props("outline no-caps dense").classes("mt-1")
 
     # Scoring formula weights
     with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm"):

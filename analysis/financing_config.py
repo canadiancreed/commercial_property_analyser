@@ -27,6 +27,10 @@ import json
 import os
 
 _CONFIG_PATH = "config/financing.json"
+# Sourced base rate (GoC 5yr benchmark yield), fetched by analysis/rate_feed.py.
+# Read directly here (like the vacancy resolver reads json/vacancy_rates.json) so
+# this module stays dependency-free and import-safe.
+_INTEREST_RATES_PATH = os.path.join("json", "interest_rates.json")
 
 _COMMENT = (
     "Global financing assumptions. TWO LAYERS: 'defaults' holds the house-wide "
@@ -51,10 +55,87 @@ _MULTIFAMILY_TYPES = frozenset({"multi_family", "multifamily", "residential"})
 _MULTIFAMILY_5PLUS_UNITS = 5
 
 _cache = None
+_RATE_SENTINEL = object()
+_rate_cache = _RATE_SENTINEL   # distinct from a loaded None (file absent)
 
 
 class FinancingConfigError(RuntimeError):
     pass
+
+
+# ── Sourced base rate (live BoC feed) ───────────────────────────────────────
+
+def _load_fetched_rate(force_reload: bool = False):
+    """Read json/interest_rates.json (the fetched GoC 5yr base). Returns the raw
+    dict, or None when absent/unreadable. Cached; tolerant of a missing file so
+    the engine runs offline off the authored anchor alone."""
+    global _rate_cache
+    if _rate_cache is not _RATE_SENTINEL and not force_reload:
+        return _rate_cache
+    data = None
+    try:
+        with open(_INTEREST_RATES_PATH, encoding="utf-8") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        data = None
+    _rate_cache = data
+    return data
+
+
+def reload_rate_feed():
+    """Drop the cached feed read (call after a boot refresh rewrites the file)."""
+    global _rate_cache
+    _rate_cache = _RATE_SENTINEL
+    return _load_fetched_rate(force_reload=True)
+
+
+def _rate_adjustment(raw: dict) -> float:
+    """Parallel shift applied to every authored rate band: (live GoC 5yr yield)
+    minus (the anchor the bands were authored against). 0.0 when either the
+    rate_base anchor or the fetched feed is absent — so rates fall back exactly to
+    what config/financing.json stores."""
+    base_block = raw.get("rate_base")
+    if not isinstance(base_block, dict):
+        return 0.0
+    anchor = base_block.get("value")
+    if not isinstance(anchor, (int, float)):
+        return 0.0
+    feed = _load_fetched_rate()
+    if not isinstance(feed, dict):
+        return 0.0
+    fetched = feed.get("base_rate")
+    if not isinstance(fetched, (int, float)):
+        return 0.0
+    return round(float(fetched) - float(anchor), 6)
+
+
+def _adj(x, delta: float):
+    """Shift a stored rate by the live delta (leaves None / non-numeric alone)."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return x
+    return round(x + delta, 6)
+
+
+def base_rate_info() -> dict:
+    """UI/diagnostics summary of the base-rate anchoring (no exceptions)."""
+    raw = _load_raw()
+    base_block = raw.get("rate_base") if isinstance(raw.get("rate_base"), dict) else {}
+    feed = _load_fetched_rate() or {}
+    adj = _rate_adjustment(raw)
+    return {
+        "anchor": base_block.get("value"),
+        "anchor_as_of": base_block.get("as_of"),
+        "series_label": (base_block.get("label")
+                         or feed.get("_meta", {}).get("series_label")
+                         or "GoC 5-year benchmark bond yield"),
+        "fetched": feed.get("base_rate"),
+        "fetched_as_of": feed.get("as_of"),
+        "fetched_at": feed.get("fetched_at"),
+        "status": feed.get("status", "not fetched"),
+        "source": base_block.get("source") or feed.get("_meta", {}).get("source"),
+        "adjustment": adj,
+        "live": bool(feed) and base_block.get("value") is not None,
+    }
 
 
 # ── Raw load / defaults ────────────────────────────────────────────────────
@@ -130,25 +211,27 @@ def _resolve_alias_key(key, ptypes):
     return key
 
 
-def _derive_scalars(block: dict) -> dict:
+def _derive_scalars(block: dict, adj: float = 0.0) -> dict:
     """Translate a rich per-type block (max_ltv / rate band / amort_years) into
-    the three pipeline scalars. hold_years is intentionally not derived here."""
+    the three pipeline scalars. ``adj`` is the live base-rate shift applied to the
+    rate band. hold_years is intentionally not derived here."""
     out = {}
     if "max_ltv" in block:
         out["down_payment_pct"] = round(1 - block["max_ltv"], 6)
     if "rate_low" in block and "rate_high" in block:
-        out["interest_rate"] = (block["rate_low"] + block["rate_high"]) / 2
+        out["interest_rate"] = round((block["rate_low"] + block["rate_high"]) / 2 + adj, 6)
     if "amort_years" in block:
         out["term_years"] = block["amort_years"]
     return out
 
 
-def _mli_scalars(mli_block: dict) -> dict:
+def _mli_scalars(mli_block: dict, adj: float = 0.0) -> dict:
     """Down payment / rate / amortization from an MLI Standard or Select sub-block.
     Select carries a point-tier amortization table plus a ``modeled_amort_years``
-    (the tier we score on) — Standard carries a flat ``amort_years``."""
+    (the tier we score on) — Standard carries a flat ``amort_years``. ``adj`` is
+    the live base-rate shift applied to the rate band."""
     out = {"down_payment_pct": round(1 - mli_block["max_ltv"], 6),
-           "interest_rate": (mli_block["rate_low"] + mli_block["rate_high"]) / 2}
+           "interest_rate": round((mli_block["rate_low"] + mli_block["rate_high"]) / 2 + adj, 6)}
     out["term_years"] = mli_block.get("amort_years") or mli_block.get("modeled_amort_years")
     return out
 
@@ -216,16 +299,16 @@ def _cmhc_eligibility(type_key, units, commercial_gfa_share, block, ptypes):
     return None, "not CMHC-eligible"
 
 
-def _select_scenario(mli_cmhc, residential_covenant) -> dict:
+def _select_scenario(mli_cmhc, residential_covenant, adj: float = 0.0) -> dict:
     """The MLI Select UPSIDE sub-scenario for the dual score. Acquisition LTV is
     capped at 85% (same as Standard), so the Select advantage is amortization
     (modeled 70pt/45yr, not a blanket 50yr) and DSCR floor (1.10), NOT leverage."""
     sel = mli_cmhc["mli_select"]
-    out = _mli_scalars(sel)
+    out = _mli_scalars(sel, adj)
     out.update({
         "financing_scenario": "mli_select",
         "max_ltv": sel.get("max_ltv"),
-        "rate_low": sel.get("rate_low"), "rate_high": sel.get("rate_high"),
+        "rate_low": _adj(sel.get("rate_low"), adj), "rate_high": _adj(sel.get("rate_high"), adj),
         "dscr_floor": sel.get("dscr_floor"),
         "covenant_dscr": sel.get("dscr_floor") or residential_covenant,
         "amort_by_points": sel.get("amort_by_points"),
@@ -257,6 +340,18 @@ def get_financing(property_type=None, units=None, loan_estimate=None,
     result["stress_test_bump"] = raw.get("stress_test_bump", 0.0)
     result["verified_date"]    = raw.get("verified_date")
     result["select"] = None
+
+    # Live base-rate shift: (fetched GoC 5yr yield - authored anchor). 0.0 when the
+    # feed or anchor is absent, so rates fall back to exactly what the config stores.
+    adj = _rate_adjustment(raw)
+    result["interest_rate"] = _adj(result["interest_rate"], adj)   # drives the unknown-type path
+    result["rate_adjustment"] = adj
+    _base_block = raw.get("rate_base") if isinstance(raw.get("rate_base"), dict) else {}
+    _feed = _load_fetched_rate() or {}
+    result["base_rate_value"]  = _feed.get("base_rate", _base_block.get("value"))
+    result["base_rate_as_of"]  = _feed.get("as_of") or _base_block.get("as_of")
+    result["base_rate_label"]  = _base_block.get("label")
+    result["base_rate_source"] = _base_block.get("source") or _feed.get("_meta", {}).get("source")
     # Residential fallback covenant for types that qualify on borrower GDS/TDS
     # (null dscr_floor) — used by the financing-robustness margins (Fix 6).
     residential_covenant = raw.get("residential_covenant_dscr", 1.1)
@@ -301,8 +396,8 @@ def get_financing(property_type=None, units=None, loan_estimate=None,
     if isinstance(mli_cmhc, dict):
         # ── CMHC MLI-eligible → RANK on MLI Standard; expose Select upside ─────
         std = mli_cmhc["mli_standard"]
-        result.update(_mli_scalars(std))
-        result["select"] = _select_scenario(mli_cmhc, residential_covenant)
+        result.update(_mli_scalars(std, adj))
+        result["select"] = _select_scenario(mli_cmhc, residential_covenant, adj)
         min_practical = mli_cmhc.get("min_practical_loan")
         small_balance_flag = (min_practical is not None and loan_estimate is not None
                               and loan_estimate < min_practical)
@@ -310,7 +405,7 @@ def get_financing(property_type=None, units=None, loan_estimate=None,
             "type_key": type_key, "source": "cmhc_mli",
             "financing_scenario": "mli_standard",
             "max_ltv": std.get("max_ltv"),
-            "rate_low": std.get("rate_low"), "rate_high": std.get("rate_high"),
+            "rate_low": _adj(std.get("rate_low"), adj), "rate_high": _adj(std.get("rate_high"), adj),
             "amort_years": std.get("amort_years"),
             "dscr_floor": std.get("dscr_floor"),
             "covenant_dscr": std.get("dscr_floor") or residential_covenant,
@@ -324,12 +419,12 @@ def get_financing(property_type=None, units=None, loan_estimate=None,
         return result
 
     # ── Not CMHC-eligible → conventional per-type block ──────────────────────
-    result.update(_derive_scalars(block))
+    result.update(_derive_scalars(block, adj))
     result.update({
         "type_key": type_key, "source": "property_type",
         "financing_scenario": "type",
         "max_ltv": block.get("max_ltv"),
-        "rate_low": block.get("rate_low"), "rate_high": block.get("rate_high"),
+        "rate_low": _adj(block.get("rate_low"), adj), "rate_high": _adj(block.get("rate_high"), adj),
         "amort_years": block.get("amort_years"),
         "dscr_floor": block.get("dscr_floor"),
         "covenant_dscr": block.get("dscr_floor") or residential_covenant,
@@ -367,20 +462,21 @@ def save_financing_config(down_payment_pct: float, interest_rate: float,
     human-entered percentages should normalise before calling here.
     """
     global _cache
-    raw = dict(_load_raw())
-    data = {"_comment": _COMMENT}
+    # Preserve EVERY existing top-level key (property_types, stress_test_bump,
+    # verified_date, rate_base, residential_covenant_dscr, the source notes, …);
+    # menu 'f' / the Settings screen edits the defaults layer ONLY.
+    data = dict(_load_raw())
+    # Drop any legacy flat scalars that live at the top level (pre-two-layer file),
+    # so they can't shadow the new defaults block (the four scalars only live there).
+    for _k in _REQUIRED_DEFAULT_KEYS:
+        data.pop(_k, None)
+    data["_comment"] = _COMMENT
     data["defaults"] = {
         "down_payment_pct": round(float(down_payment_pct), 6),
         "interest_rate":    round(float(interest_rate), 6),
         "term_years":       int(term_years),
         "hold_years":       int(hold_years),
     }
-    if "stress_test_bump" in raw:
-        data["stress_test_bump"] = raw["stress_test_bump"]
-    if "verified_date" in raw:
-        data["verified_date"] = raw["verified_date"]
-    if "property_types" in raw:
-        data["property_types"] = raw["property_types"]
 
     tmp = _CONFIG_PATH + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:

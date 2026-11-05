@@ -11,6 +11,14 @@
   "_covenant_comment": "Financing-robustness covenant DSCR (Fix 6) is the per-type lending dscr_floor above — ONE source of truth, so loan sizing and robustness stay consistent. Types that qualify on borrower GDS/TDS rather than a project DSCR (multi_family_1_4, and any type with a null dscr_floor) fall back to residential_covenant_dscr.",
   "residential_covenant_dscr": 1.1,
   "_financing_sources": "CMHC MLI parameters verified July 2026 against CMHC primary (cmhc-schl.gc.ca) + corroborating broker/lender sources. Every listing here is an EXISTING-BUILDING ACQUISITION, never new construction, so 95% loan-to-COST never applies. Acquisition advances are capped at 85% LTV (lender effective-advance practice, corroborated) because existing buildings rarely throw enough DSCR to support true 95% advancing; 95% is the published 100-point existing-property ceiling and is treated as UNVERIFIED UPSIDE requiring 100pts + DSCR>=1.20 + full lender advance. MLI Standard (85/40/DSCR1.20, no points) is the primary-verified ranking floor. MLI Select amortization is point-tier-dependent (50pts->40yr, 70pts->45yr, 100pts->50yr); 50yr is the 100-point reward only, so Select is modeled at 70pts/45yr, never a blanket 50yr. Eligibility: >=5 RESIDENTIAL units (retirement 50 units/beds); mixed-use qualifies only under the CMHC 30% rule (non-residential <=30% of gross floor area). Retail/office/industrial are never CMHC-eligible.",
+  "rate_base": {
+    "_comment": "SOURCED anchor for every interest rate in this file. The per-type rate_low/rate_high bands below (and the defaults.interest_rate) were authored relative to this base: the Government of Canada 5-year benchmark bond yield. The live Bank of Canada feed (json/interest_rates.json, fetched from the Valet API) shifts EVERY rate band by (fetched 5yr yield - this value). With the feed at this value the rates are exactly as authored (no change); as the GoC yield moves, every rate tracks it in parallel. Only this base is sourced; the spread of each band over it remains a lender-credit estimate. To re-anchor (so a future feed delta is measured from a new reference), set this value to the GoC 5yr at the time you re-author the bands. Resolution lives in analysis/financing_config.py (_rate_adjustment).",
+    "series": "BD.CDN.5YR.DQ.YLD",
+    "label": "Government of Canada 5-year benchmark bond yield",
+    "value": 0.0349,
+    "as_of": "2026-11-03",
+    "source": "Bank of Canada, Valet API"
+  },
   "property_types": {
     "multi_family_1_4": {
       "max_ltv": 0.8,

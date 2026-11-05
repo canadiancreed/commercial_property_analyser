@@ -1,0 +1,28 @@
+{
+ "_meta": {
+  "description": "Government of Canada 5-year benchmark bond yield — the sourced base rate for commercial-mortgage pricing. Per-type rates = this base + a per-asset-class credit spread (config/financing.json).",
+  "source": "Bank of Canada, Valet API",
+  "source_url": "https://www.bankofcanada.ca/valet/observations/group/bond_yields_benchmark/json",
+  "series": "BD.CDN.5YR.DQ.YLD",
+  "series_label": "Government of Canada benchmark bond yield, 5-year",
+  "unit": "fraction (0.0349 == 3.49%)",
+  "attribution": "Source: Bank of Canada. This does not constitute an endorsement by the Bank of Canada of this product.",
+  "refresh": "Re-run scripts/fetch_interest_rates.py, or the desktop app refreshes on boot (once/day, offline-safe). Re-analyze to push new rates into stored results."
+ },
+ "base_rate": 0.0349,
+ "as_of": "2026-11-03",
+ "status": "fetched",
+ "fetched_at": "2026-11-05T12:56:51+00:00",
+ "last_updated": "2026-11-05",
+ "context": {
+  "policy_rate": 0.025,
+  "policy_rate_series": "V39079",
+  "yield_curve": {
+   "2yr": 0.0326,
+   "3yr": 0.0336,
+   "5yr": 0.0349,
+   "7yr": 0.0358,
+   "10yr": 0.0377
+  }
+ }
+}

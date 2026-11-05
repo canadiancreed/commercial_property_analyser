@@ -1,4 +1,4 @@
-# Commercial Property Analyser v4.7.2
+# Commercial Property Analyser v4.8.0
 
 A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
 
@@ -325,6 +325,7 @@ All files are created automatically on first use. They are plain UTF-8 JSON and 
 | `missing_rent_data.json` | Tracks which cities are missing commercial or residential rent data so the menu can prompt the user to fill them in. |
 | `vacancy_rates.json` | CMHC Rental Market Survey apartment (residential) vacancy keyed by StatCan CMA/CA code, plus provincial + national aggregates. Consumed by `analysis/vacancy_resolver.py` as tiers 1-3 of the vacancy chain. A scripted download (`scripts/fetch_vacancy_rates.py`), not hand-edited. CMHC's HMIP portal blocks programmatic access, so the fetch pulls the identical CMHC series republished by StatCan's WDS (tables 34-10-0127/128/129). |
 | `geographic_crosswalk.json` | StatCan Geographic Attribute File (92-151-X): every CSD (municipality) → its CMA/CA and province as numeric codes, plus a normalized name index for the city-name → CSD-code hop. Powers tiers 2-3 of the vacancy chain. A scripted download (`scripts/fetch_geographic_crosswalk.py`), versioned by census. |
+| `interest_rates.json` | The **sourced base rate** for mortgage pricing: the Government of Canada 5-year benchmark bond yield, fetched from the Bank of Canada Valet API. A scripted download (`scripts/fetch_interest_rates.py`; shared logic in `analysis/rate_feed.py`), also auto-refreshed by the desktop app on boot. `config/financing.json` prices every per-type rate as `this base + an asset-class credit spread`; the resolver shifts the stored bands by `(fetched yield − the authored anchor)`. |
 | `reanalyze_errors.log` | Plain-text log written by **Re-analyze all** (`r`) when a property fails to analyze: a timestamp header plus the full traceback for each failed record (address · MLS · type). Overwritten each run; deleted automatically when a run completes with no errors. Not JSON — a debugging aid so an error count is never a dead end. |
 
 **Regional vacancy pipeline (3.7).** Vacancy is resolved per region by
@@ -338,6 +339,17 @@ re-analyze (`r`). No hand-entry — "data will change" is handled by re-running.
 committed files hold a real October-2025 fetch (140 surveyed regions across 11 provinces).
 CMHC figures are shown with the required "Adapted from Canada Mortgage and Housing
 Corporation, Rental Market Survey, &lt;reference date&gt;" attribution wherever they surface.
+
+**Interest-rate base feed (4.8).** Mortgage rates are priced off a single sourced number —
+the Government of Canada 5-year benchmark bond yield from the **Bank of Canada Valet API** —
+not hand-typed guesses. `analysis/rate_feed.py` fetches it (offline-safe: a failed fetch
+keeps the last good `json/interest_rates.json`, and the engine ultimately falls back to the
+`rate_base` anchor in `config/financing.json`); `scripts/fetch_interest_rates.py` is the CLI,
+and the desktop app auto-refreshes once/day on boot plus a manual **Refresh base rate**
+button in Settings. Each per-type rate is `base + an asset-class credit spread`: only the
+base is sourced; the spreads remain documented lender-credit estimates. Re-analyze (`r`)
+after a refresh to apply new rates. Bank of Canada data carries the attribution "Source:
+Bank of Canada" and is not an endorsement.
 
 ---
 
