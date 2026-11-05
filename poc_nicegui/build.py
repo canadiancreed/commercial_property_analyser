@@ -12,11 +12,15 @@ browser for the realtor.ca scraper:
     python -m playwright install firefox
 
 (Bundling the Firefox binary itself into the exe is not done yet — see poc_nicegui/TODO.md.)
-Output: dist/CommercialPropertyAnalyser.exe (onefile) or dist/CommercialPropertyAnalyser/ (onedir).
+Output: the exe is written straight to the PROJECT ROOT (CommercialPropertyAnalyser.exe for
+onefile; a CommercialPropertyAnalyser/ folder for onedir), so the copy you launch is always
+the latest — no stale dist/ copy. PyInstaller's scratch (build dir + .spec) goes to the
+system temp dir, so nothing else is left in the repo.
 """
 import os
 import sys
 import shutil
+import tempfile
 import subprocess
 from pathlib import Path
 
@@ -32,6 +36,9 @@ NGPKG  = Path(nicegui.__file__).parent
 ICON   = ROOT / "poc_nicegui" / "icon.ico"
 SEP    = ";" if os.name == "nt" else ":"
 ONEFILE = "--onedir" not in sys.argv
+# Build output goes to the project ROOT; PyInstaller's scratch (work dir + .spec) goes to
+# the system temp so the only thing the build leaves in the repo is the exe itself.
+SCRATCH = Path(tempfile.gettempdir()) / "cpa_pyinstaller"
 
 # PyInstaller resolves imports from the entry script's directory, so build from a copy at
 # the project root (where the data/ analysis/ scoring/ … packages live); PYTHONPATH too.
@@ -47,6 +54,9 @@ try:
         "--add-data", f"{NGPKG}{SEP}nicegui",
         "--add-data", f"{ROOT / 'json'}{SEP}json",
         "--add-data", f"{ROOT / 'config'}{SEP}config",
+        "--distpath", str(ROOT),                 # exe lands at the project root
+        "--workpath", str(SCRATCH / "build"),    # scratch out of the repo (system temp)
+        "--specpath", str(SCRATCH),
     ]
     if ICON.exists():
         cmd += ["--icon", str(ICON)]

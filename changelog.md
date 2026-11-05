@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.9.3] — 2026-11-05
+
+_The build writes the exe straight to the project root, so the copy you launch is always the latest._
+
+### Changed
+
+- **`build.py` outputs the exe to the project root** (`--distpath` = repo root) instead of
+  `dist/`, and sends PyInstaller's scratch (work dir + `.spec`) to the system temp. A build
+  now leaves nothing in the repo except `CommercialPropertyAnalyser.exe` at the root — the
+  exact file you double-click — so a stale `dist/` copy can't diverge from the latest build.
+  (`make build` / `.\make.ps1 build` are unchanged; they call `build.py`.)
+
+---
+
 ## [4.9.2] — 2026-11-05
 
 _The database is the single source of truth: no more auto-seeding property records from `properties.json`._

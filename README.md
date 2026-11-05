@@ -1,4 +1,4 @@
-# Commercial Property Analyser v4.9.2
+# Commercial Property Analyser v4.9.3
 
 A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
 
@@ -24,9 +24,10 @@ A task runner wraps the common commands so you don't retype them:
 - **Windows PowerShell (no install):** `.\make.ps1 build` · `.\make.ps1 run` ·
   `.\make.ps1 test` — same targets, uses the `py` launcher.
 
-`build` compiles the desktop `.exe` into `dist/` (PyInstaller); `web` serves the UI at
-`http://localhost:8080`. The `.exe` is **not** tracked in git, so after pulling new code you
-must rebuild it to see the new version.
+`build` compiles the desktop `.exe` straight to the **project root** (PyInstaller;
+`CommercialPropertyAnalyser.exe`, the file you launch), with its scratch kept in the system
+temp; `web` serves the UI at `http://localhost:8080`. The `.exe` is **not** tracked in git,
+so after pulling new code you must rebuild it to see the new version.
 
 No internet connection required. As of v4.0.0, data lives in a local **SQLite database**
 (`properties.db`). **As of v4.9.2 the database is the single source of truth for property
