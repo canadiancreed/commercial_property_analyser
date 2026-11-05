@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.9.2] — 2026-11-05
+
+_The database is the single source of truth: no more auto-seeding property records from `properties.json`._
+
+### Changed
+
+- **The app no longer imports `properties.json`.** It opens the SQLite database and shows
+  whatever records it contains (empty on a brand-new DB). The guarded one-time
+  `ensure_properties_migrated` seed was removed from both the desktop app
+  (`poc_nicegui/app.py`) and the CLI (`main.py`), and the build no longer bundles
+  `properties.json`. Importing data is now an explicit, separate action (future feature),
+  not a silent startup step — so a reverted or stale `properties.json` can never again
+  replace your real data. (Rent rates and scoring/financing **config** still seed once from
+  the bundled `json/` + `config/` reference files; those are reference/config, not your
+  property records.)
+
+### Notes
+
+- Existing databases are unaffected — your records already live in the DB. The desktop
+  app's DB persists at `%LOCALAPPDATA%\CommercialPropertyAnalyser\properties.db`.
+
+---
+
 ## [4.9.1] — 2026-11-05
 
 _Fix: the app/build crashed when run from a normal checkout; plus a dev task runner._

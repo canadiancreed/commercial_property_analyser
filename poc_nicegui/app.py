@@ -27,23 +27,14 @@ from pathlib import Path
 WORKTREE = Path(__file__).resolve().parents[1]
 
 if getattr(sys, "frozen", False):
-    # Packaged (.exe): project code + seed data are bundled read-only under _MEIPASS,
-    # which is wiped on exit — so the live DB must live in a persistent user dir.
+    # Packaged (.exe): project code + reference/config seed are bundled read-only under
+    # _MEIPASS (wiped on exit), so the live DB lives in a persistent user dir.
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-    LEGACY_PROPS = BASE / "properties.json"            # bundled one-time seed
     _data_base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
     DATA_DIR = _data_base / "CommercialPropertyAnalyser"
 else:
-    # Dev: running from source. Seed from the LIVE repo-root properties.json — in a git
-    # worktree (<repo>/.claude/worktrees/<name>) that's three levels up; in a normal
-    # checkout WORKTREE already IS the repo root. Guard the climb so it runs from either
-    # (a plain checkout has fewer than 3 parents above poc_nicegui, which used to crash).
+    # Dev: run from source; the DB lives beside the source under poc_nicegui/_data.
     BASE = WORKTREE
-    _live = None
-    if (len(WORKTREE.parents) >= 3 and WORKTREE.parent.name == "worktrees"
-            and WORKTREE.parent.parent.name == ".claude"):
-        _live = WORKTREE.parents[2] / "properties.json"
-    LEGACY_PROPS = _live if (_live and _live.exists()) else WORKTREE / "properties.json"
     DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
 
 sys.path.insert(0, str(BASE))  # import the project packages from the code location
@@ -94,11 +85,12 @@ from version import __version__
 
 from nicegui import ui, app, native
 
-# Persistent SQLite store, migrated once from the bundled/legacy JSON seed. All of the
-# store's own relative paths (json/commercial_rents.json, missing_cities.json, …) now
-# resolve under the writable DATA_DIR because we chdir'd there above.
+# Persistent SQLite store. The DB is the single source of truth for property records —
+# the app loads whatever the database contains (empty on a brand-new DB) and never seeds
+# or imports from properties.json. Importing data is a separate, explicit action.
+# (Rent rates + config still seed once from the bundled json/ + config/ reference files,
+# below / via the config table — those are reference/config, not the user's property data.)
 store = DataStore(properties_path=str(DB_PATH))
-store.ensure_properties_migrated(str(LEGACY_PROPS))
 store.ensure_rates_migrated()
 
 # Route financing config through the DB `config` table (seeded once from the bundled

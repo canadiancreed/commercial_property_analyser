@@ -11,7 +11,8 @@ if __name__ == "__main__":
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     print(f"Commercial Property Analyser v{__version__}")
     store = DataStore()
-    store.ensure_properties_migrated()   # one-time import of legacy properties.json
+    # The DB is the single source of truth for property records — no auto-import from
+    # properties.json. (Rent/config reference still seed once from json/ + config/.)
     store.ensure_rates_migrated()        # one-time import of legacy rent JSON files
     store.migrate_vacancy_rate_to_null()
     financing_config.set_store(store)    # financing config lives in the DB config table
