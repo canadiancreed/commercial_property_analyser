@@ -20,7 +20,12 @@ from pathlib import Path
 
 import nicegui
 
-ROOT   = Path(__file__).resolve().parents[1]          # project / worktree root
+# Project root = the nearest ancestor (including this file's own dir) that contains the
+# poc_nicegui/ source. This lets build.py run from poc_nicegui/build.py OR from a copy
+# dropped in the project's main folder next to the delivered .exe.
+_here = Path(__file__).resolve()
+ROOT = next((c for c in (_here.parent, *_here.parents)
+             if (c / "poc_nicegui" / "app.py").exists()), _here.parents[1])
 NGPKG  = Path(nicegui.__file__).parent
 ICON   = ROOT / "poc_nicegui" / "icon.ico"
 # Seed the bundled properties.json from the live repo-root file when present. In a

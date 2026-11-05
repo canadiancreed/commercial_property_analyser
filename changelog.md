@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.7.1] — 2026-11-04
+
+_UI: a live address search on the Portfolio tab._
+
+### Added
+
+- **Portfolio address search.** A "Search by address…" box above the portfolio grid filters
+  the table live as you type — case-insensitive, matching anywhere in the address. It filters
+  a cached copy of the rows (no per-keystroke database re-query), the clearable **✕** restores
+  the full list, and a save / re-analyze still refreshes the grid while respecting the current
+  search term.
+
+---
+
 ## [4.7.0] — 2026-11-03
 
 _Packaging polish: a database schema-version + migration scaffold, a reproducible build
