@@ -34,10 +34,16 @@ if getattr(sys, "frozen", False):
     _data_base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
     DATA_DIR = _data_base / "CommercialPropertyAnalyser"
 else:
-    # Dev: run from the worktree; seed from the LIVE repo-root properties.json.
+    # Dev: running from source. Seed from the LIVE repo-root properties.json — in a git
+    # worktree (<repo>/.claude/worktrees/<name>) that's three levels up; in a normal
+    # checkout WORKTREE already IS the repo root. Guard the climb so it runs from either
+    # (a plain checkout has fewer than 3 parents above poc_nicegui, which used to crash).
     BASE = WORKTREE
-    _live = WORKTREE.parents[2] / "properties.json"
-    LEGACY_PROPS = _live if _live.exists() else WORKTREE / "properties.json"
+    _live = None
+    if (len(WORKTREE.parents) >= 3 and WORKTREE.parent.name == "worktrees"
+            and WORKTREE.parent.parent.name == ".claude"):
+        _live = WORKTREE.parents[2] / "properties.json"
+    LEGACY_PROPS = _live if (_live and _live.exists()) else WORKTREE / "properties.json"
     DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
 
 sys.path.insert(0, str(BASE))  # import the project packages from the code location
