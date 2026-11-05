@@ -3,9 +3,11 @@
     python poc_nicegui/build.py            # onefile  (single file; slower first start)
     python poc_nicegui/build.py --onedir   # onedir   (a folder to zip; faster start)
 
-Bundles NiceGUI, the project's json/ + config/ seed, the live properties.json seed, the
-Playwright driver, and the app icon. The *target machine* still needs a Firefox browser
-for the realtor.ca scraper:
+Bundles NiceGUI, the project's json/ + config/ reference & config seed, the Playwright
+driver, and the app icon. It does NOT bundle properties.json: the SQLite DB is the single
+source of truth for property records, so a fresh install starts with an empty database
+(import is a separate, explicit action). The *target machine* still needs a Firefox
+browser for the realtor.ca scraper:
 
     python -m playwright install firefox
 
@@ -28,19 +30,6 @@ ROOT = next((c for c in (_here.parent, *_here.parents)
              if (c / "poc_nicegui" / "app.py").exists()), _here.parents[1])
 NGPKG  = Path(nicegui.__file__).parent
 ICON   = ROOT / "poc_nicegui" / "icon.ico"
-# Seed the bundled properties.json from the live repo-root file. In a git worktree
-# (<repo>/.claude/worktrees/<name>) the live file is three levels up; in a normal
-# checkout ROOT already IS the repo root. Guard the climb so build.py runs from either
-# (a plain checkout has fewer than 3 parents above poc_nicegui, which used to crash).
-def _live_seed(root: Path) -> Path:
-    if (len(root.parents) >= 3 and root.parent.name == "worktrees"
-            and root.parent.parent.name == ".claude"):
-        live = root.parents[2] / "properties.json"
-        if live.exists():
-            return live
-    return root / "properties.json"
-
-SEED = _live_seed(ROOT)
 SEP    = ";" if os.name == "nt" else ":"
 ONEFILE = "--onedir" not in sys.argv
 
@@ -58,7 +47,6 @@ try:
         "--add-data", f"{NGPKG}{SEP}nicegui",
         "--add-data", f"{ROOT / 'json'}{SEP}json",
         "--add-data", f"{ROOT / 'config'}{SEP}config",
-        "--add-data", f"{SEED}{SEP}.",
     ]
     if ICON.exists():
         cmd += ["--icon", str(ICON)]

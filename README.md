@@ -1,4 +1,4 @@
-# Commercial Property Analyser v4.9.1
+# Commercial Property Analyser v4.9.2
 
 A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
 
@@ -28,11 +28,13 @@ A task runner wraps the common commands so you don't retype them:
 `http://localhost:8080`. The `.exe` is **not** tracked in git, so after pulling new code you
 must rebuild it to see the new version.
 
-No internet connection required. As of v4.0.0, property records and rent rates are stored
-in a local **SQLite database** (`properties.db`), migrated automatically on first run from
-the legacy `properties.json` and the rate files in `json/`. The remaining reference and
-configuration data (demographics, distances, vacancy, scoring/financing config) stay as
-JSON in `json/` and `config/`.
+No internet connection required. As of v4.0.0, data lives in a local **SQLite database**
+(`properties.db`). **As of v4.9.2 the database is the single source of truth for property
+records** — the app opens the DB and shows whatever it contains (empty on a brand-new DB)
+and does **not** import `properties.json`; bringing in records is a separate, explicit
+action. Rent rates and scoring/financing **config** still seed once from the bundled
+`json/` + `config/` reference files (demographics, distances, vacancy, scoring/financing
+config), which remain JSON.
 
 ---
 
