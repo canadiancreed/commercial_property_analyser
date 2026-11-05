@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.9.1] — 2026-11-05
+
+_Fix: the app/build crashed when run from a normal checkout; plus a dev task runner._
+
+### Fixed
+
+- **`build.py` and `app.py` no longer crash outside a git worktree.** Both derived the
+  live repo-root `properties.json` with `…parents[2]`, which assumed the code lived at
+  `<repo>/.claude/worktrees/<name>` (three levels deep). Run from a normal checkout —
+  `python poc_nicegui/build.py` or `python poc_nicegui/app.py` from the repo root — that
+  overflowed with `IndexError: 2`. The climb is now guarded: it only walks up to the real
+  repo root when actually inside a worktree, otherwise it uses the checkout root.
+
+### Added
+
+- **Dev task runner.** A `Makefile` (Git Bash / Unix) and a `make.ps1` shim (Windows
+  PowerShell, no install needed) with targets `run`, `web`, `build`/`compile`, `test`,
+  `fetch-rates`, `fetch-vacancy`, and `clean`. E.g. `make build` or `.\make.ps1 build`.
+
+---
+
 ## [4.9.0] — 2026-11-05
 
 _All Settings config moves into a DB table, and every financing value is editable in-app._

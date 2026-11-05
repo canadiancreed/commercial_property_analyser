@@ -28,10 +28,19 @@ ROOT = next((c for c in (_here.parent, *_here.parents)
              if (c / "poc_nicegui" / "app.py").exists()), _here.parents[1])
 NGPKG  = Path(nicegui.__file__).parent
 ICON   = ROOT / "poc_nicegui" / "icon.ico"
-# Seed the bundled properties.json from the live repo-root file when present. In a
-# worktree, ROOT is repo/.claude/worktrees/<name>, so the repo root is parents[2].
-_live  = ROOT.parents[2] / "properties.json"
-SEED   = _live if _live.exists() else ROOT / "properties.json"
+# Seed the bundled properties.json from the live repo-root file. In a git worktree
+# (<repo>/.claude/worktrees/<name>) the live file is three levels up; in a normal
+# checkout ROOT already IS the repo root. Guard the climb so build.py runs from either
+# (a plain checkout has fewer than 3 parents above poc_nicegui, which used to crash).
+def _live_seed(root: Path) -> Path:
+    if (len(root.parents) >= 3 and root.parent.name == "worktrees"
+            and root.parent.parent.name == ".claude"):
+        live = root.parents[2] / "properties.json"
+        if live.exists():
+            return live
+    return root / "properties.json"
+
+SEED = _live_seed(ROOT)
 SEP    = ";" if os.name == "nt" else ":"
 ONEFILE = "--onedir" not in sys.argv
 
