@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.8.0] — 2026-11-05
+
+_Interest rates are now sourced from a live Bank of Canada feed instead of hand-typed estimates._
+
+### Added
+
+- **Bank of Canada base-rate feed.** The one number behind every mortgage rate — the
+  Government of Canada 5-year benchmark bond yield — is now fetched from the Bank of
+  Canada Valet API (open, no key), not guessed. `scripts/fetch_interest_rates.py` writes
+  `json/interest_rates.json`; `analysis/rate_feed.py` holds the shared, offline-safe fetch
+  logic. The desktop app auto-refreshes it on boot (throttled to once/day, off-thread) and
+  the **Settings → Global financing** card shows the live base rate with a **Refresh base
+  rate (Bank of Canada)** button.
+- **Base + spread pricing.** Every per-type rate is now `live GoC 5-year yield + an
+  asset-class credit spread`. The per-type bands in `config/financing.json` are anchored to
+  a recorded base (`rate_base`); the resolver shifts every band in parallel by
+  `(fetched yield − anchor)`. Only the base is sourced; the spreads remain documented
+  lender-credit estimates. The Add/Edit form label now names the live base rate.
+
+### Changed
+
+- **No score churn on wire-up.** The anchor is set to the GoC 5-year yield on the day the
+  feed was wired (3.49%, 2026-11-03), so with the feed at that level the adjustment is
+  exactly 0 and every rate is unchanged from the prior verified values. Rates only move once
+  the yield moves; **re-analyze** to push new rates into stored results — same as the
+  vacancy pipeline.
+
+### Fixed
+
+- **Settings "Save financing" no longer drops config.** Saving the global defaults now
+  preserves every other top-level key (`property_types`, `rate_base`,
+  `residential_covenant_dscr`, the source notes) instead of rebuilding a stripped file.
+
+---
+
 ## [4.7.2] — 2026-11-04
 
 _Add/Edit form: every per-property input is now editable (plus two edit-path data-loss fixes)._
