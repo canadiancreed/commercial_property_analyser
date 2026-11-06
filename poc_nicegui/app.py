@@ -230,6 +230,43 @@ def refresh_portfolio():
     _apply_portfolio_filter()
 
 
+def _show_reanalyze_issues(issues):
+    """Dialog listing the properties a Re-analyze all did NOT update, with the reason —
+    errors first (need attention), then skips (usually a city with no market rent yet)."""
+    errs  = [x for x in issues if x.get("kind") == "error"]
+    skips = [x for x in issues if x.get("kind") == "skipped"]
+    with ui.dialog() as d, ui.card().classes("p-4 gap-2 w-[640px] max-w-full"):
+        with ui.row().classes("items-center gap-2"):
+            ui.icon("rule").classes("text-blue-600")
+            ui.label(f"Not re-analyzed — {len(errs)} error(s), {len(skips)} skipped").classes(
+                "font-semibold text-slate-800")
+        ui.label("Errors need attention; skips are usually a city with no market rent rates "
+                 "yet (add the rate on the Rates tab, then Re-analyze).").classes(
+            "text-xs text-slate-500")
+        with ui.scroll_area().classes("w-full").style("height:min(50vh,420px)"):
+            for title, items, color, icon in (
+                    ("Errors", errs, "text-red-600", "error"),
+                    ("Skipped", skips, "text-amber-600", "info")):
+                if not items:
+                    continue
+                ui.label(f"{title} ({len(items)})").classes(
+                    "text-xs font-semibold text-slate-500 mt-2")
+                for x in items:
+                    with ui.row().classes("w-full items-start gap-2 border-b border-slate-100 py-1"):
+                        ui.icon(icon).classes(f"{color} text-base mt-0.5")
+                        with ui.column().classes("gap-0 flex-1"):
+                            ui.label(x.get("address") or "—").classes(
+                                "text-sm font-medium text-slate-700")
+                            _meta = " · ".join(p for p in (x.get("city"), x.get("property_type"),
+                                                           x.get("mls")) if p)
+                            if _meta:
+                                ui.label(_meta).classes("text-xs text-slate-400")
+                            ui.label(x.get("reason") or "").classes("text-xs text-slate-500")
+        with ui.row().classes("w-full justify-end"):
+            ui.button("Close", on_click=d.close).props("flat")
+    d.open()
+
+
 # ── Page 1: Portfolio list ────────────────────────────────────────────────────
 def portfolio_tab():
 
@@ -300,6 +337,8 @@ def portfolio_tab():
             f"({res['skipped']} skipped, {res['errors']} error(s)).",
             type="positive",
         )
+        if res.get("issues"):
+            _show_reanalyze_issues(res["issues"])
 
     with ui.row().classes("w-full items-center mt-2"):
         ui.label("Tip: click any row to open that property's investment report "
