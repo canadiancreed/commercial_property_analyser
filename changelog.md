@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.1] — 2026-11-06
+
+_Fix: clicking or editing a property could open the wrong property — or a blank one._
+
+### Fixed
+
+- **Selecting/editing now always opens the clicked property.** The portfolio grid identified
+  a row by a cached positional index, but the load order shifts whenever a record is
+  edited/added (moved to the end) or deleted (renumbered), so a stale index could map to a
+  *different* property (e.g. "442-446 Olive" opening "45 Cambria") or out of range (a blank
+  edit form). Selection now resolves the property by its stable `(address, listing_date)`
+  key — the table's UNIQUE key — at click time, and Edit/Delete re-resolve the same way, so
+  they can't act on the wrong or a missing row. New `form_logic.resolve_row_index`
+  (unit-tested).
+
+---
+
 ## [4.11.0] — 2026-11-05
 
 _The Rates tab is now an editable table of every city's rents, not a one-city-at-a-time form._

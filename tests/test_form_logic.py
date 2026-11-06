@@ -185,6 +185,28 @@ def test_build_strips_address():
     assert p.address == "5 Main St"
 
 
+# ── Stable row identity (4.11.1) ─────────────────────────────────────────────
+
+def test_resolve_row_index_by_key():
+    recs = [{"address": "A St", "listing_date": "2025-01-01"},
+            {"address": "B St", "listing_date": "2025-02-01"},
+            {"address": "A St", "listing_date": "2025-03-01"}]  # same address, diff date
+    assert fl.resolve_row_index(recs, "B St", "2025-02-01") == 1
+    assert fl.resolve_row_index(recs, "A St", "2025-03-01") == 2   # disambiguated by date
+    assert fl.resolve_row_index(recs, "A St", "2025-01-01") == 0
+
+
+def test_resolve_row_index_not_found():
+    recs = [{"address": "A St", "listing_date": "2025-01-01"}]
+    assert fl.resolve_row_index(recs, "Z St", "2025-01-01") is None
+    assert fl.resolve_row_index(recs, "A St", "1999-01-01") is None
+
+
+def test_resolve_row_index_tolerates_none():
+    assert fl.resolve_row_index([{"address": None, "listing_date": None}], "", "") == 0
+    assert fl.resolve_row_index([{}], None, None) == 0
+
+
 # ── City rate table helpers (4.11) ───────────────────────────────────────────
 
 COMM_COLS = ["Office", "Retail", "Industrial", "Mixed-Use"]

@@ -199,6 +199,10 @@ def _load_rows() -> list:
     for i, p in enumerate(store.load_properties()):
         rows.append({
             "id": i,
+            # Stable identity (the table's UNIQUE key) so a click maps to the right record
+            # even after the load order shifts — a cached positional id can go stale.
+            "_addr": p.get("address") or "",
+            "_ld": p.get("listing_date") or "",
             "address": p.get("address") or "—",
             "city": (f"{p.get('city')}, {p.get('province')}"
                      if p.get("city") else "—"),
@@ -354,8 +358,15 @@ def portfolio_tab():
         # AG Grid event fails with "circular structure to JSON" (context/beans refs),
         # which silently drops the event before it reaches Python.
         row = (e.args or {}).get("data") or {}
-        if row.get("id") is not None:
-            await open_report(row["id"])
+        # Resolve by the stable (address, listing_date) key, NOT the cached positional id —
+        # the load order shifts on edit/add/delete, so a cached id can point at the wrong
+        # record (or out of range).
+        idx = form_logic.resolve_row_index(store.load_properties(), row.get("_addr"), row.get("_ld"))
+        if idx is not None:
+            await open_report(idx)
+        elif row:
+            ui.notify("Couldn't locate that property — refreshing the list.", type="warning")
+            refresh_portfolio()
 
     grid.on("rowClicked", on_click, args=["data"])
 
@@ -365,16 +376,33 @@ async def open_report(idx: int):
     if idx is None or idx >= len(props):
         return
     p = props[idx]
+
+    def _current_index():
+        # Re-resolve from the record's stable key at action time (the list may have shifted
+        # since the dialog opened), so Edit/Delete never act on the wrong — or a blank — row.
+        return form_logic.resolve_row_index(store.load_properties(),
+                                            p.get("address"), p.get("listing_date"))
+
+    def _edit():
+        dialog.close()
+        i = _current_index()
+        if i is None:
+            ui.notify("That property is no longer in the list.", type="warning"); refresh_portfolio(); return
+        load_for_edit(i)
+
+    def _delete():
+        i = _current_index()
+        if i is None:
+            dialog.close(); ui.notify("That property is no longer in the list.", type="warning")
+            refresh_portfolio(); return
+        confirm_delete(i, dialog)
+
     with ui.dialog() as dialog, ui.card().classes("w-[92vw] max-w-[1200px] h-[88vh] p-0 flex flex-col"):
         with ui.row().classes("w-full items-center justify-between px-4 py-2 bg-slate-900 text-white"):
             ui.label(p.get("address") or "Property report").classes("font-semibold")
             with ui.row().classes("items-center gap-1"):
-                ui.button("Edit", icon="edit",
-                          on_click=lambda: (dialog.close(), load_for_edit(idx))
-                          ).props("flat dense no-caps color=white")
-                ui.button("Delete", icon="delete",
-                          on_click=lambda: confirm_delete(idx, dialog)
-                          ).props("flat dense no-caps color=white")
+                ui.button("Edit", icon="edit", on_click=_edit).props("flat dense no-caps color=white")
+                ui.button("Delete", icon="delete", on_click=_delete).props("flat dense no-caps color=white")
                 ui.button(icon="close", on_click=dialog.close).props("flat round color=white")
         body = ui.column().classes("w-full flex-1 p-0 items-center justify-center")
         with body:

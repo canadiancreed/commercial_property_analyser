@@ -40,6 +40,21 @@ def filter_rows(rows, term):
             or t in (r.get("city") or "").lower()]
 
 
+# ── Stable row identity (4.11.1) ─────────────────────────────────────────────
+
+def resolve_row_index(records, address, listing_date):
+    """Index of the record matching (address, listing_date) — the table's UNIQUE key — in
+    the CURRENT record list. Used so a grid selection maps to the right property even after
+    the load order shifts (an edit/add moves a record to the end; a delete renumbers). A
+    cached positional id can go stale; this key never does. Returns None if not found."""
+    addr = address or ""
+    ld = listing_date or ""
+    for i, r in enumerate(records):
+        if (r.get("address") or "") == addr and (r.get("listing_date") or "") == ld:
+            return i
+    return None
+
+
 # ── Form prefill: draft (type-switch) over edited record (4.7.2, 4.9.4) ──────
 
 def prefill_value(key, draft, record, default=None):
