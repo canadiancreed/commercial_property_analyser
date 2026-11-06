@@ -183,3 +183,54 @@ def test_build_original_price_defaults_to_asking():
 def test_build_strips_address():
     p = fl.build_property_input({"address": "  5 Main St  ", "asking_price": 500000}, FIN)
     assert p.address == "5 Main St"
+
+
+# ── City rate table helpers (4.11) ───────────────────────────────────────────
+
+COMM_COLS = ["Office", "Retail", "Industrial", "Mixed-Use"]
+RES_COLS = ["bachelor", "one_br", "two_br", "three_br", "four_br"]
+
+
+def test_rate_rows_to_grid_flattens_and_blanks():
+    rows = [{"city": "Ottawa", "province": "ON", "types": {"Office": 22.5, "Retail": 28.0}},
+            {"city": "Kingston", "province": "ON", "types": {}}]
+    grid = fl.rate_rows_to_grid(rows, "types", COMM_COLS)
+    assert grid[0] == {"city": "Ottawa", "province": "ON", "Office": 22.5,
+                       "Retail": 28.0, "Industrial": None, "Mixed-Use": None}
+    assert grid[1]["Office"] is None and grid[1]["city"] == "Kingston"
+
+
+def test_grid_row_to_rates_skips_blanks_and_floats():
+    row = {"city": "x", "Office": "22.5", "Retail": 28, "Industrial": "", "Mixed-Use": None}
+    assert fl.grid_row_to_rates(row, COMM_COLS) == {"Office": 22.5, "Retail": 28.0}
+
+
+def test_residential_with_unknown_is_average():
+    out = fl.residential_with_unknown({"bachelor": 1000, "one_br": 1400, "two_br": 1800})
+    assert out["unknown"] == 1400.0
+    assert fl.residential_with_unknown({}) == {}      # nothing entered → no unknown
+
+
+def test_changed_rate_rows_detects_edits_and_adds():
+    original = [{"city": "Ottawa", "province": "ON", "Office": 22.5, "Retail": 28.0,
+                 "Industrial": None, "Mixed-Use": None},
+                {"city": "Kingston", "province": "ON", "Office": 18.0, "Retail": None,
+                 "Industrial": None, "Mixed-Use": None}]
+    edited = [
+        {"city": "Ottawa", "province": "ON", "Office": "25", "Retail": 28.0,          # changed
+         "Industrial": None, "Mixed-Use": None},
+        {"city": "Kingston", "province": "ON", "Office": 18.0, "Retail": None,         # unchanged (18 == 18.0)
+         "Industrial": None, "Mixed-Use": None},
+        {"city": "Walkerton", "province": "ON", "Office": None, "Retail": 24.0,        # new city
+         "Industrial": None, "Mixed-Use": None},
+        {"city": "", "province": "ON", "Office": 9.0},                                  # blank city → ignored
+    ]
+    changed = fl.changed_rate_rows(original, edited, COMM_COLS)
+    cities = sorted(r["city"] for r in changed)
+    assert cities == ["Ottawa", "Walkerton"]
+
+
+def test_changed_rate_rows_none_when_identical():
+    rows = [{"city": "A", "province": "ON", "Office": 20.0, "Retail": None,
+             "Industrial": None, "Mixed-Use": None}]
+    assert fl.changed_rate_rows(rows, [dict(rows[0])], COMM_COLS) == []

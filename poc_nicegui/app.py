@@ -893,115 +893,113 @@ RATE_RES_FIELDS = [("bachelor", "Bachelor"), ("one_br", "1 BR"), ("two_br", "2 B
 _NEW_CITY = "➕ Add a new city…"
 
 
-def commercial_rates_editor():
-    data = {"rows": store.load_commercial_rate_rows()}
-    sel = {"val": _NEW_CITY}
+def _rates_grid_editor(kind):
+    """Editable TABLE of every city's rates for one kind ('commercial' or 'residential'):
+    all cities as rows, each rate type/unit an editable column. Save persists only the
+    cities whose cells changed and re-analyzes them; Add city appends a new one."""
+    if kind == "commercial":
+        columns = [(t, f"{t} ($/sqft/yr)") for t in RATE_COMM_TYPES]
+        field_key, loader = "types", store.load_commercial_rate_rows
+        hint = "Commercial rents are $/sq ft/yr. Edit a cell and click Save changes."
+    else:
+        columns = [(k, f"{lbl} ($/mo)") for k, lbl in RATE_RES_FIELDS]
+        field_key, loader = "units", store.load_residential_rate_rows
+        hint = ("Residential rents are $/mo. The “unknown” unit rate is auto-set to the "
+                "average of the entered rents on save.")
+    col_keys = [c for c, _ in columns]
+    state = {"snap": form_logic.rate_rows_to_grid(loader(), field_key, col_keys)}
 
-    def labels():
-        return {f"{r['city']}, {r['province']}": r for r in data["rows"]}
-
-    @ui.refreshable
-    def form():
-        row = labels().get(sel["val"])
-        f = {}
-        with ui.row().classes("w-full gap-3"):
-            f["city"] = ui.input("City", value=(row["city"] if row else "")).classes("w-48")
-            f["province"] = ui.input("Province", value=(row["province"] if row else "")).classes("w-28")
-            if row:
-                f["city"].props("readonly"); f["province"].props("readonly")
-        with ui.row().classes("w-full gap-3 flex-wrap"):
-            for t in RATE_COMM_TYPES:
-                cur = row["types"].get(t) if row else None
-                f[t] = ui.number(f"{t} $/sq ft", value=cur, prefix="$", format="%.2f").classes("w-40")
-
-        def save():
-            city = (f["city"].value or "").strip()
-            prov = (f["province"].value or "").strip().upper()
-            if not city or not prov:
-                ui.notify("City and province are required.", type="warning"); return
-            rates = {t: float(f[t].value) for t in RATE_COMM_TYPES if f[t].value not in (None, "")}
+    def _save_one(city, prov, rates):
+        if kind == "commercial":
             store.save_commercial_city(city, prov, rates)
-            res = reanalyze_properties(
-                store, resolver, CommercialPropertyAnalyzer,
-                predicate=lambda p: (p.get("city", "") or "").strip().lower() == city.lower()
-                and (p.get("province", "") or "").strip().upper() == prov)
-            data["rows"] = store.load_commercial_rate_rows()
-            sel["val"] = next((k for k, r in labels().items()
-                               if r["city"].lower() == city.lower() and r["province"] == prov), _NEW_CITY)
-            city_select.set_options([_NEW_CITY] + sorted(labels(), key=str.lower), value=sel["val"])
-            form.refresh()
-            refresh_portfolio()
-            msg = f"Saved commercial rates for {city}, {prov}"
-            msg += f" — re-analyzed {res['updated']} affected propert{'y' if res['updated'] == 1 else 'ies'}." if res["considered"] else "."
-            ui.notify(msg, type="positive")
+        else:
+            store.save_residential_city(city, prov, form_logic.residential_with_unknown(rates))
 
-        ui.button("Save rates", icon="save", on_click=save).props("unelevated").classes("mt-1")
+    def _reanalyze(keys):
+        if not keys:
+            return 0
+        return reanalyze_properties(
+            store, resolver, CommercialPropertyAnalyzer,
+            predicate=lambda p: ((p.get("city", "") or "").strip().lower(),
+                                 (p.get("province", "") or "").strip().upper()) in keys)["updated"]
 
-    def on_city(e):
-        sel["val"] = e.value
-        form.refresh()
+    def _reload():
+        state["snap"] = form_logic.rate_rows_to_grid(loader(), field_key, col_keys)
+        grid.options["rowData"] = state["snap"]
+        grid.update()
 
-    city_select = ui.select([_NEW_CITY] + sorted(labels(), key=str.lower), value=_NEW_CITY,
-                            label="City to edit", on_change=on_city).classes("w-72 mb-3")
-    form()
+    ui.label(hint).classes("text-xs text-slate-500 mb-1")
+    coldefs = [
+        {"headerName": "City", "field": "city", "pinned": "left", "width": 160, "filter": True},
+        {"headerName": "Prov", "field": "province", "width": 80},
+    ] + [{"headerName": lbl, "field": c, "editable": True, "type": "numericColumn",
+          "valueFormatter": "value==null||value===''?'—':'$'+Number(value).toLocaleString()"}
+         for c, lbl in columns]
+    grid = ui.aggrid({
+        "columnDefs": coldefs,
+        "rowData": state["snap"],
+        "defaultColDef": {"sortable": True, "resizable": True},
+        "pagination": True, "paginationPageSize": 25,
+        "stopEditingWhenCellsLoseFocus": True,
+    }).classes("h-[56vh]")
+
+    async def save_changes():
+        rows = await grid.get_client_data()
+        changed = form_logic.changed_rate_rows(state["snap"], rows, col_keys)
+        if not changed:
+            ui.notify("No rate changes to save.", type="info"); return
+        keys, saved = set(), 0
+        for r in changed:
+            city = (r.get("city") or "").strip(); prov = (r.get("province") or "").strip().upper()
+            if not city or not prov:
+                continue
+            _save_one(city, prov, form_logic.grid_row_to_rates(r, col_keys))
+            keys.add((city.lower(), prov)); saved += 1
+        reanalyzed = _reanalyze(keys)
+        _reload(); refresh_portfolio()
+        ui.notify(f"Saved {saved} city rate set(s) — re-analyzed {reanalyzed} "
+                  f"propert{'y' if reanalyzed == 1 else 'ies'}.", type="positive")
+
+    def add_city():
+        with ui.dialog() as d, ui.card().classes("p-4 gap-2 w-[560px] max-w-full"):
+            ui.label(f"Add a city — {kind} rates").classes("font-semibold text-slate-800")
+            with ui.row().classes("w-full gap-3"):
+                ci = ui.input("City").classes("w-48")
+                pi = ui.input("Province").classes("w-28")
+            inputs = {}
+            with ui.row().classes("w-full gap-3 flex-wrap"):
+                for c, lbl in columns:
+                    inputs[c] = ui.number(lbl, prefix="$",
+                                          format="%.2f" if kind == "commercial" else "%.0f").classes("w-36")
+
+            def do_add():
+                city = (ci.value or "").strip(); prov = (pi.value or "").strip().upper()
+                if not city or not prov:
+                    ui.notify("City and province are required.", type="warning"); return
+                rates = {c: float(inputs[c].value) for c in col_keys if inputs[c].value not in (None, "")}
+                _save_one(city, prov, rates)
+                n = _reanalyze({(city.lower(), prov)})
+                d.close(); _reload(); refresh_portfolio()
+                ui.notify(f"Added {city}, {prov} — re-analyzed {n} propert{'y' if n == 1 else 'ies'}.",
+                          type="positive")
+
+            with ui.row().classes("w-full justify-end gap-2 mt-1"):
+                ui.button("Cancel", on_click=d.close).props("flat")
+                ui.button("Add", icon="add", on_click=do_add).props("unelevated")
+        d.open()
+
+    with ui.row().classes("w-full items-center gap-2 mt-2"):
+        ui.button("Add city", icon="add_location_alt", on_click=add_city).props("outline no-caps dense")
+        ui.space()
+        ui.button("Save changes", icon="save", on_click=save_changes).props("unelevated no-caps")
+
+
+def commercial_rates_editor():
+    _rates_grid_editor("commercial")
 
 
 def residential_rates_editor():
-    data = {"rows": store.load_residential_rate_rows()}
-    sel = {"val": _NEW_CITY}
-
-    def labels():
-        return {f"{r['city']}, {r['province']}": r for r in data["rows"]}
-
-    @ui.refreshable
-    def form():
-        row = labels().get(sel["val"])
-        f = {}
-        with ui.row().classes("w-full gap-3"):
-            f["city"] = ui.input("City", value=(row["city"] if row else "")).classes("w-48")
-            f["province"] = ui.input("Province", value=(row["province"] if row else "")).classes("w-28")
-            if row:
-                f["city"].props("readonly"); f["province"].props("readonly")
-        with ui.row().classes("w-full gap-3 flex-wrap"):
-            for key, lbl in RATE_RES_FIELDS:
-                cur = row["units"].get(key) if row else None
-                f[key] = ui.number(f"{lbl} $/mo", value=cur, prefix="$", format="%.0f").classes("w-32")
-        ui.label("The “unknown” unit rate is auto-set to the average of the entered "
-                 "unit rents (matches the CLI).").classes("text-xs text-slate-500")
-
-        def save():
-            city = (f["city"].value or "").strip()
-            prov = (f["province"].value or "").strip().upper()
-            if not city or not prov:
-                ui.notify("City and province are required.", type="warning"); return
-            units = {key: float(f[key].value) for key, _ in RATE_RES_FIELDS if f[key].value not in (None, "")}
-            known = list(units.values())
-            if known:
-                units["unknown"] = round(sum(known) / len(known), 2)
-            store.save_residential_city(city, prov, units)
-            res = reanalyze_properties(
-                store, resolver, CommercialPropertyAnalyzer,
-                predicate=lambda p: (p.get("city", "") or "").strip().lower() == city.lower()
-                and (p.get("province", "") or "").strip().upper() == prov)
-            data["rows"] = store.load_residential_rate_rows()
-            sel["val"] = next((k for k, r in labels().items()
-                               if r["city"].lower() == city.lower() and r["province"] == prov), _NEW_CITY)
-            city_select.set_options([_NEW_CITY] + sorted(labels(), key=str.lower), value=sel["val"])
-            form.refresh()
-            refresh_portfolio()
-            msg = f"Saved residential rates for {city}, {prov}"
-            msg += f" — re-analyzed {res['updated']} affected propert{'y' if res['updated'] == 1 else 'ies'}." if res["considered"] else "."
-            ui.notify(msg, type="positive")
-
-        ui.button("Save rates", icon="save", on_click=save).props("unelevated").classes("mt-1")
-
-    def on_city(e):
-        sel["val"] = e.value
-        form.refresh()
-
-    city_select = ui.select([_NEW_CITY] + sorted(labels(), key=str.lower), value=_NEW_CITY,
-                            label="City to edit", on_change=on_city).classes("w-72 mb-3")
-    form()
+    _rates_grid_editor("residential")
 
 
 def rates_tab():

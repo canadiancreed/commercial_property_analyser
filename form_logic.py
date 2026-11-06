@@ -73,6 +73,78 @@ def rent_prefills(draft, record):
     return {"commercial_rent": comm, "residential_rent": res, "annual_rent": annual}
 
 
+# ── City rate table (v4.11) ──────────────────────────────────────────────────
+
+def rate_rows_to_grid(rows, field_key, columns):
+    """Flatten store rate rows ([{city, province, <field_key>: {col: val}}]) into editable
+    grid rows ({city, province, <col>: val|None, …}). `field_key` is 'types' (commercial)
+    or 'units' (residential); `columns` the rate keys to surface as columns."""
+    out = []
+    for r in rows:
+        vals = r.get(field_key) or {}
+        g = {"city": r.get("city") or "", "province": r.get("province") or ""}
+        for col in columns:
+            g[col] = vals.get(col)
+        out.append(g)
+    return out
+
+
+def grid_row_to_rates(row, columns):
+    """{col: float(value)} for the non-blank rate cells of one grid row (what save_*_city
+    takes). Non-numeric / blank cells are dropped."""
+    out = {}
+    for col in columns:
+        v = row.get(col)
+        if v in (None, ""):
+            continue
+        try:
+            out[col] = float(v)
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def residential_with_unknown(units):
+    """Residential units dict + `unknown` = average of the entered unit rents (rounded to
+    2dp) — the rule the per-city residential form applies, so component resolution matches."""
+    out = dict(units)
+    known = [v for v in units.values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if known:
+        out["unknown"] = round(sum(known) / len(known), 2)
+    return out
+
+
+def _norm_cell(v):
+    """Normalize a grid cell for change-detection: blank → None, numeric-like → float."""
+    if v in (None, ""):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return v
+
+
+def changed_rate_rows(original, edited, columns):
+    """Return the `edited` grid rows whose rate cells differ from `original` (matched by
+    city+province, case-insensitive), including cities not in `original` (newly added).
+    Rows with a blank city are ignored."""
+    def key(r):
+        return ((r.get("city") or "").strip().lower(), (r.get("province") or "").strip().upper())
+
+    def cells(r):
+        return tuple(_norm_cell(r.get(c)) for c in columns)
+
+    orig = {key(r): cells(r) for r in original}
+    out = []
+    for r in edited:
+        k = key(r)
+        if not k[0]:
+            continue
+        if k not in orig or cells(r) != orig[k]:
+            out.append(r)
+    return out
+
+
 # ── Coercion ─────────────────────────────────────────────────────────────────
 
 def pct_to_fraction(v):

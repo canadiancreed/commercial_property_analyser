@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.0] — 2026-11-05
+
+_The Rates tab is now an editable table of every city's rents, not a one-city-at-a-time form._
+
+### Changed
+
+- **Rates tab → editable table.** Each sub-tab (Commercial $/sq ft/yr, Residential $/mo) now
+  shows **all cities as rows** with a column per rate type/unit, so coverage is visible at a
+  glance and rates are edited in place. **Save changes** persists only the cities whose cells
+  changed and re-analyzes just those; **Add city** appends a new one. The residential
+  "unknown" unit rate is still auto-set to the average of the entered rents. Replaces the
+  previous "City to edit" dropdown form.
+- Pure table logic lives in `form_logic.py` (`rate_rows_to_grid`, `grid_row_to_rates`,
+  `residential_with_unknown`, `changed_rate_rows`) and is unit-tested; the grid is the thin UI.
+
+This makes it easy to fill the rent gaps behind "—" cap rates (a city with no market rent
+can't produce a cap rate; add one here and Re-analyze).
+
+---
+
 ## [4.10.2] — 2026-11-05
 
 _Portfolio search now matches the city too, not just the street address._
