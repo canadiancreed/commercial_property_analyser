@@ -1,4 +1,4 @@
-# Commercial Property Analyser v4.9.3
+# Commercial Property Analyser v4.10.0
 
 A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
 
@@ -28,6 +28,9 @@ A task runner wraps the common commands so you don't retype them:
 `CommercialPropertyAnalyser.exe`, the file you launch), with its scratch kept in the system
 temp; `web` serves the UI at `http://localhost:8080`. The `.exe` is **not** tracked in git,
 so after pulling new code you must rebuild it to see the new version.
+
+`make test` runs the suite (1452 tests). See [`docs/test-coverage-v4.md`](docs/test-coverage-v4.md)
+for a per-release map of every v4 feature to the test(s) that cover it.
 
 No internet connection required. As of v4.0.0, data lives in a local **SQLite database**
 (`properties.db`). **As of v4.9.2 the database is the single source of truth for property

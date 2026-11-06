@@ -64,6 +64,7 @@ from data.store import DataStore, CommercialRentLoader, ResidentialRentLoader
 from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 from analysis.report_builder import record_to_prop, build_report_row, reanalyze_properties
+import form_logic
 from analysis import financing_config
 from analysis.financing_config import (
     resolve_financing, mixed_use_commercial_gfa_share,
@@ -216,10 +217,7 @@ def _apply_portfolio_filter():
     grid = _ui.get("grid")
     if grid is None:
         return
-    rows = _ui.get("all_rows") or []
-    term = (_ui.get("search_term") or "").strip().lower()
-    if term:
-        rows = [r for r in rows if term in (r.get("address") or "").lower()]
+    rows = form_logic.filter_rows(_ui.get("all_rows") or [], _ui.get("search_term"))
     grid.options["rowData"] = rows
     grid.update()
 
@@ -370,8 +368,20 @@ async def open_report(idx: int):
 # ── Page 2: dynamic, type-aware Add/Edit form ─────────────────────────────────
 state = {"type": "Hotel"}
 FIELDS = {}  # name → input element, rebuilt each time the form reshapes
+_draft = {}  # last-entered field values, carried across a type switch so reshaping the
+             # form never discards what's already typed (cleared on reset / edit / save).
 # index=None → add mode; otherwise editing the record at that position (load order).
 edit_ctx = {"index": None, "orig_key": None, "record": None}
+
+
+def _snapshot_form():
+    """Capture the current input values into _draft so changing the property type (which
+    rebuilds the form) preserves everything already entered."""
+    for k, w in FIELDS.items():
+        try:
+            _draft[k] = w.value
+        except Exception:
+            pass
 
 
 @ui.refreshable
@@ -382,23 +392,19 @@ def dynamic_form():
     groups = ["common"] + TYPE_GROUPS.get(state["type"], [])
 
     def pv(key, default=None):
-        """Prefill value for an existing field (edit mode), else the default."""
-        v = rec.get(key, default)
-        return v if v not in ("", None) else default
+        return form_logic.prefill_value(key, _draft, rec, default)
 
     def pvpct(key):
-        v = rec.get(key)
-        return round(v * 100, 2) if isinstance(v, (int, float)) else None
+        return form_logic.prefill_pct(key, _draft, rec)
 
     # Rent prefills are conditional on provenance so editing a record doesn't silently
     # "freeze" a market-estimated figure as a user-entered one. A commercial/residential
     # rent is only prefilled when the record flags it as owner-entered; the direct total
     # (annual_rent) is only prefilled when there is no component rent to recompute from
     # — the same guard record_to_prop uses for re-analysis.
-    comm_prefill   = pv("commercial_rent")  if rec.get("commercial_rent_user_entered")  else None
-    res_prefill    = pv("residential_rent") if rec.get("residential_rent_user_entered") else None
-    _has_component = bool(rec.get("commercial_rent")) or bool(rec.get("residential_rent"))
-    annual_prefill = None if _has_component else pv("annual_rent")
+    _rents = form_logic.rent_prefills(_draft, rec)
+    comm_prefill, res_prefill, annual_prefill = (
+        _rents["commercial_rent"], _rents["residential_rent"], _rents["annual_rent"])
 
     # Resolved (global) financing — shown read-only so the form is complete; down
     # payment / rate / amortization live in Settings, not per property.
@@ -452,8 +458,9 @@ def dynamic_form():
             FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value=pv("lease_type", "Normal"), label="Lease type").classes("w-40")
             FIELDS["status"]       = ui.select(["active", "inactive"], value=pv("status", "active"), label="Status").classes("w-40")
             FIELDS["listing_date"] = ui.input("Listing date", value=pv("listing_date", "")).props("type=date").classes("w-48")
-            FIELDS["hold_years"]   = ui.number("Hold years", value=pv("hold_years", _fin_preview.get("hold_years", 10)),
-                                               format="%d").classes("w-32")
+            # hold_years is NOT per-property — it's a global house-wide setting
+            # (config/financing.json defaults, edited on the Settings tab) applied to every
+            # property. It is deliberately not on this form.
         if _fin_preview:
             # This is the per-type RESOLVED financing actually applied to this property
             # (per-type lending rules priced over the LIVE Bank of Canada base rate),
@@ -540,70 +547,28 @@ def _fval(name, default=None):
 
 
 def _pct(name):
-    v = _fval(name)
-    return (float(v) / 100) if v not in (None, "") else None
+    return form_logic.pct_to_fraction(_fval(name))
 
 
 def save_property_from_form():
     """Build a record from the form and persist it through the production pipeline."""
-    address = (_fval("address") or "").strip()
-    if not address:
-        ui.notify("Address is required to save.", type="warning")
-        return
-    asking = float(_fval("asking_price", 0) or 0)
-    if asking <= 0:
-        ui.notify("Asking price must be greater than 0.", type="warning")
+    # Snapshot every input into a plain values dict and delegate the pure validation +
+    # form→PropertyInput mapping to form_logic (unit-tested); app.py keeps only the UI
+    # wiring (notify, resolve financing, persist, reset) below.
+    values = {name: _fval(name) for name in FIELDS}
+    values["property_type"] = state["type"]
+    err = form_logic.validate_property_form(values)
+    if err:
+        ui.notify(err, type="warning")
         return
 
-    ptype   = state["type"]
-    um = UnitMix(
-        bachelor=int(_fval("um_bachelor", 0) or 0), one_br=int(_fval("um_one_br", 0) or 0),
-        two_br=int(_fval("um_two_br", 0) or 0), three_br=int(_fval("um_three_br", 0) or 0),
-        four_br=int(_fval("um_four_br", 0) or 0), unknown=int(_fval("um_unknown", 0) or 0),
-        floors=int(_fval("floors", 1) or 1),
-    )
-    units = um.total_units
+    ptype = state["type"]
+    um = form_logic.unit_mix_from(values)
     share = mixed_use_commercial_gfa_share(ptype, um.floors)
-    fin   = resolve_financing(asking, ptype, units, commercial_gfa_share=share)
-
-    comm_rent = _fval("commercial_rent")
-    res_rent  = _fval("residential_rent")
-    prop = PropertyInput(
-        original_price=float(_fval("original_price", asking) or asking), asking_price=asking,
-        total_sq_ft=float(_fval("total_sq_ft", 0) or 0),
-        property_taxes=float(_fval("property_taxes", 0) or 0),
-        # Down payment / rate / amortization are global (config/financing.json, Settings
-        # tab); hold_years is the one per-property financing input.
-        down_payment_pct=fin["down_payment_pct"], interest_rate=fin["interest_rate"],
-        term_years=fin["term_years"],
-        hold_years=int(_fval("hold_years", fin["hold_years"]) or fin["hold_years"]),
-        address=address, mls_number=_fval("mls_number", "") or "",
-        city=_fval("city"), province=_fval("province"),
-        property_type=ptype, status=_fval("status", "active"),
-        lease_type=_fval("lease_type", "Normal"),
-        listing_date=_fval("listing_date") or date.today().isoformat(),
-        construction_cost=float(_fval("construction_cost", 0) or 0),
-        commercial_lease_expiry=_fval("commercial_lease_expiry"),
-        unit_mix=um if units else None,
-        annual_rent=_fval("annual_rent"),
-        commercial_rent=comm_rent,
-        commercial_rent_user_entered=comm_rent is not None,
-        residential_rent=res_rent,
-        residential_rent_user_entered=res_rent is not None,
-        expense_ratio=_pct("expense_ratio"),
-        vacancy_rate=_pct("vacancy_rate"),
-        noi_growth_rate=_pct("noi_growth_rate"),
-        market_cap_rate=_pct("market_cap_rate"), exit_cap_rate=_pct("exit_cap_rate"),
-        hotel_rooms=int(_fval("hotel_rooms", 0) or 0), hotel_adr=_fval("hotel_adr"),
-        hotel_occupancy=_pct("hotel_occupancy"),
-        ind_warehouse_sqft=float(_fval("ind_warehouse_sqft", 0) or 0),
-        ind_office_sqft=float(_fval("ind_office_sqft", 0) or 0),
-        ind_yard_sqft=float(_fval("ind_yard_sqft", 0) or 0),
-        ind_dock_doors=int(_fval("ind_dock_doors", 0) or 0),
-        ind_drive_in_doors=int(_fval("ind_drive_in_doors", 0) or 0),
-        ind_clear_height_ft=float(_fval("ind_clear_height_ft", 0) or 0),
-        ind_office_rate=_fval("ind_office_rate"), ind_yard_rate=_fval("ind_yard_rate"),
-    )
+    fin = resolve_financing(float(values.get("asking_price") or 0), ptype, um.total_units,
+                            commercial_gfa_share=share)
+    prop = form_logic.build_property_input(values, fin)
+    address = prop.address
 
     # Pass the record being edited as `existing` so created_at (and other carried
     # provenance) survives the rebuild — matching the re-analysis path.
@@ -645,6 +610,7 @@ def save_property_from_form():
 def reset_form():
     """Return the form to add mode and clear it."""
     edit_ctx.update(index=None, orig_key=None, record=None)
+    _draft.clear()
     dynamic_form.refresh()
 
 
@@ -657,6 +623,7 @@ def load_for_edit(index: int):
     edit_ctx.update(index=index,
                     orig_key=(p.get("address", ""), p.get("listing_date", "")),
                     record=p)
+    _draft.clear()   # show the record being edited, not a leftover add-mode draft
     state["type"] = p.get("property_type") or state["type"]
     if _ui.get("type_select") is not None:
         _ui["type_select"].set_value(state["type"])
@@ -703,6 +670,7 @@ def form_tab():
                     "text-xs text-slate-500")
 
             def on_type(e):
+                _snapshot_form()          # keep what's already entered across the reshape
                 state["type"] = e.value
                 dynamic_form.refresh()
 
@@ -1101,17 +1069,10 @@ def _financing_types_card():
         def save_types():
             try:
                 for container, key, kind, w in num_inputs:
-                    v = w.value
-                    if v is None or v == "":
-                        if kind == "ratio":
-                            container[key] = None   # allow clearing a DSCR floor
+                    cv = form_logic.coerce_financing_field(w.value, kind)
+                    if cv is form_logic.SKIP:   # blank pct/int → leave the stored value
                         continue
-                    if kind == "pct":
-                        container[key] = round(float(v) / 100, 6)
-                    elif kind == "int":
-                        container[key] = int(v)
-                    else:
-                        container[key] = round(float(v), 4)
+                    container[key] = cv
                 if asof_input is not None and isinstance(raw.get("rate_base"), dict):
                     raw["rate_base"]["as_of"] = (asof_input.value or "").strip()
                 save_raw(raw)

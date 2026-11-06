@@ -6,6 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.10.0] — 2026-11-05
+
+_Test-coverage audit of all v4 work: the desktop app's logic is now unit-tested._
+
+### Added
+
+- **`form_logic.py`** — the desktop app's pure, UI-free logic (portfolio search filter,
+  draft-over-record prefill + type-switch preservation, rent prefill provenance, percent /
+  financing-field coercion, save validation, and the form→`PropertyInput` mapping) extracted
+  from `poc_nicegui/app.py` so it can be unit-tested without the app's boot side-effects.
+  It's a top-level module (bundled into the exe like the other engine packages).
+- **`tests/test_form_logic.py`** (26) + **`tests/test_v410_coverage_gaps.py`** (3) — cover
+  the desktop-layer behaviours shipped across v4.1–v4.9 (edit/save mapping, validation,
+  address search, prefill provenance, financing-field coercion, hold-period-is-global,
+  type-switch draft) plus two engine gaps (`to_record` omits `notes`; `hold_years` is global
+  for every type). Full suite: **1452 passing**.
+- **`docs/test-coverage-v4.md`** — a per-release map of every v4.0.0→v4.10.0 feature to the
+  test(s) that cover it, and the small remaining UI-only surface (validated by the boot
+  smoke-test).
+
+### Changed
+
+- **`poc_nicegui/app.py` delegates to `form_logic`** (behaviour-preserving) — the portfolio
+  filter, form prefill, `_pct`, the save mapping, and the financing-editor coercion now call
+  the extracted functions. No user-visible change.
+
+---
+
+## [4.9.4] — 2026-11-05
+
+_Add/Edit form: hold period is global (removed from the form), and changing property type no longer wipes what you entered._
+
+### Fixed
+
+- **`Hold years` is no longer editable per property.** It's a house-wide setting
+  (`config/financing.json` defaults, edited on the **Settings** tab) applied to every
+  property — like down payment, interest rate, and amortization. The stray `Hold years`
+  input on the Add/Edit form was removed, and saving now always uses the global value, so
+  every listing is underwritten on the same hold period.
+- **Changing the property type no longer destroys entered data.** The type-aware form
+  reshapes on a type change (different fields per asset class); it now snapshots the current
+  inputs into a draft first and re-applies them, so shared fields (address, price, rents,
+  etc.) keep their values. The draft is cleared on reset, when loading a record to edit, and
+  after a successful save.
+
+---
+
 ## [4.9.3] — 2026-11-05
 
 _The build writes the exe straight to the project root, so the copy you launch is always the latest._
