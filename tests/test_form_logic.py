@@ -25,6 +25,19 @@ def test_filter_rows_substring_case_insensitive():
     assert fl.filter_rows(rows, "MAIN") == [{"address": "9 Main Ave"}]
 
 
+def test_filter_rows_matches_city():
+    rows = [{"address": "1 A St", "city": "Ottawa"}, {"address": "2 B St", "city": "Kingston"}]
+    assert fl.filter_rows(rows, "kingston") == [{"address": "2 B St", "city": "Kingston"}]
+
+
+def test_filter_rows_city_differs_from_address():
+    # The real bug: address says Brockton, city is Walkerton — searching the city must find it.
+    row = {"address": "326 Durham St E, Brockton, ON", "city": "Walkerton"}
+    assert fl.filter_rows([row], "walkerton") == [row]
+    assert fl.filter_rows([row], "durham") == [row]          # still findable by street
+    assert fl.filter_rows([row], "brockton") == [row]        # and by the address's town
+
+
 def test_filter_rows_blank_returns_all():
     rows = [{"address": "a"}, {"address": "b"}]
     assert fl.filter_rows(rows, "") == rows
@@ -33,7 +46,7 @@ def test_filter_rows_blank_returns_all():
 
 
 def test_filter_rows_no_match_is_empty():
-    assert fl.filter_rows([{"address": "a"}], "zzz") == []
+    assert fl.filter_rows([{"address": "a", "city": "x"}], "zzz") == []
 
 
 # ── prefill_value / prefill_pct (4.7.2, 4.9.4) ───────────────────────────────
