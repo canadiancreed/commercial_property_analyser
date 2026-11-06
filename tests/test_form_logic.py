@@ -213,6 +213,44 @@ def test_resolve_row_index_tolerates_none():
     assert fl.resolve_row_index([{}], None, None) == 0
 
 
+# ── Address normalization (4.11.4) ────────────────────────────────────────────
+
+def test_clean_address_strips_city_and_province():
+    assert fl.clean_address("24-26 Main St S, Alexandria, ON", "Alexandria", "ON") == "24-26 Main St S"
+    assert fl.clean_address("77 Brae St, Almonte", "Almonte", "ON") == "77 Brae St"  # no prov in addr
+    assert fl.clean_address("5 King St, ottawa, on", "Ottawa", "ON") == "5 King St"  # case-insensitive
+
+
+def test_clean_address_keeps_mismatched_town():
+    # address town (Brockton) differs from the city field (Walkerton) → keep the town
+    assert fl.clean_address("326 Durham St E, Brockton, ON", "Walkerton", "ON") == "326 Durham St E, Brockton"
+
+
+def test_clean_address_idempotent_and_never_empty():
+    assert fl.clean_address("42 Durham St S", "Madoc", "ON") == "42 Durham St S"   # already clean
+    assert fl.clean_address("Alexandria", "Alexandria", "ON") == "Alexandria"       # never strip whole addr
+    assert fl.clean_address("", "X", "ON") == ""
+    assert fl.clean_address(None, None, None) == ""
+
+
+def test_normalize_addresses_migration(make_store):
+    store = make_store()
+    store.save_property({"address": "24-26 Main St S, Alexandria, ON", "listing_date": "2025-01-01",
+                         "city": "Alexandria", "province": "ON"})
+    store.save_property({"address": "326 Durham St E, Brockton, ON", "listing_date": "2025-02-01",
+                         "city": "Walkerton", "province": "ON"})
+    store.save_property({"address": "9 Clean St", "listing_date": "2025-03-01",
+                         "city": "Nowhere", "province": "ON"})   # already clean → untouched
+    assert store.normalize_addresses(fl.clean_address) == 2
+    addrs = {p["address"] for p in store.load_properties()}
+    assert "24-26 Main St S" in addrs
+    assert "326 Durham St E, Brockton" in addrs   # town kept (city differs)
+    assert "9 Clean St" in addrs
+    # guarded: resetting the instance cache, the meta flag still prevents a re-run
+    store._addr_normalized_checked = False
+    assert store.normalize_addresses(fl.clean_address) == 0
+
+
 # ── City rate table helpers (4.11) ───────────────────────────────────────────
 
 COMM_COLS = ["Office", "Retail", "Industrial", "Mixed-Use"]

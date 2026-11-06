@@ -93,6 +93,8 @@ from nicegui import ui, app, native
 # below / via the config table — those are reference/config, not the user's property data.)
 store = DataStore(properties_path=str(DB_PATH))
 store.ensure_rates_migrated()
+# One-time cleanup of legacy imports that stored 'street, city, province' in the address field.
+store.normalize_addresses(form_logic.clean_address)
 
 # Route financing config through the DB `config` table (seeded once from the bundled
 # config/financing.json). Scoring/city config already go through the store. This makes

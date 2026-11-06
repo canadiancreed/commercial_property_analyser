@@ -40,6 +40,29 @@ def filter_rows(rows, term):
             or t in (r.get("city") or "").lower()]
 
 
+# ── Address normalization (4.11.4) ───────────────────────────────────────────
+
+def clean_address(address, city, province):
+    """Strip a trailing ', <city>' and/or ', <province>' from an address when they duplicate
+    the record's own city/province fields, leaving just the street. Conservative: only removes
+    a trailing segment that matches (case-insensitive) — so a street whose trailing town
+    differs from the city field (e.g. '… , Brockton, ON' with city 'Walkerton') keeps that
+    town, and an already-clean street is returned unchanged (idempotent). Never returns empty
+    when the input had a street."""
+    addr = (address or "").strip()
+    # Remove from the end: province first (it's last), then city. Repeat so ', City, Prov'
+    # collapses to the street.
+    for token in ((province or "").strip(), (city or "").strip()):
+        if not token:
+            continue
+        suffix = ", " + token
+        if addr.lower().endswith(suffix.lower()):
+            stripped = addr[: -len(suffix)].rstrip().rstrip(",").rstrip()
+            if stripped:                 # never strip away the whole address
+                addr = stripped
+    return addr
+
+
 # ── Stable row identity (4.11.1) ─────────────────────────────────────────────
 
 def resolve_row_index(records, address, listing_date):

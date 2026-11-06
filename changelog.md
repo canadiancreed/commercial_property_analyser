@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.4] — 2026-11-06
+
+_Fix: legacy imported records had the city + province baked into the address field._
+
+### Fixed
+
+- **Addresses cleaned to the street only.** Old imports stored the full "street, city,
+  province" in the `address` field, duplicating the separate City/Province columns. A
+  one-time, guarded migration (`DataStore.normalize_addresses`, run on boot) strips a
+  trailing ", city" / ", province" from each address **only when it matches the record's own
+  city/province** — so a street whose listing town differs from the City field (e.g. "…,
+  Brockton, ON" with City "Walkerton") keeps that town, nothing is over-stripped, and an
+  already-clean address is untouched. It updates in place by row id and skips any change that
+  would collide with another record's key. Pure logic in `form_logic.clean_address`
+  (unit-tested); verified on real data (928/932 cleaned, 0 collisions).
+
+---
+
 ## [4.11.3] — 2026-11-06
 
 _Fix: Floors can now be entered for every building type._
