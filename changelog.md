@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.3] — 2026-11-06
+
+_Fix: Floors can now be entered for every building type._
+
+### Fixed
+
+- **Floors field for all types.** The `Floors` input only appeared in the residential unit-mix
+  group, so office / retail / industrial / hotel properties had nowhere to enter it. Floors is
+  a building-wide attribute, so it now lives in **Core details** (shown for every type). The
+  desktop save also no longer drops it: a `UnitMix` (carrying `floors`) is always built — even
+  for unit-less types — matching the re-analysis path, so floors persists for commercial
+  buildings too instead of being lost.
+
+---
+
 ## [4.11.2] — 2026-11-06
 
 _Fix: the edit form sometimes opened blank even though the right property was selected._

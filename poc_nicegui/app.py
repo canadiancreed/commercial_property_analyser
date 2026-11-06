@@ -523,6 +523,10 @@ def dynamic_form():
         with ui.row().classes("w-full gap-3"):
             FIELDS["total_sq_ft"]    = ui.number("Total sq ft", value=pv("total_sq_ft"), format="%.0f",
                                                  validation={"Can't be negative": lambda v: v is None or v >= 0}).classes("flex-1")
+            # Floors is a building-wide attribute (every type has it) — in Core details, not
+            # the residential group, so it's enterable for office/retail/industrial/hotel too.
+            FIELDS["floors"] = ui.number("Floors", value=um.get("floors", rec.get("floors", 1)) or 1,
+                                         format="%d").classes("w-28")
             FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f").classes("flex-1")
             FIELDS["construction_cost"] = ui.number("Construction cost", value=pv("construction_cost"), prefix="$", format="%.0f").classes("flex-1")
         with ui.row().classes("w-full gap-3"):
@@ -566,7 +570,6 @@ def dynamic_form():
                                  ("three_br", "3 BR"), ("four_br", "4 BR"), ("unknown", "Unknown")]:
                     FIELDS[f"um_{key}"] = ui.number(lbl, value=um.get(key, 0) or 0, format="%d").classes("w-28")
             with ui.row().classes("w-full gap-3 items-center"):
-                FIELDS["floors"] = ui.number("Floors", value=um.get("floors", rec.get("floors", 1)) or 1, format="%d").classes("w-28")
                 FIELDS["residential_rent"] = ui.number("Residential rent $/yr (override)", value=res_prefill,
                                                        prefix="$", format="%.0f").classes("flex-1")
             ui.label("Leave the residential rent blank to price the unit mix at the city "

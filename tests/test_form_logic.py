@@ -168,11 +168,17 @@ def test_build_pct_overrides_to_fractions():
     assert p.expense_ratio == 0.4 and p.vacancy_rate == 0.05 and p.noi_growth_rate == 0.02
 
 
-def test_build_unit_mix_present_and_absent():
+def test_build_unit_mix_with_units():
     p = fl.build_property_input({"address": "a", "asking_price": 500000, "um_two_br": 4, "floors": 2}, FIN)
     assert p.unit_mix is not None and p.unit_mix.total_units == 4 and p.unit_mix.floors == 2
-    p2 = fl.build_property_input({"address": "a", "asking_price": 500000}, FIN)
-    assert p2.unit_mix is None
+
+
+def test_build_floors_persist_for_unitless_type():
+    # 4.11.3: floors is building-wide — a UnitMix (0 units) always carries it, so floors is
+    # saved for office/retail/etc. too (not dropped to unit_mix=None).
+    p = fl.build_property_input({"address": "a", "asking_price": 500000,
+                                 "property_type": "Office", "floors": 4}, FIN)
+    assert p.unit_mix is not None and p.unit_mix.total_units == 0 and p.unit_mix.floors == 4
 
 
 def test_build_original_price_defaults_to_asking():

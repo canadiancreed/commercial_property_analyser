@@ -231,7 +231,6 @@ def build_property_input(values, fin):
     pass through as fractions. `values` are raw field values (blank → None), exactly what
     app._fval returns."""
     um = unit_mix_from(values)
-    units = um.total_units
     asking = _num(values, "asking_price", 0)
     comm_rent = _fv(values, "commercial_rent")
     res_rent = _fv(values, "residential_rent")
@@ -252,7 +251,10 @@ def build_property_input(values, fin):
         listing_date=_fv(values, "listing_date") or date.today().isoformat(),
         construction_cost=_num(values, "construction_cost", 0),
         commercial_lease_expiry=_fv(values, "commercial_lease_expiry"),
-        unit_mix=um if units else None,
+        # Always carry the UnitMix (even with 0 units) so `floors` persists for every
+        # building type — matching the re-analysis path, which builds a floors-only UnitMix
+        # for unit-less properties. (`floors` is a building-wide attribute, not residential-only.)
+        unit_mix=um,
         annual_rent=_fv(values, "annual_rent"),
         commercial_rent=comm_rent, commercial_rent_user_entered=comm_rent is not None,
         residential_rent=res_rent, residential_rent_user_entered=res_rent is not None,
