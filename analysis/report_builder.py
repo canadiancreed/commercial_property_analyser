@@ -74,10 +74,24 @@ def reanalyze_properties(store, resolver, analyzer_cls, predicate=None) -> dict:
     record → PropertyInput → analyzer → to_record(existing) → update_property. A
     ValueError means no market rate for that city yet (expected → skipped); any other
     exception is counted as an error. Pass `predicate(record)->bool` to limit the set
-    (e.g. one city after a rate edit). Returns a counts dict.
+    (e.g. one city after a rate edit). Returns a counts dict plus an ``issues`` list —
+    one entry per skipped/errored property ({address, mls, city, property_type, kind,
+    reason}) so callers can show exactly which properties didn't update and why.
     """
     props = store.load_properties()
-    updated = skipped = errors = considered = 0
+    updated = considered = 0
+    issues = []   # per-property skip/error detail: {address, mls, city, kind, reason}
+
+    def _detail(p, kind, exc):
+        reason = str(exc).strip()
+        if kind == "error":
+            reason = f"{type(exc).__name__}: {reason}" if reason else type(exc).__name__
+        elif not reason:
+            reason = "No market rent rate for this city yet."
+        return {"address": p.get("address") or "—", "mls": p.get("mls_number") or "",
+                "city": p.get("city") or "", "property_type": p.get("property_type") or "",
+                "kind": kind, "reason": reason}
+
     for i, p in enumerate(props):
         if predicate is not None and not predicate(p):
             continue
@@ -89,12 +103,14 @@ def reanalyze_properties(store, resolver, analyzer_cls, predicate=None) -> dict:
                 record["notes"] = p["notes"]
             store.update_property(i, record)
             updated += 1
-        except ValueError:
-            skipped += 1          # no market rent rates for this city yet — expected
-        except Exception:
-            errors += 1
+        except ValueError as e:
+            issues.append(_detail(p, "skipped", e))   # no market rent rates yet — expected
+        except Exception as e:
+            issues.append(_detail(p, "error", e))
+    skipped = sum(1 for x in issues if x["kind"] == "skipped")
+    errors  = sum(1 for x in issues if x["kind"] == "error")
     return {"updated": updated, "skipped": skipped, "errors": errors,
-            "considered": considered, "total": len(props)}
+            "considered": considered, "total": len(props), "issues": issues}
 
 
 def build_report_row(p: dict, scored: dict, targets: dict) -> dict:

@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.10.1] — 2026-11-05
+
+_Re-analyze all now shows which properties were skipped or errored, and why._
+
+### Added
+
+- **Re-analyze detail.** After **Re-analyze all**, if any property didn't update, a dialog
+  lists each one — errors first (need attention), then skips (usually a city with no market
+  rent rates yet) — with its address, city/type/MLS, and the reason. `reanalyze_properties`
+  (`analysis/report_builder.py`) now returns an `issues` list ({address, mls, city,
+  property_type, kind, reason}) alongside the existing counts; a blank skip reason falls back
+  to "No market rent rate for this city yet." The summary notification is unchanged.
+
+---
+
 ## [4.10.0] — 2026-11-05
 
 _Test-coverage audit of all v4 work: the desktop app's logic is now unit-tested._
