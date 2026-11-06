@@ -297,7 +297,7 @@ def portfolio_tab():
         _apply_portfolio_filter()
 
     with ui.row().classes("w-full items-center mb-2"):
-        search = (ui.input(placeholder="Search by address…", on_change=on_search)
+        search = (ui.input(placeholder="Search by address or city…", on_change=on_search)
                   .props('clearable dense outlined input-class=text-sm')
                   .classes("w-full max-w-md"))
         _ui["search"] = search

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.10.2] — 2026-11-05
+
+_Portfolio search now matches the city too, not just the street address._
+
+### Fixed
+
+- **Search by city works.** The Portfolio search box matched only the `address` field, so a
+  property was unfindable by its city when the city differed from the address text (e.g.
+  address "326 Durham St E, Brockton, ON" but City "Walkerton"). `filter_rows`
+  (`form_logic.py`) now matches the `address` **or** `city` (case-insensitive), and the box
+  placeholder reads "Search by address or city…".
+
+---
+
 ## [4.10.1] — 2026-11-05
 
 _Re-analyze all now shows which properties were skipped or errored, and why._

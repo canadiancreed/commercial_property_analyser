@@ -29,12 +29,15 @@ SKIP = object()
 # ── Portfolio search (4.7.1) ─────────────────────────────────────────────────
 
 def filter_rows(rows, term):
-    """Rows whose address contains `term` (case-insensitive substring). An empty/blank
-    term returns all rows unchanged."""
+    """Rows whose address OR city contains `term` (case-insensitive substring) — so a
+    listing is findable by its street address or by the city, even when the two differ
+    (e.g. address 'Brockton' but city 'Walkerton'). An empty/blank term returns all rows."""
     t = (term or "").strip().lower()
     if not t:
         return list(rows)
-    return [r for r in rows if t in (r.get("address") or "").lower()]
+    return [r for r in rows
+            if t in (r.get("address") or "").lower()
+            or t in (r.get("city") or "").lower()]
 
 
 # ── Form prefill: draft (type-switch) over edited record (4.7.2, 4.9.4) ──────
