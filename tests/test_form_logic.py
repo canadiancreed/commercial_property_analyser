@@ -168,11 +168,17 @@ def test_build_pct_overrides_to_fractions():
     assert p.expense_ratio == 0.4 and p.vacancy_rate == 0.05 and p.noi_growth_rate == 0.02
 
 
-def test_build_unit_mix_present_and_absent():
+def test_build_unit_mix_with_units():
     p = fl.build_property_input({"address": "a", "asking_price": 500000, "um_two_br": 4, "floors": 2}, FIN)
     assert p.unit_mix is not None and p.unit_mix.total_units == 4 and p.unit_mix.floors == 2
-    p2 = fl.build_property_input({"address": "a", "asking_price": 500000}, FIN)
-    assert p2.unit_mix is None
+
+
+def test_build_floors_persist_for_unitless_type():
+    # 4.11.3: floors is building-wide — a UnitMix (0 units) always carries it, so floors is
+    # saved for office/retail/etc. too (not dropped to unit_mix=None).
+    p = fl.build_property_input({"address": "a", "asking_price": 500000,
+                                 "property_type": "Office", "floors": 4}, FIN)
+    assert p.unit_mix is not None and p.unit_mix.total_units == 0 and p.unit_mix.floors == 4
 
 
 def test_build_original_price_defaults_to_asking():
@@ -183,3 +189,114 @@ def test_build_original_price_defaults_to_asking():
 def test_build_strips_address():
     p = fl.build_property_input({"address": "  5 Main St  ", "asking_price": 500000}, FIN)
     assert p.address == "5 Main St"
+
+
+# ── Stable row identity (4.11.1) ─────────────────────────────────────────────
+
+def test_resolve_row_index_by_key():
+    recs = [{"address": "A St", "listing_date": "2025-01-01"},
+            {"address": "B St", "listing_date": "2025-02-01"},
+            {"address": "A St", "listing_date": "2025-03-01"}]  # same address, diff date
+    assert fl.resolve_row_index(recs, "B St", "2025-02-01") == 1
+    assert fl.resolve_row_index(recs, "A St", "2025-03-01") == 2   # disambiguated by date
+    assert fl.resolve_row_index(recs, "A St", "2025-01-01") == 0
+
+
+def test_resolve_row_index_not_found():
+    recs = [{"address": "A St", "listing_date": "2025-01-01"}]
+    assert fl.resolve_row_index(recs, "Z St", "2025-01-01") is None
+    assert fl.resolve_row_index(recs, "A St", "1999-01-01") is None
+
+
+def test_resolve_row_index_tolerates_none():
+    assert fl.resolve_row_index([{"address": None, "listing_date": None}], "", "") == 0
+    assert fl.resolve_row_index([{}], None, None) == 0
+
+
+# ── Address normalization (4.11.4) ────────────────────────────────────────────
+
+def test_clean_address_strips_city_and_province():
+    assert fl.clean_address("24-26 Main St S, Alexandria, ON", "Alexandria", "ON") == "24-26 Main St S"
+    assert fl.clean_address("77 Brae St, Almonte", "Almonte", "ON") == "77 Brae St"  # no prov in addr
+    assert fl.clean_address("5 King St, ottawa, on", "Ottawa", "ON") == "5 King St"  # case-insensitive
+
+
+def test_clean_address_keeps_mismatched_town():
+    # address town (Brockton) differs from the city field (Walkerton) → keep the town
+    assert fl.clean_address("326 Durham St E, Brockton, ON", "Walkerton", "ON") == "326 Durham St E, Brockton"
+
+
+def test_clean_address_idempotent_and_never_empty():
+    assert fl.clean_address("42 Durham St S", "Madoc", "ON") == "42 Durham St S"   # already clean
+    assert fl.clean_address("Alexandria", "Alexandria", "ON") == "Alexandria"       # never strip whole addr
+    assert fl.clean_address("", "X", "ON") == ""
+    assert fl.clean_address(None, None, None) == ""
+
+
+def test_normalize_addresses_migration(make_store):
+    store = make_store()
+    store.save_property({"address": "24-26 Main St S, Alexandria, ON", "listing_date": "2025-01-01",
+                         "city": "Alexandria", "province": "ON"})
+    store.save_property({"address": "326 Durham St E, Brockton, ON", "listing_date": "2025-02-01",
+                         "city": "Walkerton", "province": "ON"})
+    store.save_property({"address": "9 Clean St", "listing_date": "2025-03-01",
+                         "city": "Nowhere", "province": "ON"})   # already clean → untouched
+    assert store.normalize_addresses(fl.clean_address) == 2
+    addrs = {p["address"] for p in store.load_properties()}
+    assert "24-26 Main St S" in addrs
+    assert "326 Durham St E, Brockton" in addrs   # town kept (city differs)
+    assert "9 Clean St" in addrs
+    # guarded: resetting the instance cache, the meta flag still prevents a re-run
+    store._addr_normalized_checked = False
+    assert store.normalize_addresses(fl.clean_address) == 0
+
+
+# ── City rate table helpers (4.11) ───────────────────────────────────────────
+
+COMM_COLS = ["Office", "Retail", "Industrial", "Mixed-Use"]
+RES_COLS = ["bachelor", "one_br", "two_br", "three_br", "four_br"]
+
+
+def test_rate_rows_to_grid_flattens_and_blanks():
+    rows = [{"city": "Ottawa", "province": "ON", "types": {"Office": 22.5, "Retail": 28.0}},
+            {"city": "Kingston", "province": "ON", "types": {}}]
+    grid = fl.rate_rows_to_grid(rows, "types", COMM_COLS)
+    assert grid[0] == {"city": "Ottawa", "province": "ON", "Office": 22.5,
+                       "Retail": 28.0, "Industrial": None, "Mixed-Use": None}
+    assert grid[1]["Office"] is None and grid[1]["city"] == "Kingston"
+
+
+def test_grid_row_to_rates_skips_blanks_and_floats():
+    row = {"city": "x", "Office": "22.5", "Retail": 28, "Industrial": "", "Mixed-Use": None}
+    assert fl.grid_row_to_rates(row, COMM_COLS) == {"Office": 22.5, "Retail": 28.0}
+
+
+def test_residential_with_unknown_is_average():
+    out = fl.residential_with_unknown({"bachelor": 1000, "one_br": 1400, "two_br": 1800})
+    assert out["unknown"] == 1400.0
+    assert fl.residential_with_unknown({}) == {}      # nothing entered → no unknown
+
+
+def test_changed_rate_rows_detects_edits_and_adds():
+    original = [{"city": "Ottawa", "province": "ON", "Office": 22.5, "Retail": 28.0,
+                 "Industrial": None, "Mixed-Use": None},
+                {"city": "Kingston", "province": "ON", "Office": 18.0, "Retail": None,
+                 "Industrial": None, "Mixed-Use": None}]
+    edited = [
+        {"city": "Ottawa", "province": "ON", "Office": "25", "Retail": 28.0,          # changed
+         "Industrial": None, "Mixed-Use": None},
+        {"city": "Kingston", "province": "ON", "Office": 18.0, "Retail": None,         # unchanged (18 == 18.0)
+         "Industrial": None, "Mixed-Use": None},
+        {"city": "Walkerton", "province": "ON", "Office": None, "Retail": 24.0,        # new city
+         "Industrial": None, "Mixed-Use": None},
+        {"city": "", "province": "ON", "Office": 9.0},                                  # blank city → ignored
+    ]
+    changed = fl.changed_rate_rows(original, edited, COMM_COLS)
+    cities = sorted(r["city"] for r in changed)
+    assert cities == ["Ottawa", "Walkerton"]
+
+
+def test_changed_rate_rows_none_when_identical():
+    rows = [{"city": "A", "province": "ON", "Office": 20.0, "Retail": None,
+             "Industrial": None, "Mixed-Use": None}]
+    assert fl.changed_rate_rows(rows, [dict(rows[0])], COMM_COLS) == []

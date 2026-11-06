@@ -6,6 +6,92 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.4] — 2026-11-06
+
+_Fix: legacy imported records had the city + province baked into the address field._
+
+### Fixed
+
+- **Addresses cleaned to the street only.** Old imports stored the full "street, city,
+  province" in the `address` field, duplicating the separate City/Province columns. A
+  one-time, guarded migration (`DataStore.normalize_addresses`, run on boot) strips a
+  trailing ", city" / ", province" from each address **only when it matches the record's own
+  city/province** — so a street whose listing town differs from the City field (e.g. "…,
+  Brockton, ON" with City "Walkerton") keeps that town, nothing is over-stripped, and an
+  already-clean address is untouched. It updates in place by row id and skips any change that
+  would collide with another record's key. Pure logic in `form_logic.clean_address`
+  (unit-tested); verified on real data (928/932 cleaned, 0 collisions).
+
+---
+
+## [4.11.3] — 2026-11-06
+
+_Fix: Floors can now be entered for every building type._
+
+### Fixed
+
+- **Floors field for all types.** The `Floors` input only appeared in the residential unit-mix
+  group, so office / retail / industrial / hotel properties had nowhere to enter it. Floors is
+  a building-wide attribute, so it now lives in **Core details** (shown for every type). The
+  desktop save also no longer drops it: a `UnitMix` (carrying `floors`) is always built — even
+  for unit-less types — matching the re-analysis path, so floors persists for commercial
+  buildings too instead of being lost.
+
+---
+
+## [4.11.2] — 2026-11-06
+
+_Fix: the edit form sometimes opened blank even though the right property was selected._
+
+### Fixed
+
+- **Edit form now always populates.** Opening a property whose type differed from the form's
+  current type blanked every field (the "Editing" badge showed the right address, but the
+  inputs were empty). `load_for_edit` sets the type dropdown programmatically, and its
+  `on_change` was snapshotting the old/empty form into the carried draft — which then
+  overrode the record's prefill. That snapshot is now suppressed during the programmatic
+  set, so the form fills from the record. (Fixes the "sometimes blank when editing" case;
+  complements 4.11.1's correct-property fix.)
+
+---
+
+## [4.11.1] — 2026-11-06
+
+_Fix: clicking or editing a property could open the wrong property — or a blank one._
+
+### Fixed
+
+- **Selecting/editing now always opens the clicked property.** The portfolio grid identified
+  a row by a cached positional index, but the load order shifts whenever a record is
+  edited/added (moved to the end) or deleted (renumbered), so a stale index could map to a
+  *different* property (e.g. "442-446 Olive" opening "45 Cambria") or out of range (a blank
+  edit form). Selection now resolves the property by its stable `(address, listing_date)`
+  key — the table's UNIQUE key — at click time, and Edit/Delete re-resolve the same way, so
+  they can't act on the wrong or a missing row. New `form_logic.resolve_row_index`
+  (unit-tested).
+
+---
+
+## [4.11.0] — 2026-11-05
+
+_The Rates tab is now an editable table of every city's rents, not a one-city-at-a-time form._
+
+### Changed
+
+- **Rates tab → editable table.** Each sub-tab (Commercial $/sq ft/yr, Residential $/mo) now
+  shows **all cities as rows** with a column per rate type/unit, so coverage is visible at a
+  glance and rates are edited in place. **Save changes** persists only the cities whose cells
+  changed and re-analyzes just those; **Add city** appends a new one. The residential
+  "unknown" unit rate is still auto-set to the average of the entered rents. Replaces the
+  previous "City to edit" dropdown form.
+- Pure table logic lives in `form_logic.py` (`rate_rows_to_grid`, `grid_row_to_rates`,
+  `residential_with_unknown`, `changed_rate_rows`) and is unit-tested; the grid is the thin UI.
+
+This makes it easy to fill the rent gaps behind "—" cap rates (a city with no market rent
+can't produce a cap rate; add one here and Re-analyze).
+
+---
+
 ## [4.10.2] — 2026-11-05
 
 _Portfolio search now matches the city too, not just the street address._

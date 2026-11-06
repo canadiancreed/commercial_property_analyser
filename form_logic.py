@@ -40,6 +40,44 @@ def filter_rows(rows, term):
             or t in (r.get("city") or "").lower()]
 
 
+# ── Address normalization (4.11.4) ───────────────────────────────────────────
+
+def clean_address(address, city, province):
+    """Strip a trailing ', <city>' and/or ', <province>' from an address when they duplicate
+    the record's own city/province fields, leaving just the street. Conservative: only removes
+    a trailing segment that matches (case-insensitive) — so a street whose trailing town
+    differs from the city field (e.g. '… , Brockton, ON' with city 'Walkerton') keeps that
+    town, and an already-clean street is returned unchanged (idempotent). Never returns empty
+    when the input had a street."""
+    addr = (address or "").strip()
+    # Remove from the end: province first (it's last), then city. Repeat so ', City, Prov'
+    # collapses to the street.
+    for token in ((province or "").strip(), (city or "").strip()):
+        if not token:
+            continue
+        suffix = ", " + token
+        if addr.lower().endswith(suffix.lower()):
+            stripped = addr[: -len(suffix)].rstrip().rstrip(",").rstrip()
+            if stripped:                 # never strip away the whole address
+                addr = stripped
+    return addr
+
+
+# ── Stable row identity (4.11.1) ─────────────────────────────────────────────
+
+def resolve_row_index(records, address, listing_date):
+    """Index of the record matching (address, listing_date) — the table's UNIQUE key — in
+    the CURRENT record list. Used so a grid selection maps to the right property even after
+    the load order shifts (an edit/add moves a record to the end; a delete renumbers). A
+    cached positional id can go stale; this key never does. Returns None if not found."""
+    addr = address or ""
+    ld = listing_date or ""
+    for i, r in enumerate(records):
+        if (r.get("address") or "") == addr and (r.get("listing_date") or "") == ld:
+            return i
+    return None
+
+
 # ── Form prefill: draft (type-switch) over edited record (4.7.2, 4.9.4) ──────
 
 def prefill_value(key, draft, record, default=None):
@@ -71,6 +109,78 @@ def rent_prefills(draft, record):
     annual = prefill_value("annual_rent", draft, record) if "annual_rent" in draft \
         else (None if has_component else prefill_value("annual_rent", draft, record))
     return {"commercial_rent": comm, "residential_rent": res, "annual_rent": annual}
+
+
+# ── City rate table (v4.11) ──────────────────────────────────────────────────
+
+def rate_rows_to_grid(rows, field_key, columns):
+    """Flatten store rate rows ([{city, province, <field_key>: {col: val}}]) into editable
+    grid rows ({city, province, <col>: val|None, …}). `field_key` is 'types' (commercial)
+    or 'units' (residential); `columns` the rate keys to surface as columns."""
+    out = []
+    for r in rows:
+        vals = r.get(field_key) or {}
+        g = {"city": r.get("city") or "", "province": r.get("province") or ""}
+        for col in columns:
+            g[col] = vals.get(col)
+        out.append(g)
+    return out
+
+
+def grid_row_to_rates(row, columns):
+    """{col: float(value)} for the non-blank rate cells of one grid row (what save_*_city
+    takes). Non-numeric / blank cells are dropped."""
+    out = {}
+    for col in columns:
+        v = row.get(col)
+        if v in (None, ""):
+            continue
+        try:
+            out[col] = float(v)
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def residential_with_unknown(units):
+    """Residential units dict + `unknown` = average of the entered unit rents (rounded to
+    2dp) — the rule the per-city residential form applies, so component resolution matches."""
+    out = dict(units)
+    known = [v for v in units.values() if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    if known:
+        out["unknown"] = round(sum(known) / len(known), 2)
+    return out
+
+
+def _norm_cell(v):
+    """Normalize a grid cell for change-detection: blank → None, numeric-like → float."""
+    if v in (None, ""):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return v
+
+
+def changed_rate_rows(original, edited, columns):
+    """Return the `edited` grid rows whose rate cells differ from `original` (matched by
+    city+province, case-insensitive), including cities not in `original` (newly added).
+    Rows with a blank city are ignored."""
+    def key(r):
+        return ((r.get("city") or "").strip().lower(), (r.get("province") or "").strip().upper())
+
+    def cells(r):
+        return tuple(_norm_cell(r.get(c)) for c in columns)
+
+    orig = {key(r): cells(r) for r in original}
+    out = []
+    for r in edited:
+        k = key(r)
+        if not k[0]:
+            continue
+        if k not in orig or cells(r) != orig[k]:
+            out.append(r)
+    return out
 
 
 # ── Coercion ─────────────────────────────────────────────────────────────────
@@ -144,7 +254,6 @@ def build_property_input(values, fin):
     pass through as fractions. `values` are raw field values (blank → None), exactly what
     app._fval returns."""
     um = unit_mix_from(values)
-    units = um.total_units
     asking = _num(values, "asking_price", 0)
     comm_rent = _fv(values, "commercial_rent")
     res_rent = _fv(values, "residential_rent")
@@ -165,7 +274,10 @@ def build_property_input(values, fin):
         listing_date=_fv(values, "listing_date") or date.today().isoformat(),
         construction_cost=_num(values, "construction_cost", 0),
         commercial_lease_expiry=_fv(values, "commercial_lease_expiry"),
-        unit_mix=um if units else None,
+        # Always carry the UnitMix (even with 0 units) so `floors` persists for every
+        # building type — matching the re-analysis path, which builds a floors-only UnitMix
+        # for unit-less properties. (`floors` is a building-wide attribute, not residential-only.)
+        unit_mix=um,
         annual_rent=_fv(values, "annual_rent"),
         commercial_rent=comm_rent, commercial_rent_user_entered=comm_rent is not None,
         residential_rent=res_rent, residential_rent_user_entered=res_rent is not None,

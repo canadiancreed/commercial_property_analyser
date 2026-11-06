@@ -497,6 +497,50 @@ class DataStore:
         finally:
             conn.close()
 
+    def normalize_addresses(self, cleaner) -> int:
+        """One-time cleanup: legacy imports stored the full 'street, city, province' in the
+        address field. `cleaner(address, city, province) -> street` strips the trailing
+        city/province that duplicate the record's own fields. Updates in place by db id,
+        skipping any change that would collide with another record's (address, listing_date);
+        guarded by a meta flag so it runs once per database. Returns the number cleaned."""
+        if getattr(self, "_addr_normalized_checked", False):
+            return 0
+        conn = self._connect()
+        try:
+            if conn.execute("SELECT value FROM meta WHERE key='normalized_addresses'").fetchone():
+                self._addr_normalized_checked = True
+                return 0
+            rows = conn.execute(
+                "SELECT id, address, listing_date, city, province, data FROM properties"
+            ).fetchall()
+            keys = {(r["address"], r["listing_date"]) for r in rows}
+            count = 0
+            for r in rows:
+                new_addr = cleaner(r["address"], r["city"], r["province"])
+                if not new_addr or new_addr == r["address"]:
+                    continue
+                new_key = (new_addr, r["listing_date"])
+                if new_key in keys and new_key != (r["address"], r["listing_date"]):
+                    continue   # would clash with another record — leave this one as-is
+                record = json.loads(r["data"])
+                record["address"] = new_addr
+                conn.execute(
+                    "UPDATE properties SET address = ?, data = ? WHERE id = ?",
+                    (new_addr, json.dumps(record, ensure_ascii=False), r["id"]),
+                )
+                keys.discard((r["address"], r["listing_date"]))
+                keys.add(new_key)
+                count += 1
+            conn.execute(
+                "INSERT OR REPLACE INTO meta (key, value) VALUES ('normalized_addresses', ?)",
+                (date.today().isoformat(),),
+            )
+            conn.commit()
+            self._addr_normalized_checked = True
+            return count
+        finally:
+            conn.close()
+
     # ------------------------------------------------------------------
     # One-time JSON → SQLite migration
     # ------------------------------------------------------------------
