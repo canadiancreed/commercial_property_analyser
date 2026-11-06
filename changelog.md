@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.2] — 2026-11-06
+
+_Fix: the edit form sometimes opened blank even though the right property was selected._
+
+### Fixed
+
+- **Edit form now always populates.** Opening a property whose type differed from the form's
+  current type blanked every field (the "Editing" badge showed the right address, but the
+  inputs were empty). `load_for_edit` sets the type dropdown programmatically, and its
+  `on_change` was snapshotting the old/empty form into the carried draft — which then
+  overrode the record's prefill. That snapshot is now suppressed during the programmatic
+  set, so the form fills from the record. (Fixes the "sometimes blank when editing" case;
+  complements 4.11.1's correct-property fix.)
+
+---
+
 ## [4.11.1] — 2026-11-06
 
 _Fix: clicking or editing a property could open the wrong property — or a blank one._

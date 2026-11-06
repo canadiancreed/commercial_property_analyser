@@ -437,6 +437,10 @@ state = {"type": "Hotel"}
 FIELDS = {}  # name → input element, rebuilt each time the form reshapes
 _draft = {}  # last-entered field values, carried across a type switch so reshaping the
              # form never discards what's already typed (cleared on reset / edit / save).
+# When load_for_edit programmatically sets the type dropdown, its on_change must NOT snapshot
+# the (old/blank) form into _draft — that would overwrite the record's prefill and blank the
+# edit form. This flag suppresses the snapshot during that programmatic set.
+_suppress_type_change = {"on": False}
 # index=None → add mode; otherwise editing the record at that position (load order).
 edit_ctx = {"index": None, "orig_key": None, "record": None}
 
@@ -693,7 +697,13 @@ def load_for_edit(index: int):
     _draft.clear()   # show the record being edited, not a leftover add-mode draft
     state["type"] = p.get("property_type") or state["type"]
     if _ui.get("type_select") is not None:
-        _ui["type_select"].set_value(state["type"])
+        # Suppress the select's on_change so it doesn't snapshot the old/blank form into
+        # _draft (which would override the record's prefill and blank the edit form).
+        _suppress_type_change["on"] = True
+        try:
+            _ui["type_select"].set_value(state["type"])
+        finally:
+            _suppress_type_change["on"] = False
     dynamic_form.refresh()
     if _ui.get("tabs") is not None and _ui.get("t_form") is not None:
         _ui["tabs"].set_value(_ui["t_form"])
@@ -737,6 +747,8 @@ def form_tab():
                     "text-xs text-slate-500")
 
             def on_type(e):
+                if _suppress_type_change["on"]:
+                    return                # programmatic set during load_for_edit — don't snapshot
                 _snapshot_form()          # keep what's already entered across the reshape
                 state["type"] = e.value
                 dynamic_form.refresh()
