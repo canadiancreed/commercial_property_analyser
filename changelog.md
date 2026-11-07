@@ -24,7 +24,10 @@ _Feature: a property's detail view now shows a Price & Status History timeline._
   unchanged. Records are carried on `price_history` / `status_history`; existing listings
   show just the "Listed" baseline until their next recorded change.
 - Pure logic in `history_logic.py` (`record_price_change`, `record_status_change`,
-  `build_timeline`), unit-tested; verified live in the running app.
+  `build_timeline`), unit-tested. The capture wiring (`to_record` /
+  `build_partial_record` appending on a real change, and adding nothing on re-analysis)
+  and the report rendering (timeline round-tripping into the page JSON) have dedicated
+  integration tests too; also verified live in the running app.
 
 ---
 
