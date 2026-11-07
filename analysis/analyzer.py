@@ -1,4 +1,5 @@
 from datetime import date
+import history_logic
 from models.property_input import PropertyInput
 from models.constants import EXPENSE_RATIO_DEFAULTS
 from analysis.mortgage import MortgageCalculator, DaysOnMarketCalculator
@@ -30,6 +31,11 @@ def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
     the same shape.
     """
     now = date.today().isoformat()
+    _old = existing or {}
+    price_history = history_logic.record_price_change(
+        _old.get("price_history"), _old.get("asking_price"), prop.asking_price, now)
+    status_history = history_logic.record_status_change(
+        _old.get("status_history"), _old.get("status"), prop.status, now)
     return {
         "address":          prop.address,
         "mls_number":       prop.mls_number,
@@ -40,6 +46,8 @@ def build_partial_record(prop: PropertyInput, existing: dict = None) -> dict:
         "analyzed_on":      None,
         "asking_price":     prop.asking_price,
         "original_price":   prop.original_price,
+        "price_history":    price_history,
+        "status_history":   status_history,
         "total_sq_ft":      prop.total_sq_ft,
         "city":             prop.city,
         "province":         prop.province,
@@ -396,6 +404,11 @@ class CommercialPropertyAnalyzer:
         """Serializes the full analysis to a dict suitable for saving via DataStore."""
         p   = self.prop
         now = date.today().isoformat()
+        _old = existing or {}
+        price_history = history_logic.record_price_change(
+            _old.get("price_history"), _old.get("asking_price"), p.asking_price, now)
+        status_history = history_logic.record_status_change(
+            _old.get("status_history"), _old.get("status"), p.status, now)
         _results = [row.to_dict() for row in self.report() if row.grade != ""]
         _select_results, _select_robustness = self._select_record(_results)
         return {
@@ -408,6 +421,8 @@ class CommercialPropertyAnalyzer:
             "analyzed_on":      now,
             "asking_price":     p.asking_price,
             "original_price":   p.original_price,
+            "price_history":    price_history,
+            "status_history":   status_history,
             "total_sq_ft":      p.total_sq_ft,
             "city":             p.city,
             "province":         p.province,

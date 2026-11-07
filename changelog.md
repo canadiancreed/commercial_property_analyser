@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.12.0] — 2026-11-07
+
+_Feature: a property's detail view now shows a Price & Status History timeline._
+
+### Added
+
+- **Price & Status History section** in the property detail view (built into the HTML
+  report, so it also appears in exported/printed and CLI reports). It shows a seeded
+  **"Listed"** baseline — the listing date and original list price — followed by any
+  dated price changes (▼ reduced / ▲ increased) and status changes (went inactive /
+  reactivated).
+- **History is recorded going forward.** The data model never snapshotted a dated
+  history, so a dated entry is now appended whenever a property is **edited/saved** and
+  its asking price (beyond $1) or status actually changes. Re-analysis re-reads the same
+  stored values, so it never adds a spurious entry; the realtor.ca price-check is
+  unchanged. Records are carried on `price_history` / `status_history`; existing listings
+  show just the "Listed" baseline until their next recorded change.
+- Pure logic in `history_logic.py` (`record_price_change`, `record_status_change`,
+  `build_timeline`), unit-tested; verified live in the running app.
+
+---
+
 ## [4.11.5] — 2026-11-06
 
 _Fix: the Add / Edit Property tab stayed stuck on the last record loaded for editing._
