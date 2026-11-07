@@ -443,6 +443,10 @@ _draft = {}  # last-entered field values, carried across a type switch so reshap
 # the (old/blank) form into _draft — that would overwrite the record's prefill and blank the
 # edit form. This flag suppresses the snapshot during that programmatic set.
 _suppress_type_change = {"on": False}
+# When the report's "Edit" button jumps to the form tab it does so programmatically AFTER
+# loading the record; the tab-change handler must NOT treat that as a user click (which would
+# reset the edit it just loaded). This flag suppresses the reset during that programmatic jump.
+_programmatic_tab = {"on": False}
 # index=None → add mode; otherwise editing the record at that position (load order).
 edit_ctx = {"index": None, "orig_key": None, "record": None}
 
@@ -711,7 +715,14 @@ def load_for_edit(index: int):
             _suppress_type_change["on"] = False
     dynamic_form.refresh()
     if _ui.get("tabs") is not None and _ui.get("t_form") is not None:
-        _ui["tabs"].set_value(_ui["t_form"])
+        # Programmatic jump to the form tab — suppress the tab-change reset so it doesn't
+        # wipe the record we just loaded for editing. (handle_event runs this sync handler
+        # inline within set_value, so the flag is still set when it fires.)
+        _programmatic_tab["on"] = True
+        try:
+            _ui["tabs"].set_value(_ui["t_form"])
+        finally:
+            _programmatic_tab["on"] = False
 
 
 async def confirm_delete(index: int, parent_dialog=None):
@@ -1480,6 +1491,17 @@ def index():
         _ui["tabs"] = tabs          # so a save can switch back to the portfolio
         _ui["t_list"] = t_list
         _ui["t_form"] = t_form      # so "Edit" can jump to the form
+
+        def _on_tab_change(e):
+            # Clicking "Add / Edit Property" directly should give a fresh blank add form, not
+            # keep showing a record the user loaded via Edit but never saved/cancelled.
+            if form_logic.should_reset_form_on_tab(
+                    e.value, t_form.props["name"],
+                    programmatic=_programmatic_tab["on"],
+                    editing=edit_ctx["index"] is not None):
+                reset_form()
+
+        tabs.on_value_change(_on_tab_change)
         with ui.tab_panels(tabs, value=t_list).classes("w-full bg-transparent"):
             with ui.tab_panel(t_list):
                 portfolio_tab()

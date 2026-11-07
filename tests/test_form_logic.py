@@ -213,6 +213,32 @@ def test_resolve_row_index_tolerates_none():
     assert fl.resolve_row_index([{}], None, None) == 0
 
 
+# ── Add/Edit tab reset (4.11.5) ───────────────────────────────────────────────
+
+def test_reset_on_manual_form_tab_while_editing():
+    # User clicks the form tab while a record is loaded for editing → reset to add mode.
+    assert fl.should_reset_form_on_tab("Add / Edit Property", "Add / Edit Property",
+                                       programmatic=False, editing=True) is True
+
+
+def test_no_reset_when_adding_a_new_entry():
+    # Half-entered NEW property must survive tabbing away and back (add mode, not editing).
+    assert fl.should_reset_form_on_tab("Add / Edit Property", "Add / Edit Property",
+                                       programmatic=False, editing=False) is False
+
+
+def test_no_reset_on_programmatic_jump_from_edit_button():
+    # The report's Edit button jumps to the form tab on purpose after loading a record.
+    assert fl.should_reset_form_on_tab("Add / Edit Property", "Add / Edit Property",
+                                       programmatic=True, editing=True) is False
+
+
+def test_no_reset_when_switching_to_other_tabs():
+    # Switching to any non-form tab never resets, even mid-edit.
+    assert fl.should_reset_form_on_tab("Portfolio", "Add / Edit Property",
+                                       programmatic=False, editing=True) is False
+
+
 # ── Address normalization (4.11.4) ────────────────────────────────────────────
 
 def test_clean_address_strips_city_and_province():

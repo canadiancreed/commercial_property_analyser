@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [4.11.5] — 2026-11-06
+
+_Fix: the Add / Edit Property tab stayed stuck on the last record loaded for editing._
+
+### Fixed
+
+- **Clicking "Add / Edit Property" now always starts a fresh add.** Loading a property via
+  the report's **Edit** button left the form in edit mode; if you then switched to another tab
+  without saving or cancelling, reopening "Add / Edit Property" still showed that record instead
+  of a blank form for a new entry. The tab now resets to a blank add form when it is opened while
+  a record is loaded for editing. A half-entered **new** property is preserved (only a lingering
+  *edit* is cleared), and the Edit button's own jump to the form still loads its record. Decision
+  logic in `form_logic.should_reset_form_on_tab` (unit-tested); verified live in the running app.
+
+---
+
 ## [4.11.4] — 2026-11-06
 
 _Fix: legacy imported records had the city + province baked into the address field._
