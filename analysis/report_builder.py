@@ -10,6 +10,7 @@ _build_report_row (preserving that API), and poc_nicegui/app.py imports them dir
 """
 from datetime import date
 
+import history_logic
 from models.property_input import PropertyInput, UnitMix
 from analysis.financing_config import resolve_financing, mixed_use_commercial_gfa_share
 
@@ -146,4 +147,5 @@ def build_report_row(p: dict, scored: dict, targets: dict) -> dict:
         "hotel_rooms": p.get("hotel_rooms", 0) or 0, "hotel_adr": p.get("hotel_adr") or 0,
         "hotel_occ": p.get("hotel_occupancy") or 0,
         "rent_breakdown": p.get("rent_breakdown", []),
+        "history": history_logic.build_timeline(p),
     }

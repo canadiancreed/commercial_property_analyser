@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import MagicMock
 from datetime import date
 from models.property_input import PropertyInput, UnitMix
-from analysis.analyzer import CommercialPropertyAnalyzer
+from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -181,6 +181,60 @@ class TestAnalyzerWithRent:
         a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
         rec = a.to_record()
         assert rec["noi_growth_rate"] is None
+
+
+# ── Price & status history capture (4.12.0) ───────────────────────────────────
+
+class TestPriceStatusHistoryCapture:
+    """to_record / build_partial_record append a dated entry to price_history /
+    status_history when an edit/save changes the asking price or status, carry a
+    prior history forward, and add nothing when the inputs are unchanged (re-analysis)."""
+
+    TODAY = date.today().isoformat()
+
+    def test_to_record_appends_price_change(self):
+        prop = _make_prop(annual_rent=60_000, asking_price=450_000, status="active")
+        a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        rec = a.to_record(existing={"asking_price": 480_000, "status": "active"})
+        assert rec["price_history"] == [{"date": self.TODAY, "price": 450_000.0}]
+        assert rec["status_history"] == []
+
+    def test_to_record_appends_status_change(self):
+        prop = _make_prop(annual_rent=60_000, asking_price=480_000, status="inactive")
+        a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        rec = a.to_record(existing={"asking_price": 480_000, "status": "active"})
+        assert rec["status_history"] == [{"date": self.TODAY, "status": "inactive"}]
+        assert rec["price_history"] == []
+
+    def test_to_record_reanalysis_adds_nothing_and_carries_history(self):
+        prior = [{"date": "2025-01-01", "price": 470_000.0}]
+        prop = _make_prop(annual_rent=60_000, asking_price=480_000, status="active")
+        a = CommercialPropertyAnalyzer(prop, _make_resolver(60_000))
+        rec = a.to_record(existing={"asking_price": 480_000, "status": "active",
+                                    "price_history": prior})
+        # Same price/status as the stored record → no new entry, prior carried through.
+        assert rec["price_history"] == prior
+        assert rec["status_history"] == []
+
+    def test_to_record_no_existing_starts_empty(self):
+        prop = _make_prop(annual_rent=60_000)
+        rec = CommercialPropertyAnalyzer(prop, _make_resolver(60_000)).to_record()
+        assert rec["price_history"] == []
+        assert rec["status_history"] == []
+
+    def test_partial_record_appends_price_and_carries_status_history(self):
+        prior_status = [{"date": "2025-02-01", "status": "inactive"}]
+        prop = _make_prop(asking_price=400_000, status="inactive")
+        rec = build_partial_record(prop, existing={
+            "asking_price": 480_000, "status": "inactive", "status_history": prior_status})
+        assert rec["price_history"] == [{"date": self.TODAY, "price": 400_000.0}]
+        # inactive → inactive is no change, so the prior status history is carried as-is.
+        assert rec["status_history"] == prior_status
+
+    def test_partial_record_no_existing_starts_empty(self):
+        rec = build_partial_record(_make_prop())
+        assert rec["price_history"] == []
+        assert rec["status_history"] == []
 
 
 # ── Construction cost propagation ─────────────────────────────────────────────

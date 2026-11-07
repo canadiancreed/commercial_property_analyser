@@ -888,6 +888,32 @@ function openModal(p) {{
       ${{p.verified_income_pct != null ? `<div class="modal-metric-row"><span class="modal-metric-name">Income</span><span class="modal-metric-val info">${{p.verified_income_pct.toFixed(0)}}% verified / ${{(100-p.verified_income_pct).toFixed(0)}}% estimated</span></div>` : ''}}
       <div class="modal-metric-row"><span class="modal-metric-name">Read</span><span class="modal-metric-val info">${{p.deal_context_read || ''}}</span></div>
     </div>` : '';
+  // Price & status history: a seeded "Listed" baseline (list date + original price)
+  // followed by any dated price / status changes recorded when the property was edited.
+  // A price reduction reads as good (buyer-side negotiation room), an increase as poor,
+  // matching the price-drop convention elsewhere; status changes are neutral/factual.
+  const historyRows = (p.history || []).map(ev => {{
+    let label, valHtml, cls = 'info';
+    if (ev.kind === 'listed') {{
+      label = 'Listed'; valHtml = fmtMoney(ev.price);
+    }} else if (ev.kind === 'price') {{
+      const arrow = ev.dir === 'down' ? '▼ ' : (ev.dir === 'up' ? '▲ ' : '');
+      label = ev.dir === 'down' ? 'Price reduced' : (ev.dir === 'up' ? 'Price increased' : 'Price changed');
+      cls   = ev.dir === 'down' ? 'good' : (ev.dir === 'up' ? 'poor' : 'info');
+      valHtml = arrow + fmtMoney(ev.price);
+    }} else if (ev.kind === 'status') {{
+      label = ev.status === 'inactive' ? 'Went inactive (off-market)' : 'Reactivated (relisted)';
+      valHtml = ev.status;
+    }} else {{ return ''; }}
+    return `<div class="modal-metric-row">
+        <span class="modal-metric-name">${{ev.date || '—'}} &middot; ${{label}}</span>
+        <span class="modal-metric-val ${{cls}}">${{valHtml}}</span>
+      </div>`;
+  }}).join('');
+  const historyHtml = historyRows ? `<div class="modal-section" style="margin-top:1rem">
+      <h3>Price &amp; Status History</h3>${{historyRows}}
+    </div>` : '';
+
   const rentHtml  = rentLines.length
     ? `<div class="modal-section" style="margin-top:1rem"><h3>Rent Detail</h3>
         ${{rentLines.map(l=>`<div class="modal-metric-row"><span class="modal-metric-name" style="color:var(--ink)">${{l}}</span></div>`).join('')}}
@@ -959,6 +985,7 @@ function openModal(p) {{
       </div>
       ${{notesHtml}}
       ${{dealContextHtml}}
+      ${{historyHtml}}
       <div class="modal-grid">
         <div>
           <div class="modal-section"><h3>Property Details</h3>${{propDetails}}</div>

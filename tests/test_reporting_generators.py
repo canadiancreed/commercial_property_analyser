@@ -4,6 +4,8 @@ import pytest
 from unittest.mock import patch
 from reporting.city_report import CityReportGenerator
 from reporting.property_report import PropertyReportGenerator
+from analysis.report_builder import build_report_row
+import history_logic
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -297,6 +299,42 @@ class TestPropertyReportGenerator:
         assert len(parsed) == 1
         assert parsed[0]["address"] == "1 Main St, Ottawa, ON"
         assert parsed[0]["score"] == 65.0
+
+    # ── Price & Status History (4.12.0) ──────────────────────────────────────
+    def test_history_round_trips_into_data_json(self):
+        """The timeline on a report row must survive into the page's embedded JSON
+        (the detail view renders it client-side from there)."""
+        row = _prop_row()
+        row["history"] = [
+            {"date": "2024-01-01", "kind": "listed", "price": 530_000.0},
+            {"date": "2026-11-07", "kind": "price", "price": 500_000.0, "dir": "down"},
+            {"date": "2026-11-07", "kind": "status", "status": "inactive"},
+        ]
+        html = PropertyReportGenerator().render([row])
+        start = html.index("const DATA = ") + len("const DATA = ")
+        end   = html.index(";\n\nlet currentSort")
+        parsed = json.loads(html[start:end])
+        assert parsed[0]["history"] == row["history"]
+
+    def test_history_section_present_in_template(self):
+        """The detail view includes the Price & Status History section and renders it
+        from p.history."""
+        html = PropertyReportGenerator().render([_prop_row()])
+        assert "Price &amp; Status History" in html
+        assert "p.history" in html
+
+    def test_build_report_row_emits_timeline(self):
+        """build_report_row must derive the same timeline history_logic produces from
+        the record (seeded Listed baseline + recorded changes)."""
+        record = {
+            "listing_date": "2024-03-01", "original_price": 1_080_000,
+            "price_history": [{"date": "2026-11-07", "price": 1_000_000.0}],
+            "status_history": [{"date": "2026-11-07", "status": "inactive"}],
+        }
+        row = build_report_row(record, {}, {})
+        assert row["history"] == history_logic.build_timeline(record)
+        # Non-trivial: the seeded Listed baseline is present.
+        assert row["history"][0] == {"date": "2024-03-01", "kind": "listed", "price": 1_080_000.0}
 
     def test_render_deduplicates_provinces(self):
         rows = [
