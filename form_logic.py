@@ -78,6 +78,20 @@ def resolve_row_index(records, address, listing_date):
     return None
 
 
+def should_reset_form_on_tab(tab_value, form_tab_name, *, programmatic, editing):
+    """Whether switching to the Add/Edit form tab should reset it to a blank add form.
+
+    Clicking the "Add / Edit Property" tab directly means "add a new property", so a record
+    left loaded for editing must not linger from a previous Edit the user never saved or
+    cancelled. Only reset when:
+      * the tab being shown IS the form tab (``tab_value == form_tab_name``),
+      * the form is currently in EDIT mode (``editing``) — an in-progress *new* entry is kept, and
+      * the switch was a real user click, not the programmatic jump the report's Edit button
+        makes (``not programmatic``) — that one loads a record on purpose.
+    """
+    return bool(editing) and (not programmatic) and tab_value == form_tab_name
+
+
 # ── Form prefill: draft (type-switch) over edited record (4.7.2, 4.9.4) ──────
 
 def prefill_value(key, draft, record, default=None):
