@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.1] — 2026-11-07
+
+_The City-data Status dashboard refreshes to reflect edits._
+
+### Fixed
+
+- **City-data Status dashboard now updates after you edit a city.** It was rendered once when the
+  City data tab opened, so changes made afterwards (a distance or demographics entry in the
+  sibling sub-tabs, or rates on the Rates tab) didn't show until a full reload. The dashboard now
+  re-queries the database whenever it's viewed — when you switch to the Status sub-tab, and when
+  you return to the City data tab — so a just-saved city immediately shows its updated ✓/✗ status.
+
+---
+
 ## [5.1.0] — 2026-11-07
 
 _A Database tab to explore the SQLite structure and data._
