@@ -472,6 +472,51 @@ def test_city_data_status_flags_missing_and_counts():
     assert rows[0]["city"] == "Walkerton"   # most-incomplete sorts first
 
 
+def test_properties_for_city_name_any_province():
+    props = [
+        {"address": "1 A St", "city": "Ottawa", "province": "ON"},
+        {"address": "2 B St", "city": "ottawa", "province": "QC"},   # same name, other prov
+        {"address": "3 C St", "city": "Guelph", "province": "ON"},
+    ]
+    out = fl.properties_for_city_name(props, "OTTAWA")
+    assert [p["address"] for p in out] == ["1 A St", "2 B St"]
+    assert fl.properties_for_city_name(props, "Nowhere") == []
+
+
+def test_orphaned_properties_lists_only_cities_missing_data():
+    props = [
+        {"address": "1 A", "city": "Walkerton", "province": "ON"},
+        {"address": "2 B", "city": "Walkerton", "province": "ON"},
+        {"address": "3 C", "city": "Guelph", "province": "ON"},
+    ]
+    comm = [
+        {"city": "Guelph", "province": "ON", "types": {"Office": 15.0}},
+        {"city": "Walkerton", "province": "ON", "types": {"Office": None}},   # stub only
+    ]
+    res = [{"city": "Guelph", "province": "ON", "units": {"one_br": 1200}}]
+    demo = {"guelph": {"population": 143740}}
+    dist = {"Guelph": {"distance_km": 90}}
+    out = fl.orphaned_properties(props, comm, res, demo, dist)
+    # Guelph is complete -> not orphaned; both Walkerton properties are orphaned.
+    assert {r["address"] for r in out} == {"1 A", "2 B"}
+    assert all(r["city"] == "Walkerton" for r in out)
+    assert out[0]["missing"] == ["commercial rates", "residential rates", "distance", "demographics"]
+
+
+def test_orphaned_properties_empty_when_all_complete():
+    props = [{"address": "3 C", "city": "Guelph", "province": "ON"}]
+    comm = [{"city": "Guelph", "province": "ON", "types": {"Office": 15.0}}]
+    res = [{"city": "Guelph", "province": "ON", "units": {"one_br": 1200}}]
+    demo = {"guelph": {"population": 143740}}
+    dist = {"Guelph": {"distance_km": 90}}
+    assert fl.orphaned_properties(props, comm, res, demo, dist) == []
+
+
+def test_orphaned_properties_skips_blank_city():
+    assert fl.orphaned_properties(
+        [{"address": "no city", "city": "", "province": "ON"}], [], [], {}, {}) == []
+
+
 # ── read-only SQL guard for the DB explorer (5.1.0) ───────────────────────────
 
 def test_is_readonly_sql_accepts_reads():

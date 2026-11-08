@@ -1174,7 +1174,8 @@ def _rates_grid_editor(kind):
             else:
                 ui.label("No properties are linked to this city.").classes("text-sm text-slate-500")
             ui.label("Removes the city from both the commercial and residential rate "
-                     "tables. This cannot be undone.").classes("text-xs text-slate-500")
+                     "tables. This cannot be undone — linked properties are listed in the "
+                     "City data → Orphans tab for resolution.").classes("text-xs text-slate-500")
             with ui.row().classes("w-full justify-end gap-2 mt-1"):
                 ui.button("Cancel", on_click=d.close).props("flat")
 
@@ -1184,6 +1185,7 @@ def _rates_grid_editor(kind):
                     for fn in _ui.get("rates_reloads", []):
                         fn()
                     refresh_portfolio()
+                    _refresh_city_views()
                     ui.notify(
                         f"Deleted {city}, {prov} rates ({n} row(s)). "
                         + (f"{n_linked} linked propert{'y' if n_linked == 1 else 'ies'} — "
@@ -1504,6 +1506,48 @@ def settings_tab():
 
 
 # ── Page 6: city reference data (distances + demographics) ─────────────────────
+def _refresh_city_views():
+    """Re-query the City-data Status dashboard and the Orphans report (whichever are mounted)
+    after a delete / edit, so both reflect the change without a reload."""
+    for key in ("city_status_refresh", "orphans_refresh"):
+        fn = _ui.get(key)
+        if fn:
+            fn()
+
+
+def _city_delete_dialog(kind, city, on_confirm):
+    """Confirm deleting a city's reference data (`kind`: 'distance' / 'demographics'). Lists
+    the properties linked to that city and warns that forcing the delete orphans them (they
+    then appear in the Orphans tab for resolution). `on_confirm()` does the actual delete."""
+    linked = form_logic.properties_for_city_name(store.load_properties(), city)
+    n = len(linked)
+    with ui.dialog() as d, ui.card().classes("p-4 gap-2 w-[560px] max-w-full"):
+        ui.label(f"Delete {kind} for {city}?").classes("font-semibold text-slate-800")
+        if linked:
+            ui.label(f"{n} propert{'y' if n == 1 else 'ies'} "
+                     f"{'is' if n == 1 else 'are'} linked to this city. Deleting its {kind} leaves "
+                     f"{'it' if n == 1 else 'them'} orphaned (missing data) until you re-add it — "
+                     f"the Orphans tab lists them for resolution:").classes("text-sm text-slate-600")
+            with ui.column().classes("gap-0 max-h-40 overflow-auto w-full"):
+                for p in linked[:12]:
+                    ui.label("• " + (p.get("address") or "—")).classes("text-xs text-slate-500")
+                if n > 12:
+                    ui.label(f"…and {n - 12} more").classes("text-xs text-slate-400")
+        else:
+            ui.label("No properties are linked to this city.").classes("text-sm text-slate-500")
+        ui.label("This cannot be undone.").classes("text-xs text-slate-500")
+        with ui.row().classes("w-full justify-end gap-2 mt-1"):
+            ui.button("Cancel", on_click=d.close).props("flat")
+
+            def _go():
+                d.close()
+                on_confirm()
+
+            ui.button("Delete anyway" if linked else "Delete city",
+                      icon="delete", on_click=_go).props("unelevated color=negative")
+    d.open()
+
+
 def _distances_editor():
     raw = {"d": store.load_city_distances()}   # {City(display): {distance_km, nearest_centre}}
     sel = {"val": _NEW_CITY}
@@ -1535,14 +1579,17 @@ def _distances_editor():
 
         def delete():
             target = sel["val"]
-            store.delete_city_distance(target)
-            raw["d"] = store.load_city_distances()
-            sel["val"] = _NEW_CITY
-            city_select.set_options([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=_NEW_CITY)
-            form.refresh()
-            if _ui.get("city_status_refresh"):
-                _ui["city_status_refresh"]()
-            ui.notify(f"Deleted distance for {target}.", type="warning")
+
+            def _do():
+                store.delete_city_distance(target)
+                raw["d"] = store.load_city_distances()
+                sel["val"] = _NEW_CITY
+                city_select.set_options([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=_NEW_CITY)
+                form.refresh()
+                _refresh_city_views()
+                ui.notify(f"Deleted distance for {target}.", type="warning")
+
+            _city_delete_dialog("distance", target, _do)
 
         with ui.row().classes("items-center gap-2 mt-1"):
             ui.button("Save distance", icon="save", on_click=save).props("unelevated")
@@ -1602,15 +1649,18 @@ def _demographics_editor():
 
         def delete():
             target = sel["val"]
-            store.delete_city_demographics(target)
-            raw["d"] = store.load_city_demographics()
-            sel["val"] = _NEW_CITY
-            city_select.set_options(
-                [_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower), value=_NEW_CITY)
-            form.refresh()
-            if _ui.get("city_status_refresh"):
-                _ui["city_status_refresh"]()
-            ui.notify(f"Deleted demographics for {target}.", type="warning")
+
+            def _do():
+                store.delete_city_demographics(target)
+                raw["d"] = store.load_city_demographics()
+                sel["val"] = _NEW_CITY
+                city_select.set_options(
+                    [_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower), value=_NEW_CITY)
+                form.refresh()
+                _refresh_city_views()
+                ui.notify(f"Deleted demographics for {target}.", type="warning")
+
+            _city_delete_dialog("demographics", target, _do)
 
         with ui.row().classes("items-center gap-2 mt-1"):
             ui.button("Save demographics", icon="save", on_click=save).props("unelevated")
@@ -1670,6 +1720,42 @@ def _city_status_dashboard():
     }).classes("h-[56vh]")
 
 
+def _orphans_report():
+    """Resolution worklist of orphaned properties — those whose city is missing reference
+    data (e.g. left behind when a city's rates / distance / demographics were deleted while
+    properties still point at it). Computed live, so an orphan clears when its data is
+    re-added or the property's city is corrected."""
+    rows = form_logic.orphaned_properties(
+        store.load_properties(),
+        store.load_commercial_rate_rows(),
+        store.load_residential_rate_rows(),
+        store.load_city_demographics(),
+        store.load_city_distances(),
+    )
+    n = len(rows)
+    if n == 0:
+        ui.label("No orphaned properties — every property's city has its reference data on "
+                 "file.").classes("text-sm text-slate-500")
+        return
+    ui.label(f"{n} orphaned propert{'y' if n == 1 else 'ies'} — each points at a city that is "
+             "missing some reference data.").classes("text-sm font-medium text-amber-600 mb-1")
+    ui.label("Resolve by re-adding the data (Rates / Distances / Demographics) or editing the "
+             "property's city on Add / Edit property.").classes("text-xs text-slate-500 mb-2")
+    grid_rows = [{"address": r["address"], "city": r["city"], "province": r["province"],
+                  "missing": ", ".join(r["missing"])} for r in rows]
+    ui.aggrid({
+        "columnDefs": [
+            {"headerName": "Address", "field": "address", "pinned": "left", "width": 200, "filter": True},
+            {"headerName": "City", "field": "city", "width": 140, "filter": True},
+            {"headerName": "Prov", "field": "province", "width": 80},
+            {"headerName": "Missing data", "field": "missing", "flex": 1, "filter": True},
+        ],
+        "rowData": grid_rows,
+        "defaultColDef": {"sortable": True, "resizable": True},
+        "pagination": True, "paginationPageSize": 25,
+    }).classes("h-[56vh]")
+
+
 def city_data_tab():
     with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
         with ui.row().classes("items-center gap-4"):
@@ -1683,20 +1769,28 @@ def city_data_tab():
         s_status = ui.tab("Status")
         s_dist = ui.tab("Distances")
         s_demo = ui.tab("Demographics")
+        s_orphans = ui.tab("Orphans")
 
     @ui.refreshable
     def status_panel():
         _city_status_dashboard()
 
-    # Expose the refresh so switching back to this top-nav tab (e.g. after editing rates)
-    # re-queries the dashboard too.
+    @ui.refreshable
+    def orphans_panel():
+        _orphans_report()
+
+    # Expose the refreshes so switching back to this top-nav tab (e.g. after editing rates),
+    # or deleting a city, re-queries the dashboard + orphan worklist too.
     _ui["city_status_refresh"] = status_panel.refresh
+    _ui["orphans_refresh"] = orphans_panel.refresh
 
     def _on_sub(e):
-        # The dashboard is rendered once; re-query it whenever the user switches to the
-        # Status sub-tab so edits just made in Distances / Demographics show without a reload.
+        # Each panel is rendered once; re-query it whenever the user switches to it so edits
+        # just made in the sibling sub-tabs show without a reload.
         if e.value == s_status.props["name"]:
             status_panel.refresh()
+        elif e.value == s_orphans.props["name"]:
+            orphans_panel.refresh()
 
     sub.on_value_change(_on_sub)
 
@@ -1707,6 +1801,8 @@ def city_data_tab():
             _distances_editor()
         with ui.tab_panel(s_demo):
             _demographics_editor()
+        with ui.tab_panel(s_orphans):
+            orphans_panel()
 
 
 # ── Page 7: database explorer (read-only) ─────────────────────────────────────

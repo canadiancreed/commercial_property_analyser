@@ -245,6 +245,15 @@ def properties_for_city(properties, city, province):
     return out
 
 
+def properties_for_city_name(properties, city):
+    """Records whose city matches `city` (case-insensitive), ANY province. Used by the City
+    data (demographics / distances) delete, whose rows are keyed by city name only — so the
+    linked-properties warning and the orphan check span every province sharing that name."""
+    c = (city or "").strip().lower()
+    return [rec for rec in (properties or [])
+            if (rec.get("city") or "").strip().lower() == c]
+
+
 def city_data_needed_message(created):
     """Notice text for a newly-added property whose city had no reference data, from the
     flags dict `ensure_city_reference_data` returns. Returns None when nothing was newly
@@ -335,6 +344,32 @@ def city_data_status(properties, comm_rows, res_rows, demographics, distances):
         })
     rows.sort(key=lambda r: (-len(r["missing"]), -r["n_props"], r["city"].lower()))
     return rows
+
+
+def orphaned_properties(properties, comm_rows, res_rows, demographics, distances):
+    """Properties whose referenced city is missing one or more reference-data types
+    (commercial / residential rates, distance, demographics). These are "orphans" — left
+    behind when a city's data is deleted (or forced-deleted) while properties still point at
+    it, or simply never entered. Computed LIVE from current data, so an orphan clears itself
+    the moment its city's data is re-added. Returns [{address, city, province, missing: [...]}],
+    one per affected property, sorted most-missing → city → address: a resolution worklist."""
+    status = city_data_status(properties, comm_rows, res_rows, demographics, distances)
+    missing_by = {((r["city"] or "").strip().lower(), (r["province"] or "").strip().upper()):
+                  r["missing"] for r in status}
+    out = []
+    for rec in (properties or []):
+        c = (rec.get("city") or "").strip()
+        p = (rec.get("province") or "").strip().upper()
+        if not c:
+            continue
+        miss = missing_by.get((c.lower(), p), [])
+        if miss:
+            out.append({
+                "address": (rec.get("address") or "").strip() or "—",
+                "city": c, "province": p, "missing": list(miss),
+            })
+    out.sort(key=lambda r: (-len(r["missing"]), r["city"].lower(), r["address"].lower()))
+    return out
 
 
 # ── DB explorer: read-only SQL guard (5.1.0) ──────────────────────────────────
