@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.3] — 2026-11-08
+
+_The property-report Google map locates the property again._
+
+### Fixed
+
+- **Property report → Google map now reads all three address fields.** The map query was built
+  from the `address` field alone, but that field stopped carrying the city/province (stripped in
+  4.11.4), so a bare street was ambiguous and the map broke. The query now combines
+  `address`, `city`, and `province` into one string (e.g. "77 Brae St, Almonte, ON"), so the map
+  and the "Open in Maps" link resolve to the correct location again.
+
+---
+
 ## [5.1.2] — 2026-11-07
 
 _The Demographics editor has its Save button back._
