@@ -27,17 +27,33 @@ WORKTREE = Path(__file__).resolve().parents[1]
 
 if getattr(sys, "frozen", False):
     # Packaged (.exe): project code + reference/config seed are bundled read-only under
-    # _MEIPASS (wiped on exit), so the live DB lives in a persistent user dir.
+    # _MEIPASS (wiped on exit), so the live DB lives in a persistent, writable dir. Keep it
+    # inside the project — a 'db' folder beside the executable — not buried in %LOCALAPPDATA%.
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-    _data_base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
-    DATA_DIR = _data_base / "CommercialPropertyAnalyser"
+    APP_HOME = Path(sys.executable).resolve().parent
+    _LEGACY_DATA_DIR = (Path(os.environ.get("LOCALAPPDATA") or Path.home())
+                        / "CommercialPropertyAnalyser")
 else:
-    # Dev: run from source; the DB lives beside the source under poc_nicegui/_data.
+    # Dev: run from source. The DB lives in the project's db/ folder.
     BASE = WORKTREE
-    DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
+    APP_HOME = WORKTREE
+    _LEGACY_DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
 
+DATA_DIR = APP_HOME / "db"
 sys.path.insert(0, str(BASE))  # import the project packages from the code location
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "properties.db"
+
+# One-time relocation (5.1.5): bring an existing database over from the pre-5.1.5 location
+# (frozen: %LOCALAPPDATA%\CommercialPropertyAnalyser; dev: poc_nicegui\_data) so moving the
+# DB into the project folder never loses data. Copy, not move — the old file stays as a
+# backup until the user removes it.
+if not DB_PATH.exists():
+    _legacy_db = _LEGACY_DATA_DIR / "properties.db"
+    if _legacy_db.exists():
+        import shutil as _shutil
+        _shutil.copy2(_legacy_db, DB_PATH)
+        print(f"[CPA] Relocated database {_legacy_db} -> {DB_PATH}")
 
 # v5.0.0: all reference/config/runtime data lives in the DB, seeded from data/seeds — no
 # config/ or json/ files are copied or read. We still chdir into the writable data dir so
@@ -50,7 +66,6 @@ if not getattr(sys, "frozen", False):
     sys.argv[0] = str(Path(__file__).resolve())
 
 os.chdir(DATA_DIR)             # run from the writable data dir (reports, etc.)
-DB_PATH = DATA_DIR / "properties.db"
 
 from datetime import date
 

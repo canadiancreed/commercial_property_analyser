@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.5] — 2026-11-08
+
+_The database lives in the project's `db/` folder, not in `%LOCALAPPDATA%`._
+
+### Changed
+
+- **The SQLite database now lives in a `db/` folder inside the project** — beside the executable
+  when packaged, and at the repo root in dev — instead of
+  `%LOCALAPPDATA%\CommercialPropertyAnalyser` (packaged) or `poc_nicegui/_data` (dev). On first
+  launch the app relocates an existing database from the old location into `db/` automatically
+  (a copy, leaving the old file as a backup), so the full property set carries over and no data is
+  lost.
+
+---
+
 ## [5.1.4] — 2026-11-08
 
 _Rates province dropdown, dark-mode contrast, and city deletion in City data._
