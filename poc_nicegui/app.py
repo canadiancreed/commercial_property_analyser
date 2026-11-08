@@ -1109,7 +1109,8 @@ def _rates_grid_editor(kind):
             ui.label(f"Add a city — {kind} rates").classes("font-semibold text-slate-800")
             with ui.row().classes("w-full gap-3"):
                 ci = ui.input("City").classes("w-48")
-                pi = ui.input("Province").classes("w-28")
+                pi = ui.select(list(PROVINCE_CODES), label="Province",
+                               with_input=True, clearable=True).classes("w-28")
             inputs = {}
             with ui.row().classes("w-full gap-3 flex-wrap"):
                 for c, lbl in columns:
@@ -1517,7 +1518,21 @@ def _distances_editor():
             form.refresh()
             ui.notify(f"Saved distance for {city}.", type="positive")
 
-        ui.button("Save distance", icon="save", on_click=save).props("unelevated").classes("mt-1")
+        def delete():
+            target = sel["val"]
+            store.delete_city_distance(target)
+            raw["d"] = store.load_city_distances()
+            sel["val"] = _NEW_CITY
+            city_select.set_options([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=_NEW_CITY)
+            form.refresh()
+            if _ui.get("city_status_refresh"):
+                _ui["city_status_refresh"]()
+            ui.notify(f"Deleted distance for {target}.", type="warning")
+
+        with ui.row().classes("items-center gap-2 mt-1"):
+            ui.button("Save distance", icon="save", on_click=save).props("unelevated")
+            if row:
+                ui.button("Delete city", icon="delete", on_click=delete).props("flat color=negative")
 
     def on_city(e):
         sel["val"] = e.value
@@ -1570,7 +1585,22 @@ def _demographics_editor():
             ui.notify(f"Saved demographics for {city} (growth {growth:+.2f}%/yr)."
                       if growth is not None else f"Saved demographics for {city}.", type="positive")
 
-        ui.button("Save demographics", icon="save", on_click=save).props("unelevated").classes("mt-1")
+        def delete():
+            target = sel["val"]
+            store.delete_city_demographics(target)
+            raw["d"] = store.load_city_demographics()
+            sel["val"] = _NEW_CITY
+            city_select.set_options(
+                [_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower), value=_NEW_CITY)
+            form.refresh()
+            if _ui.get("city_status_refresh"):
+                _ui["city_status_refresh"]()
+            ui.notify(f"Deleted demographics for {target}.", type="warning")
+
+        with ui.row().classes("items-center gap-2 mt-1"):
+            ui.button("Save demographics", icon="save", on_click=save).props("unelevated")
+            if row:
+                ui.button("Delete city", icon="delete", on_click=delete).props("flat color=negative")
 
     def on_city(e):
         sel["val"] = e.value
@@ -1820,6 +1850,14 @@ _DARK_CSS = """
   body.body--dark .text-slate-600 { color:#cbd5e1 !important; }
   body.body--dark .text-slate-500 { color:#94a3b8 !important; }
   body.body--dark .text-slate-400 { color:#94a3b8 !important; }
+  /* Accent/status text: the -600/-700 shades are too dark on the navy page, so
+     brighten them to the -400 variants (keeps blue/red/green/amber legible). */
+  body.body--dark .text-blue-600,    body.body--dark .text-blue-700    { color:#60a5fa !important; }
+  body.body--dark .text-red-600,     body.body--dark .text-red-700     { color:#f87171 !important; }
+  body.body--dark .text-emerald-600, body.body--dark .text-emerald-700,
+  body.body--dark .text-green-600,   body.body--dark .text-green-700   { color:#34d399 !important; }
+  body.body--dark .text-amber-500,   body.body--dark .text-amber-600,
+  body.body--dark .text-amber-700                                      { color:#fbbf24 !important; }
   body.body--dark [class*="ag-theme"] {
     --ag-background-color:#1e293b; --ag-foreground-color:#e2e8f0;
     --ag-header-background-color:#273449; --ag-header-foreground-color:#cbd5e1;
