@@ -1636,9 +1636,26 @@ def city_data_tab():
         s_status = ui.tab("Status")
         s_dist = ui.tab("Distances")
         s_demo = ui.tab("Demographics")
+
+    @ui.refreshable
+    def status_panel():
+        _city_status_dashboard()
+
+    # Expose the refresh so switching back to this top-nav tab (e.g. after editing rates)
+    # re-queries the dashboard too.
+    _ui["city_status_refresh"] = status_panel.refresh
+
+    def _on_sub(e):
+        # The dashboard is rendered once; re-query it whenever the user switches to the
+        # Status sub-tab so edits just made in Distances / Demographics show without a reload.
+        if e.value == s_status.props["name"]:
+            status_panel.refresh()
+
+    sub.on_value_change(_on_sub)
+
     with ui.tab_panels(sub, value=s_status).classes("w-full bg-transparent"):
         with ui.tab_panel(s_status):
-            _city_status_dashboard()
+            status_panel()
         with ui.tab_panel(s_dist):
             _distances_editor()
         with ui.tab_panel(s_demo):
@@ -1847,6 +1864,10 @@ def index():
                     programmatic=_programmatic_tab["on"],
                     editing=edit_ctx["index"] is not None):
                 reset_form()
+            # Re-query the City-data status dashboard on entry so it reflects edits made
+            # elsewhere (e.g. rates) without a full reload.
+            if e.value == t_city.props["name"] and _ui.get("city_status_refresh"):
+                _ui["city_status_refresh"]()
 
         tabs.on_value_change(_on_tab_change)
         with ui.tab_panels(tabs, value=t_list).classes("w-full bg-transparent"):
