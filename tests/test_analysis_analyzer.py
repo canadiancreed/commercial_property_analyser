@@ -390,11 +390,11 @@ class TestVacancyPipelineRecord:
                   "vacancy_tier", "vacancy_normal", "vacancy_demoted_from"):
             assert rec[k] is None
 
-    def test_demotion_recorded_in_record_and_row(self, tmp_path, monkeypatch):
+    def test_demotion_recorded_in_record_and_row(self, tmp_path):
         """A 'd'-rated region figure is demoted, and that fact is persisted (record
         field) AND shown (Vacancy Rate row) — not silently swallowed."""
-        import json as _json
         import analysis.vacancy_resolver as vr
+        from data.store import DataStore
         crosswalk = {
             "cma_ca": {"505": {"name": "Ottawa - Gatineau", "type": "CMA", "province": "ON"}},
             "csd": {"3506008": {"name": "Ottawa", "cma_ca_code": "505", "province": "ON"}},
@@ -407,10 +407,10 @@ class TestVacancyPipelineRecord:
             "provincial": {"ON": {"vacancy_rate": 0.024, "reliability": None}},
             "national": {"vacancy_rate": 0.020},
         }
-        (tmp_path / "x.json").write_text(_json.dumps(crosswalk), encoding="utf-8")
-        (tmp_path / "v.json").write_text(_json.dumps(vacancy), encoding="utf-8")
-        monkeypatch.setattr(vr, "_CROSSWALK_PATH", str(tmp_path / "x.json"))
-        monkeypatch.setattr(vr, "_VACANCY_PATH", str(tmp_path / "v.json"))
+        store = DataStore(properties_path=str(tmp_path / "vac.db"))
+        store.write_config("vacancy_rates", vacancy)
+        store.write_config("geographic_crosswalk", crosswalk)
+        vr.set_store(store)
         vr.reset_cache()
         try:
             prop = _make_prop(annual_rent=60_000, property_type="Multi-Family")  # Ottawa/ON

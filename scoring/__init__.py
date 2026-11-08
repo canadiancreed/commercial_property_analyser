@@ -1,2 +1,2 @@
-from .scorer import PropertyScorer, SCORE_CONFIG_PATH
+from .scorer import PropertyScorer
 from .city_ranker import CityRanker

@@ -11,23 +11,21 @@ class DataStore:
     All other classes call DataStore; none touch the filesystem directly.
     """
 
-    COMMERCIAL_PATH  = "json/commercial_rents.json"
-    RESIDENTIAL_PATH = "json/residential_rents.json"
-    PROPERTIES_PATH  = "properties.db"        # SQLite database (was properties.json)
-    PROPERTIES_JSON_LEGACY = "properties.json"  # imported once into the DB on first run
-    MISSING_PATH     = "json/missing_cities.json"
-    MISSING_RENT_PATH = "json/missing_rent_data.json"
-    PRICE_CHECK_PROGRESS_PATH = "json/price_check_progress.json"
+    PROPERTIES_PATH  = "properties.db"          # the SQLite database (all data lives here)
+    PROPERTIES_JSON_LEGACY = "properties.json"  # one-time legacy import (import_properties_from_json)
 
     def __init__(self,
-                 commercial_path:  str = COMMERCIAL_PATH,
-                 residential_path: str = RESIDENTIAL_PATH,
                  properties_path:  str = PROPERTIES_PATH,
-                 missing_path:     str = MISSING_PATH):
-        self._commercial_path  = commercial_path
-        self._residential_path = residential_path
-        self._properties_path  = properties_path
-        self._missing_path     = missing_path
+                 seed:             bool = False,
+                 # Legacy path args retained for signature compatibility; no longer read
+                 # (v5.0.0 seeds all reference data from data/seeds into the DB).
+                 commercial_path=None, residential_path=None, missing_path=None,
+                 demographics_path=None, distances_path=None):
+        self._properties_path = properties_path
+        # When True, the first data access seeds the DB from data/seeds. The app/CLI pass
+        # seed=True; tests leave it False for a controlled, empty DB (read_config /
+        # read_app_data still resolve individual docs from the embedded defaults).
+        self._seed = seed
 
     @staticmethod
     def _read(path: str) -> dict:
@@ -48,126 +46,145 @@ class DataStore:
         os.replace(tmp, path)
 
     # ------------------------------------------------------------------
-    # Settings config (SQLite-backed: the `config` table)
+    # Settings / reference config (SQLite-backed: the `config` table)
     #
-    # financing.json + score_weights.json (scoring weights, thresholds, and the
-    # city-opportunity weights/knobs) live here as one JSON document per logical
-    # name. The JSON files remain the shipped DEFAULTS; read_config seeds a missing
-    # row from the file once, then the DB is the live source (edited in Settings).
+    # One JSON document per logical name (financing, score_weights, screener,
+    # underwriting, industrial_*, vacancy_rates, geographic_crosswalk, ui_prefs).
+    # Seeded once from data/seeds (ensure_seeded); the DB is then the live source.
+    # (v5.0.0: no .json file is read.)
     # ------------------------------------------------------------------
 
-    def read_config(self, name: str, seed_path: str = None) -> dict:
-        """Return the config document for ``name``. If the row is absent, seed it
-        once from ``seed_path`` (when that file exists) and return that, otherwise
-        return {}. Self-healing migration-on-read — no explicit boot step needed."""
+    def _read_doc(self, table: str, name: str, default=None, fallback=None) -> dict:
+        """Shared reader for the `config` / `app_data` document tables. Returns the row's
+        doc; if absent, seeds from `default` (an explicit dict) else the embedded
+        `fallback` dict, inserting it so later reads are stable."""
+        self._maybe_seed()
         conn = self._connect()
         try:
-            row = conn.execute(
-                "SELECT json FROM config WHERE name = ?", (name,)
-            ).fetchone()
+            row = conn.execute(f"SELECT json FROM {table} WHERE name = ?", (name,)).fetchone()
             if row is not None:
                 return json.loads(row["json"])
-            seed = {}
-            if seed_path and os.path.exists(seed_path):
-                with open(seed_path, "r", encoding="utf-8") as f:
-                    seed = json.load(f)
-                conn.execute(
-                    "INSERT OR IGNORE INTO config (name, json, updated_at) VALUES (?, ?, ?)",
-                    (name, json.dumps(seed, ensure_ascii=False), date.today().isoformat()),
-                )
-                conn.commit()
-            return seed
+            seed = default if default is not None else fallback
+            if not seed:
+                return {}
+            # Round-trip through JSON so callers never receive (and can't mutate) the
+            # shared embedded-seed object.
+            seed_json = json.dumps(seed, ensure_ascii=False)
+            conn.execute(
+                f"INSERT OR IGNORE INTO {table} (name, json, updated_at) VALUES (?, ?, ?)",
+                (name, seed_json, date.today().isoformat()))
+            conn.commit()
+            return json.loads(seed_json)
         finally:
             conn.close()
 
-    def write_config(self, name: str, cfg: dict) -> dict:
-        """Upsert the config document for ``name`` (the DB is the live source)."""
+    def _write_doc(self, table: str, name: str, doc: dict) -> dict:
         conn = self._connect()
         try:
             conn.execute(
-                "INSERT OR REPLACE INTO config (name, json, updated_at) VALUES (?, ?, ?)",
-                (name, json.dumps(cfg, ensure_ascii=False), date.today().isoformat()),
-            )
+                f"INSERT OR REPLACE INTO {table} (name, json, updated_at) VALUES (?, ?, ?)",
+                (name, json.dumps(doc, ensure_ascii=False), date.today().isoformat()))
             conn.commit()
         finally:
             conn.close()
-        return cfg
+        return doc
+
+    def read_config(self, name: str, default: dict = None) -> dict:
+        """Return the config document for ``name`` (seeded from data/seeds on first use).
+        ``default`` is an optional explicit fallback dict used only if the row and the
+        embedded seed are both absent."""
+        from data import seeds
+        return self._read_doc("config", name, default=default,
+                              fallback=seeds.CONFIG_DEFAULTS.get(name))
+
+    def write_config(self, name: str, cfg: dict) -> dict:
+        """Upsert the config document for ``name`` (the DB is the live source)."""
+        return self._write_doc("config", name, cfg)
+
+    def read_app_data(self, name: str, default: dict = None) -> dict:
+        """Return a runtime-state document (missing-city reports, price-check progress,
+        the fetched interest-rate cache). Seeds from data/seeds on first use."""
+        from data import seeds
+        return self._read_doc("app_data", name, default=default,
+                              fallback=seeds.APP_DATA_DEFAULTS.get(name))
+
+    def write_app_data(self, name: str, doc: dict) -> dict:
+        """Upsert a runtime-state document (the DB is the live source)."""
+        return self._write_doc("app_data", name, doc)
 
     # ------------------------------------------------------------------
-    # Rent rates (SQLite-backed: commercial_rents + residential_rents tables)
-    #
-    # Rents moved out of commercial_rents.json / residential_rents.json into their
-    # own normalised tables (one row per city+type / city+unit). The JSON files
-    # remain the one-time migration source (imported transparently on first use,
-    # guarded so it never re-runs or overwrites DB edits). Return shapes are
-    # unchanged, so RentResolver / the loaders / the rate editor are untouched.
+    # Seeding (v5.0.0): the DB is the single source of truth. On first use the
+    # reference/config/runtime data is populated from data/seeds (data-as-code,
+    # generated from the former config/ + json/ files). INSERT OR IGNORE so it
+    # never clobbers edits; a meta flag makes it run once per database. No .json
+    # file is read or written at runtime.
     # ------------------------------------------------------------------
 
-    def ensure_rates_migrated(self) -> None:
-        """Import the legacy rent JSON files into the rate tables ONCE per database.
-
-        Instance-cached so repeated rate lookups don't re-query the guard. Guarded
-        by a meta flag (persisted), and imports with INSERT OR IGNORE so it never
-        clobbers rows already written to the DB."""
-        if getattr(self, "_rates_migrated_checked", False):
+    def ensure_seeded(self) -> None:
+        """Populate config / app_data / rate tables / city tables from the embedded
+        seed on first use. Idempotent (meta-guarded + INSERT OR IGNORE); instance-
+        cached so repeated lookups don't re-query the guard."""
+        if getattr(self, "_seeded_checked", False):
             return
         conn = self._connect()
         try:
-            done = conn.execute(
-                "SELECT value FROM meta WHERE key = 'migrated_rates'"
-            ).fetchone()
-        finally:
-            conn.close()
-        if not done:
-            self._import_rates_from_json()
-            conn = self._connect()
-            try:
-                conn.execute(
-                    "INSERT OR REPLACE INTO meta (key, value) VALUES ('migrated_rates', ?)",
-                    (date.today().isoformat(),),
-                )
-                conn.commit()
-            finally:
-                conn.close()
-        self._rates_migrated_checked = True
-
-    def _import_rates_from_json(self) -> None:
-        conn = self._connect()
-        try:
-            if os.path.exists(self._commercial_path):
-                try:
-                    raw = self._read(self._commercial_path)
-                except Exception:
-                    raw = {"cities": {}}
-                for city, cdata in raw.get("cities", {}).items():
-                    city_key = city.strip().lower()
-                    province = cdata.get("province")
-                    source   = cdata.get("source") or ""
+            done = conn.execute("SELECT value FROM meta WHERE key = 'seeded'").fetchone()
+            if not done:
+                from data import seeds
+                now = date.today().isoformat()
+                for name, doc in seeds.CONFIG_DEFAULTS.items():
+                    conn.execute(
+                        "INSERT OR IGNORE INTO config (name, json, updated_at) VALUES (?, ?, ?)",
+                        (name, json.dumps(doc, ensure_ascii=False), now))
+                for name, doc in seeds.APP_DATA_DEFAULTS.items():
+                    conn.execute(
+                        "INSERT OR IGNORE INTO app_data (name, json, updated_at) VALUES (?, ?, ?)",
+                        (name, json.dumps(doc, ensure_ascii=False), now))
+                for city, cdata in seeds.COMMERCIAL_RATES.get("cities", {}).items():
+                    ck = city.strip().lower(); prov = cdata.get("province"); src = cdata.get("source") or ""
                     for ptype, rate in cdata.get("types", {}).items():
                         conn.execute(
                             "INSERT OR IGNORE INTO commercial_rents "
-                            "(city_key, city, province, property_type, rate, source) "
-                            "VALUES (?, ?, ?, ?, ?, ?)",
-                            (city_key, city, province, ptype, rate, source),
-                        )
-            if os.path.exists(self._residential_path):
-                try:
-                    raw = self._read(self._residential_path)
-                except Exception:
-                    raw = {"cities": {}}
-                for city, cdata in raw.get("cities", {}).items():
-                    city_key = city.strip().lower()
-                    province = cdata.get("province")
+                            "(city_key, city, province, property_type, rate, source) VALUES (?,?,?,?,?,?)",
+                            (ck, city, prov, ptype, rate, src))
+                for city, cdata in seeds.RESIDENTIAL_RATES.get("cities", {}).items():
+                    ck = city.strip().lower(); prov = cdata.get("province")
                     for unit, rent in cdata.get("units", {}).items():
                         conn.execute(
                             "INSERT OR IGNORE INTO residential_rents "
-                            "(city_key, city, province, unit_type, rent) "
-                            "VALUES (?, ?, ?, ?, ?)",
-                            (city_key, city, province, unit, rent),
-                        )
-            conn.commit()
+                            "(city_key, city, province, unit_type, rent) VALUES (?,?,?,?,?)",
+                            (ck, city, prov, unit, rent))
+                for key, d in seeds.CITY_DEMOGRAPHICS.items():
+                    ck = (key or "").strip().lower()
+                    conn.execute(
+                        "INSERT OR IGNORE INTO city_demographics "
+                        "(city_key, city, population, population_2016, growth_pct_annual, source, notes) "
+                        "VALUES (?,?,?,?,?,?,?)",
+                        (ck, key.strip().title(), d.get("population"), d.get("population_2016"),
+                         d.get("growth_pct_annual"), d.get("source", ""), d.get("notes", "")))
+                for city, d in seeds.CITY_DISTANCES.items():
+                    ck = (city or "").strip().lower()
+                    conn.execute(
+                        "INSERT OR IGNORE INTO city_distances "
+                        "(city_key, city, distance_km, nearest_centre) VALUES (?,?,?,?)",
+                        (ck, city.strip(), d.get("distance_km"), d.get("nearest_centre", "")))
+                conn.execute(
+                    "INSERT OR REPLACE INTO meta (key, value) VALUES ('seeded', ?)", (now,))
+                conn.commit()
         finally:
             conn.close()
+        self._seeded_checked = True
+
+    def _maybe_seed(self) -> None:
+        """Lazy seed trigger used by the data accessors — seeds only when this store opted
+        in (seed=True). Tests (seed=False) keep an empty DB; read_config / read_app_data
+        still resolve individual docs from the embedded defaults."""
+        if self._seed:
+            self.ensure_seeded()
+
+    def ensure_rates_migrated(self) -> None:
+        """Back-compat alias used by the rate accessors — gated by the seed flag."""
+        self._maybe_seed()
 
     # ------------------------------------------------------------------
     # Commercial rates
@@ -352,13 +369,39 @@ class DataStore:
 
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
 
-        -- Settings config: one JSON document per logical name ('financing',
-        -- 'score_weights'). The JSON files remain the shipped defaults; read_config
-        -- seeds a missing row from the file once, then this table is the live source.
+        -- Settings/reference config: one JSON document per logical name ('financing',
+        -- 'score_weights', 'screener', 'underwriting', 'industrial_*', 'vacancy_rates',
+        -- 'geographic_crosswalk', 'ui_prefs'). Seeded once from data/seeds on first run,
+        -- then this table is the live source. (v5.0.0: all config moved here.)
         CREATE TABLE IF NOT EXISTS config (
             name       TEXT PRIMARY KEY,
             json       TEXT NOT NULL,
             updated_at TEXT
+        );
+
+        -- Runtime-state documents (not user "settings"): the missing-city reports,
+        -- price-check progress, and the fetched interest-rate cache. (v5.0.0)
+        CREATE TABLE IF NOT EXISTS app_data (
+            name       TEXT PRIMARY KEY,
+            json       TEXT NOT NULL,
+            updated_at TEXT
+        );
+
+        -- Per-city reference data (was city_demographics.json / city_distances.json). (v5.0.0)
+        CREATE TABLE IF NOT EXISTS city_demographics (
+            city_key          TEXT PRIMARY KEY,   -- lowercased lookup key
+            city              TEXT NOT NULL,       -- display casing
+            population        INTEGER,
+            population_2016   INTEGER,
+            growth_pct_annual REAL,
+            source            TEXT,
+            notes             TEXT
+        );
+        CREATE TABLE IF NOT EXISTS city_distances (
+            city_key       TEXT PRIMARY KEY,       -- lowercased lookup key
+            city           TEXT NOT NULL,          -- display casing (keys the distances view)
+            distance_km    REAL,
+            nearest_centre TEXT
         );
     """
 
@@ -368,8 +411,11 @@ class DataStore:
     # restamps user_version on the next connect. Keeps old databases upgradable in place.
     #   v2 — added the `config` table (created above via IF NOT EXISTS, so existing DBs
     #        gain it on connect; no data step needed — config rows seed on first read).
-    SCHEMA_VERSION = 2
-    _MIGRATIONS = {}   # {target_version: callable(conn)} — v1/v2 need no explicit step
+    #   v3 — added app_data + city_demographics + city_distances tables (v5.0.0: all
+    #        remaining JSON data moved into the DB). Created via IF NOT EXISTS; rows seed
+    #        from data/seeds via ensure_seeded(), so no explicit data migration step.
+    SCHEMA_VERSION = 3
+    _MIGRATIONS = {}   # {target_version: callable(conn)} — tables auto-create; seeding is lazy
 
     def _connect(self) -> sqlite3.Connection:
         """Open the properties DB, creating the file + schema on first use."""
@@ -394,6 +440,79 @@ class DataStore:
         # PRAGMA can't be parameterised; SCHEMA_VERSION is a trusted int constant.
         conn.execute(f"PRAGMA user_version = {int(self.SCHEMA_VERSION)}")
         conn.commit()
+
+    # ------------------------------------------------------------------
+    # Read-only DB explorer (v5.1.0): introspect the schema + browse/query data.
+    # Every method here is READ-ONLY — browsing enforces identifier whitelisting and
+    # run_readonly_query enforces a single read-only statement + PRAGMA query_only.
+    # ------------------------------------------------------------------
+
+    def list_tables(self) -> list:
+        """User tables (excludes sqlite_* internals) with row counts:
+        [{"name": str, "rows": int}], sorted by name."""
+        self._maybe_seed()
+        conn = self._connect()
+        try:
+            names = [r["name"] for r in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' "
+                "AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+            return [{"name": n, "rows": conn.execute(f'SELECT COUNT(*) FROM "{n}"').fetchone()[0]}
+                    for n in names]
+        finally:
+            conn.close()
+
+    def _table_exists(self, name: str) -> bool:
+        conn = self._connect()
+        try:
+            return conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ? LIMIT 1",
+                (name,)).fetchone() is not None
+        finally:
+            conn.close()
+
+    def table_schema(self, name: str) -> list:
+        """Column metadata for a table: [{name, type, notnull, pk}]. [] for an unknown table."""
+        if not self._table_exists(name):
+            return []
+        conn = self._connect()
+        try:
+            return [{"name": r["name"], "type": r["type"], "notnull": bool(r["notnull"]),
+                     "pk": bool(r["pk"])} for r in conn.execute(f'PRAGMA table_info("{name}")')]
+        finally:
+            conn.close()
+
+    def table_page(self, name: str, limit: int = 50, offset: int = 0) -> dict:
+        """A page of rows from a table: {"columns": [...], "rows": [[...], ...], "total": int}.
+        `name` is whitelisted against the real schema; limit is clamped to 1..500."""
+        if not self._table_exists(name):
+            return {"columns": [], "rows": [], "total": 0}
+        limit = max(1, min(int(limit or 50), 500))
+        offset = max(0, int(offset or 0))
+        conn = self._connect()
+        try:
+            total = conn.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0]
+            cur = conn.execute(f'SELECT * FROM "{name}" LIMIT ? OFFSET ?', (limit, offset))
+            cols = [d[0] for d in cur.description]
+            return {"columns": cols, "rows": [list(r) for r in cur.fetchall()], "total": total}
+        finally:
+            conn.close()
+
+    def run_readonly_query(self, sql: str) -> dict:
+        """Run ONE read-only statement (SELECT / WITH…SELECT / PRAGMA / EXPLAIN) and return
+        {"columns": [...], "rows": [[...]]}. Rejects anything else (raises ValueError) and runs
+        under PRAGMA query_only so a write can never occur even if a check is bypassed."""
+        import form_logic
+        ok, cleaned = form_logic.is_readonly_sql(sql)
+        if not ok:
+            raise ValueError("Only a single read-only SELECT / WITH / PRAGMA / EXPLAIN query is allowed.")
+        conn = self._connect()
+        try:
+            conn.execute("PRAGMA query_only = ON")
+            cur = conn.execute(cleaned)
+            cols = [d[0] for d in (cur.description or [])]
+            return {"columns": cols, "rows": [list(r) for r in cur.fetchall()]}
+        finally:
+            conn.close()
 
     @staticmethod
     def _row_columns(record: dict) -> tuple:
@@ -599,69 +718,47 @@ class DataStore:
     # ------------------------------------------------------------------
 
     def load_price_check_progress(self) -> dict:
-        """Returns {key: row} of results saved so far, or {} if no run is in progress."""
-        path = self.PRICE_CHECK_PROGRESS_PATH
-        if not os.path.exists(path):
-            return {}
-        try:
-            return self._read(path).get("checked", {})
-        except Exception:
-            return {}
+        """Returns {key: row} of results saved so far, or {} if no run is in progress
+        (v5.0.0: the 'price_check_progress' app_data doc)."""
+        return (self.read_app_data("price_check_progress") or {}).get("checked", {})
 
     def save_price_check_result(self, key: str, row: dict):
-        """Checkpoint a single price-check result so an interrupted sweep can resume.
-
-        Saved on every property; written without a .bak copy since the file is
-        transient progress, not durable data.
-        """
-        path = self.PRICE_CHECK_PROGRESS_PATH
-        if os.path.exists(path):
-            try:
-                data = self._read(path)
-            except Exception:
-                data = {"checked": {}}
-        else:
-            data = {"checked": {}}
+        """Checkpoint a single price-check result (app_data) so an interrupted sweep can
+        resume."""
+        data = self.read_app_data("price_check_progress") or {}
         data.setdefault("checked", {})[key] = row
         data["updated_at"] = date.today().isoformat()
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        tmp = path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, path)
+        self.write_app_data("price_check_progress", data)
 
     def clear_price_check_progress(self):
-        """Remove the saved progress file (and any stray temp/backup siblings)."""
-        for p in (self.PRICE_CHECK_PROGRESS_PATH,
-                  self.PRICE_CHECK_PROGRESS_PATH + ".bak",
-                  self.PRICE_CHECK_PROGRESS_PATH + ".tmp"):
-            if os.path.exists(p):
-                os.remove(p)
+        """Reset the saved progress (app_data)."""
+        self.write_app_data("price_check_progress", {"checked": {}})
 
     # ------------------------------------------------------------------
     # Missing cities report
     # ------------------------------------------------------------------
 
     def load_missing_cities(self) -> dict:
-        if not os.path.exists(self._missing_path):
-            return {}
-        raw = self._read(self._missing_path)
-        seen, result = {}, {}
+        """The 'missing_cities' report (app_data): {key: {city, province, missing[],
+        property_types[], first_seen, last_seen}}."""
+        raw = self.read_app_data("missing_cities") or {}
+        seen, result, changed = {}, {}, False
         for k, v in raw.items():
             norm = k.strip().lower()
             if norm in seen:
                 existing = result[seen[norm]]
                 for m in v.get("missing", []):
-                    if m not in existing["missing"]:
-                        existing["missing"].append(m)
+                    if m not in existing.get("missing", []):
+                        existing.setdefault("missing", []).append(m)
                 for pt in v.get("property_types", []):
                     if pt not in existing.get("property_types", []):
                         existing.setdefault("property_types", []).append(pt)
+                changed = True
             else:
                 seen[norm] = k
                 result[k]  = v
-        if len(result) != len(raw):
-            self._write(self._missing_path, result)
+        if changed:
+            self.write_app_data("missing_cities", result)
         return result
 
     def log_missing_city(self, city: str, province: str, missing_type: str,
@@ -688,8 +785,7 @@ class DataStore:
                     entry["property_types"].append(pt)
         entry["last_seen"] = date.today().isoformat()
         data[key] = entry
-        os.makedirs(os.path.dirname(self._missing_path), exist_ok=True)
-        self._write(self._missing_path, data)
+        self.write_app_data("missing_cities", data)
 
     _COMMERCIAL_STUB_TYPES = ("Office", "Retail", "Industrial", "Mixed-Use")
     _RESIDENTIAL_STUB_UNITS = ("bachelor", "one_br", "two_br", "three_br",
@@ -741,12 +837,7 @@ class DataStore:
             conn.close()
 
         if needs_update:
-            missing = {}
-            if os.path.exists(self.MISSING_RENT_PATH):
-                try:
-                    missing = self._read(self.MISSING_RENT_PATH)
-                except Exception:
-                    missing = {}
+            missing = self.read_app_data("missing_rent_data") or {}
             if key not in missing:
                 missing[key] = {
                     "city":       city,
@@ -754,14 +845,13 @@ class DataStore:
                     "first_seen": date.today().isoformat(),
                 }
             missing[key]["last_seen"] = date.today().isoformat()
-            os.makedirs(os.path.dirname(self.MISSING_RENT_PATH), exist_ok=True)
-            self._write(self.MISSING_RENT_PATH, missing)
+            self.write_app_data("missing_rent_data", missing)
 
     def clear_missing_city(self, key: str):
         data = self.load_missing_cities()
         if key in data:
             del data[key]
-            self._write(self._missing_path, data)
+            self.write_app_data("missing_cities", data)
 
     def save_commercial_city(self, city: str, province: str, rates: dict):
         """Saves commercial rates and removes city from missing report if complete."""
@@ -780,7 +870,7 @@ class DataStore:
             if still_missing:
                 entry["property_types"] = still_missing
                 missing[key] = entry
-                self._write(self._missing_path, missing)
+                self.write_app_data("missing_cities", missing)
                 return
         if "commercial" in entry["missing"]:
             entry["missing"].remove("commercial")
@@ -789,7 +879,7 @@ class DataStore:
             del missing[key]
         else:
             missing[key] = entry
-        self._write(self._missing_path, missing)
+        self.write_app_data("missing_cities", missing)
 
     def save_residential_city(self, city: str, province: str, units: dict):
         """Saves residential rates and removes city from missing report if complete."""
@@ -808,7 +898,166 @@ class DataStore:
             del missing[key]
         else:
             missing[key] = entry
-        self._write(self._missing_path, missing)
+        self.write_app_data("missing_cities", missing)
+
+    def delete_city_rates(self, city: str, province: str) -> int:
+        """Remove a city's rate entry entirely — both the commercial and residential
+        rate rows — and drop it from the missing-cities report. Returns the number of
+        rate rows deleted. Properties in that city keep their last stored report; they
+        simply lose the market rate until it's re-added or they're re-analyzed."""
+        self._maybe_seed()
+        city_key = city.strip().lower()
+        conn = self._connect()
+        try:
+            c = conn.execute("DELETE FROM commercial_rents WHERE city_key = ?", (city_key,)).rowcount
+            r = conn.execute("DELETE FROM residential_rents WHERE city_key = ?", (city_key,)).rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        # Clear the city from both missing-city reports (missing_cities + the
+        # missing_rent_data report ensure_city_in_rates writes), any case.
+        norm = f"{city.strip().title()}, {province.strip().upper()}".lower()
+        for k in [k for k in self.load_missing_cities() if k.lower() == norm]:
+            self.clear_missing_city(k)
+        self._clear_missing_rent_city(norm)
+        return (c or 0) + (r or 0)
+
+    def _clear_missing_rent_city(self, norm_key: str):
+        """Remove a city (normalized 'city, prov' key, any case) from the
+        'missing_rent_data' report (app_data) that ensure_city_in_rates populates."""
+        data = self.read_app_data("missing_rent_data") or {}
+        removed = [k for k in data if k.lower() == norm_key]
+        for k in removed:
+            del data[k]
+        if removed:
+            self.write_app_data("missing_rent_data", data)
+
+    # ------------------------------------------------------------------
+    # Per-city reference data (city_demographics / city_distances tables, v5.0.0)
+    #
+    # Return shapes mirror the former JSON: demographics keyed by lowercase city,
+    # distances keyed by display casing — so the scorer / editors / dashboard are
+    # unchanged. ensure_city_in_* add a blank stub so a new city shows up "needs data".
+    # ------------------------------------------------------------------
+
+    def load_city_demographics(self) -> dict:
+        """{city_key: {population, population_2016, growth_pct_annual, source, notes}}."""
+        self._maybe_seed()
+        conn = self._connect()
+        try:
+            rows = conn.execute("SELECT * FROM city_demographics").fetchall()
+        finally:
+            conn.close()
+        return {r["city_key"]: {
+            "population": r["population"], "population_2016": r["population_2016"],
+            "growth_pct_annual": r["growth_pct_annual"],
+            "source": r["source"] or "", "notes": r["notes"] or ""} for r in rows}
+
+    def save_city_demographics(self, city: str, data: dict) -> None:
+        """Upsert one city's demographics row (keyed by lowercase city)."""
+        ck = (city or "").strip().lower()
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO city_demographics "
+                "(city_key, city, population, population_2016, growth_pct_annual, source, notes) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (ck, city.strip().title(), data.get("population"), data.get("population_2016"),
+                 data.get("growth_pct_annual"), data.get("source", ""), data.get("notes", "")))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def load_city_distances(self) -> dict:
+        """{city_display: {distance_km, nearest_centre}} (display-cased key)."""
+        self._maybe_seed()
+        conn = self._connect()
+        try:
+            rows = conn.execute("SELECT * FROM city_distances").fetchall()
+        finally:
+            conn.close()
+        return {r["city"]: {"distance_km": r["distance_km"],
+                            "nearest_centre": r["nearest_centre"] or ""} for r in rows}
+
+    def save_city_distance(self, city: str, data: dict) -> None:
+        """Upsert one city's distance row."""
+        city = (city or "").strip().title(); ck = city.lower()
+        conn = self._connect()
+        try:
+            conn.execute(
+                "INSERT OR REPLACE INTO city_distances "
+                "(city_key, city, distance_km, nearest_centre) VALUES (?,?,?,?)",
+                (ck, city, data.get("distance_km"), data.get("nearest_centre", "")))
+            conn.commit()
+        finally:
+            conn.close()
+
+    def ensure_city_in_demographics(self, city: str) -> bool:
+        """Add a blank demographics stub if the city is absent. True when one was created."""
+        city = (city or "").strip()
+        if not city:
+            return False
+        ck = city.lower()
+        self._maybe_seed()
+        conn = self._connect()
+        try:
+            if conn.execute("SELECT 1 FROM city_demographics WHERE city_key=? LIMIT 1", (ck,)).fetchone():
+                return False
+            conn.execute(
+                "INSERT OR IGNORE INTO city_demographics "
+                "(city_key, city, population, population_2016, growth_pct_annual, source, notes) "
+                "VALUES (?,?,NULL,NULL,NULL,'','')", (ck, city.title()))
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+
+    def ensure_city_in_distances(self, city: str) -> bool:
+        """Add a blank distance stub if the city is absent. True when one was created."""
+        city = (city or "").strip().title()
+        if not city:
+            return False
+        ck = city.lower()
+        self._maybe_seed()
+        conn = self._connect()
+        try:
+            if conn.execute("SELECT 1 FROM city_distances WHERE city_key=? LIMIT 1", (ck,)).fetchone():
+                return False
+            conn.execute(
+                "INSERT OR IGNORE INTO city_distances "
+                "(city_key, city, distance_km, nearest_centre) VALUES (?,?,NULL,'')", (ck, city))
+            conn.commit()
+        finally:
+            conn.close()
+        return True
+
+    def ensure_city_reference_data(self, city: str, province: str) -> dict:
+        """Ensure a city exists (blank) across every reference store — rates,
+        demographics, distances — so an added property for a new city never leaves a
+        gap. Returns which stores were newly stubbed: keys rates/demographics/distances
+        plus any_created."""
+        self.ensure_city_in_rates(city, province)
+        demo = self.ensure_city_in_demographics(city)
+        dist = self.ensure_city_in_distances(city)
+        # A city "needs rates" when it still has only unfilled (null) rate stubs.
+        rates_needed = not self._city_has_any_rate(city)
+        return {"rates": rates_needed, "demographics": demo, "distances": dist,
+                "any_created": bool(rates_needed or demo or dist)}
+
+    def _city_has_any_rate(self, city: str) -> bool:
+        """True when the city has at least one non-null commercial or residential rate."""
+        city_key = city.strip().lower()
+        conn = self._connect()
+        try:
+            c = conn.execute(
+                "SELECT 1 FROM commercial_rents WHERE city_key = ? AND rate IS NOT NULL LIMIT 1",
+                (city_key,)).fetchone()
+            r = conn.execute(
+                "SELECT 1 FROM residential_rents WHERE city_key = ? AND rent IS NOT NULL LIMIT 1",
+                (city_key,)).fetchone()
+        finally:
+            conn.close()
+        return bool(c or r)
 
 
 class CommercialRentLoader:

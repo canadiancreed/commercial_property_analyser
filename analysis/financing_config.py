@@ -1,5 +1,5 @@
 """
-Loader + resolver for global financing assumptions (config/financing.json).
+Loader + resolver for global financing assumptions (the 'financing' config doc).
 
 TWO LAYERS:
   • ``defaults``        — house-wide down payment / interest rate / amortization /
@@ -23,15 +23,6 @@ decision.
 (Expense ratio is deliberately NOT here: it is set globally *by property type*
 and lease via models/constants.py EXPENSE_RATIO_DEFAULTS.)
 """
-import json
-import os
-
-_CONFIG_PATH = "config/financing.json"
-# Sourced base rate (GoC 5yr benchmark yield), fetched by analysis/rate_feed.py.
-# Read directly here (like the vacancy resolver reads json/vacancy_rates.json) so
-# this module stays dependency-free and import-safe.
-_INTEREST_RATES_PATH = os.path.join("json", "interest_rates.json")
-
 _COMMENT = (
     "Global financing assumptions. TWO LAYERS: 'defaults' holds the house-wide "
     "down payment / interest rate / amortization / hold period (edited via main "
@@ -67,24 +58,27 @@ class FinancingConfigError(RuntimeError):
 # ── Sourced base rate (live BoC feed) ───────────────────────────────────────
 
 def _load_fetched_rate(force_reload: bool = False):
-    """Read json/interest_rates.json (the fetched GoC 5yr base). Returns the raw
-    dict, or None when absent/unreadable. Cached; tolerant of a missing file so
-    the engine runs offline off the authored anchor alone."""
+    """Return the fetched GoC 5yr base-rate cache (the 'interest_rates' app_data doc via
+    the store, else the embedded seed). None when absent, so the engine runs off the
+    authored anchor alone. Cached."""
     global _rate_cache
     if _rate_cache is not _RATE_SENTINEL and not force_reload:
         return _rate_cache
     data = None
-    try:
-        with open(_INTEREST_RATES_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError, OSError):
-        data = None
+    if _store is not None:
+        try:
+            data = _store.read_app_data("interest_rates") or None
+        except Exception:
+            data = None
+    else:
+        from data import seeds
+        data = seeds.APP_DATA_DEFAULTS.get("interest_rates") or None
     _rate_cache = data
     return data
 
 
 def reload_rate_feed():
-    """Drop the cached feed read (call after a boot refresh rewrites the file)."""
+    """Drop the cached feed read (call after a refresh rewrites the 'interest_rates' doc)."""
     global _rate_cache
     _rate_cache = _RATE_SENTINEL
     return _load_fetched_rate(force_reload=True)
@@ -156,33 +150,25 @@ def _load_raw(force_reload: bool = False) -> dict:
     if _cache is not None and not force_reload:
         return _cache
     if _store is not None:
-        # DB-backed: the `config` table, seeded from the JSON default on first read.
+        # DB-backed: the `config` table, seeded from the embedded default on first read.
         try:
-            data = _store.read_config("financing", _CONFIG_PATH)
+            data = _store.read_config("financing")
         except Exception as e:
             raise FinancingConfigError(
                 f"Could not read financing config from the data store: {e}"
             ) from e
         if not data:
-            raise FinancingConfigError(
-                f"Financing config is empty and no seed found at {_CONFIG_PATH!r}."
-            )
+            raise FinancingConfigError("Financing config is empty and no embedded seed found.")
         _cache = data
         return data
-    try:
-        with open(_CONFIG_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError as e:
-        raise FinancingConfigError(
-            f"Financing config not found at {_CONFIG_PATH!r} — cannot resolve "
-            f"down payment / interest rate / amortization defaults."
-        ) from e
-    except json.JSONDecodeError as e:
-        raise FinancingConfigError(
-            f"Financing config at {_CONFIG_PATH!r} is not valid JSON: {e}"
-        ) from e
-    _cache = data
-    return data
+    # Store-less (tests / CLI without a store): fall back to the embedded seed.
+    from data import seeds
+    data = seeds.CONFIG_DEFAULTS.get("financing")
+    if not data:
+        raise FinancingConfigError("No embedded financing-config seed found.")
+    import copy as _copy
+    _cache = _copy.deepcopy(data)
+    return _cache
 
 
 def _persist_raw(data: dict) -> dict:
@@ -191,11 +177,7 @@ def _persist_raw(data: dict) -> dict:
     global _cache
     if _store is not None:
         _store.write_config("financing", data)
-    else:
-        tmp = _CONFIG_PATH + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        os.replace(tmp, _CONFIG_PATH)
+    # Store-less: cache-only (no file). Persisting requires a DataStore (set_store).
     _cache = data
     return data
 
@@ -216,7 +198,7 @@ def _defaults(raw: dict) -> dict:
     missing = [k for k in _REQUIRED_DEFAULT_KEYS if k not in d]
     if missing:
         raise FinancingConfigError(
-            f"Financing config at {_CONFIG_PATH!r} is missing required "
+            f"Financing config is missing required "
             f"default(s): {', '.join(missing)}"
         )
     return d

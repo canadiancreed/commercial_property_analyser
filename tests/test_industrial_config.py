@@ -3,7 +3,7 @@ import pytest
 import analysis.industrial_config as cfg
 from analysis.industrial_config import (
     resolve_size_band, industrial_confidence, load_premiums, load_size_bands,
-    _read, _downgrade_level, _DEFAULT_BANDS, _DEFAULT_PREMIUMS,
+    _doc, _downgrade_level, _DEFAULT_BANDS, _DEFAULT_PREMIUMS,
 )
 
 
@@ -112,21 +112,21 @@ def test_size_bands_file_loads():
 # ── Defensive fallbacks (missing/malformed config) ────────────────────────────
 
 class TestFallbacks:
-    def test_read_missing_file_returns_none(self):
-        assert _read("does/not/exist.json") is None
+    def test_doc_unknown_name_returns_none(self):
+        assert _doc("does-not-exist") is None
 
     def test_load_size_bands_falls_back_to_defaults(self, monkeypatch):
-        monkeypatch.setattr(cfg, "_read", lambda path: None)
+        monkeypatch.setattr(cfg, "_doc", lambda name: None)
         assert load_size_bands() == _DEFAULT_BANDS
 
     def test_load_premiums_falls_back_when_no_file(self, monkeypatch):
-        monkeypatch.setattr(cfg, "_read", lambda path: None)
+        monkeypatch.setattr(cfg, "_doc", lambda name: None)
         prem = load_premiums()
         assert prem["office_premium_ratio"]["value"] == _DEFAULT_PREMIUMS["office_premium_ratio"]["value"]
 
     def test_load_premiums_ignores_malformed_entries(self, monkeypatch):
         # Non-dict / value-less entries are skipped; defaults retained.
-        monkeypatch.setattr(cfg, "_read", lambda path: {
+        monkeypatch.setattr(cfg, "_doc", lambda name: {
             "office_premium_ratio": "not-a-dict",
             "yard_rate_ratio": {"no_value_key": 1},
         })
@@ -135,7 +135,7 @@ class TestFallbacks:
         assert prem["yard_rate_ratio"]["value"] == _DEFAULT_PREMIUMS["yard_rate_ratio"]["value"]
 
     def test_resolve_size_band_no_match_uses_last_band(self, monkeypatch):
-        monkeypatch.setattr(cfg, "_read", lambda path: {
+        monkeypatch.setattr(cfg, "_doc", lambda name: {
             "bands": [{"label": "huge", "sqft_min": 1_000_000, "sqft_max": None, "multiplier": 1.0}]
         })
         # 0 sqft matches no band's minimum → falls back to the last band.
@@ -147,7 +147,7 @@ class TestFallbacks:
     def test_override_without_small_bay_band_still_flags(self, monkeypatch):
         # Override triggers on a big footprint, but there is no small-bay band
         # to reclassify into — label stays, downgrade still flags the conflict.
-        monkeypatch.setattr(cfg, "_read", lambda path: {
+        monkeypatch.setattr(cfg, "_doc", lambda name: {
             "bands": [{"label": "big", "sqft_min": 0, "sqft_max": None, "multiplier": 1.0}],
             "_meta": {"doors_per_10k_small_bay": 1.5, "office_ratio_small_bay": 0.30},
         })

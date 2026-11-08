@@ -40,7 +40,9 @@ import os
 import urllib.request
 from datetime import datetime, timezone
 
-OUT_PATH = os.path.join("json", "interest_rates.json")
+# File-mode default (standalone/tests only). The app/CLI/fetch scripts pass a DataStore,
+# which writes the 'interest_rates' app_data doc instead. (v5.0.0)
+OUT_PATH = "interest_rates.json"
 
 _VALET = "https://www.bankofcanada.ca/valet"
 _BENCHMARK_GROUP = f"{_VALET}/observations/group/bond_yields_benchmark/json?recent=1"
@@ -137,9 +139,13 @@ def fetch_base_rate(timeout: float = 8.0) -> dict:
 
 # ── Persistence ──────────────────────────────────────────────────────────────
 
-def write_interest_rates(payload: dict, path: str = OUT_PATH) -> str:
-    """Atomically write the payload (tmp + os.replace) so a crash mid-write never
-    leaves a truncated file."""
+def write_interest_rates(payload: dict, path: str = OUT_PATH, store=None) -> str:
+    """Persist the fetched payload. With a ``store`` (v5.0.0) it writes the
+    'interest_rates' app_data doc (the DB cache); otherwise it atomically writes the
+    JSON file (tmp + os.replace) for standalone/CLI use."""
+    if store is not None:
+        store.write_app_data("interest_rates", payload)
+        return "interest_rates (db)"
     d = os.path.dirname(path)
     if d:
         os.makedirs(d, exist_ok=True)
@@ -150,10 +156,13 @@ def write_interest_rates(payload: dict, path: str = OUT_PATH) -> str:
     return path
 
 
-def _age_hours(path: str):
+def _age_hours(path: str, store=None):
     try:
-        with open(path, encoding="utf-8") as f:
-            stamp = json.load(f).get("fetched_at")
+        if store is not None:
+            stamp = (store.read_app_data("interest_rates") or {}).get("fetched_at")
+        else:
+            with open(path, encoding="utf-8") as f:
+                stamp = json.load(f).get("fetched_at")
         if not stamp:
             return None
         then = datetime.fromisoformat(stamp)
@@ -165,18 +174,20 @@ def _age_hours(path: str):
 
 
 def refresh_interest_rates(path: str = OUT_PATH, max_age_hours: float = 24.0,
-                           timeout: float = 8.0, force: bool = False) -> tuple[bool, str]:
-    """Offline-safe refresh. Skips when the existing file is younger than
-    ``max_age_hours``; otherwise fetches and writes. NEVER raises and never
-    clobbers a good file on failure. Returns (changed, reason)."""
+                           timeout: float = 8.0, force: bool = False,
+                           store=None) -> tuple[bool, str]:
+    """Offline-safe refresh. Skips when the existing cache is younger than
+    ``max_age_hours``; otherwise fetches and writes. NEVER raises and never clobbers a
+    good cache on failure. With a ``store`` the cache is the DB 'interest_rates' doc;
+    otherwise the JSON file at ``path``. Returns (changed, reason)."""
     if not force:
-        age = _age_hours(path)
+        age = _age_hours(path, store)
         if age is not None and age < max_age_hours:
             return False, f"fresh ({age:.1f}h old; threshold {max_age_hours:.0f}h)"
     try:
         payload = fetch_base_rate(timeout=timeout)
     except Exception as e:
-        return False, f"fetch failed ({type(e).__name__}: {e}) — kept existing file"
-    write_interest_rates(payload, path)
+        return False, f"fetch failed ({type(e).__name__}: {e}) — kept existing cache"
+    write_interest_rates(payload, path, store)
     return True, (f"updated: GoC 5yr = {payload['base_rate']*100:.3g}% "
                   f"(as of {payload.get('as_of')})")

@@ -80,20 +80,10 @@ class TestUnknownCityLocationScore:
         s_b    = scorer.score_property(_full_record(city="Unknownburg"))["score"]
         assert s_a == pytest.approx(s_b, abs=0.1)
 
-    def test_unknown_city_zero_when_distances_file_present(self, tmp_path):
-        """A city absent from the distances file scores 0 even when other cities have data."""
-        dist_path = str(tmp_path / "city_distances.json")
-        with open(dist_path, "w") as f:
-            json.dump({"ottawa": {"distance_km": 5, "nearest_centre": "Ottawa"}}, f)
-
-        import scoring.scorer as scorer_mod
-        original = scorer_mod.CITY_DISTANCES_PATH
-        scorer_mod.CITY_DISTANCES_PATH = dist_path
-        try:
-            store  = _make_store(tmp_path)
-            scorer = PropertyScorer(store)
-            loc    = scorer.score_property(_full_record(city="Smallville"))["breakdown"].get("Location", -1)
-        finally:
-            scorer_mod.CITY_DISTANCES_PATH = original
-
-        assert loc == 0.0, f"Expected Location=0 for city absent from distances file, got {loc}"
+    def test_unknown_city_zero_when_distances_present(self, tmp_path):
+        """A city absent from the distances data scores 0 even when other cities have data."""
+        store = _make_store(tmp_path)
+        store.save_city_distance("Ottawa", {"distance_km": 5, "nearest_centre": "Ottawa"})
+        scorer = PropertyScorer(store)
+        loc = scorer.score_property(_full_record(city="Smallville"))["breakdown"].get("Location", -1)
+        assert loc == 0.0, f"Expected Location=0 for city absent from distances, got {loc}"

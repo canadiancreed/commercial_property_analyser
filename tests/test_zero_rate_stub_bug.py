@@ -34,25 +34,14 @@ from ui.menu import PropertyMenu
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
-def _write_json(path, data):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f)
-
-
 def _make_store(tmp_path, comm_cities=None, res_cities=None):
-    comm = str(tmp_path / "comm.json")
-    res  = str(tmp_path / "res.json")
-    os.makedirs(str(tmp_path), exist_ok=True)
-    with open(comm, "w") as f:
-        json.dump({"cities": comm_cities or {}}, f)
-    with open(res, "w") as f:
-        json.dump({"cities": res_cities or {}}, f)
-    return DataStore(
-        commercial_path=comm, residential_path=res,
-        properties_path=str(tmp_path / "props.json"),
-        missing_path=str(tmp_path / "miss.json"),
-    )
+    """An empty DB store, optionally pre-seeded with rate rows (v5.0.0: no JSON)."""
+    store = DataStore(properties_path=str(tmp_path / "props.db"))
+    for city, cdata in (comm_cities or {}).items():
+        store.save_commercial_rates(city, cdata.get("province", "ON"), cdata.get("types", {}))
+    for city, cdata in (res_cities or {}).items():
+        store.save_residential_rates(city, cdata.get("province", "ON"), cdata.get("units", {}))
+    return store
 
 
 def _prop(**kwargs):

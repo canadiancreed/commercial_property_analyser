@@ -36,7 +36,9 @@ SOURCE_PAGE = ("https://www12.statcan.gc.ca/census-recensement/2021/geo/aip-pia/
                "attribute-attribs/index-eng.cfm")
 CENSUS_YEAR = 2021
 
-OUT_PATH = os.path.join("json", "geographic_crosswalk.json")
+# v5.0.0: the crosswalk lives in the DB (config table). Default DB is the dev app's.
+_DEFAULT_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "poc_nicegui", "_data", "properties.db")
 
 # Standard Geographical Classification province/territory codes (PRUID) -> 2-letter.
 # Factual, stable codes; the 2-letter form is what the deal data + resolver use.
@@ -191,19 +193,21 @@ def _normalize_name(city: str) -> str:
 
 
 def main() -> int:
+    import argparse
+    from data.store import DataStore
+    ap = argparse.ArgumentParser(description="Rebuild the DB 'geographic_crosswalk' config from StatCan.")
+    ap.add_argument("--db", default=_DEFAULT_DB, help="Path to the properties DB to write.")
+    args = ap.parse_args()
+    store = DataStore(properties_path=args.db, seed=True)
     try:
         zip_bytes = _download(SOURCE_URL)
     except Exception as e:  # network/URL issues — surface clearly, don't clobber the seed.
         print(f"  ERROR downloading the StatCan attribute file: {e}", file=sys.stderr)
-        print("  The existing json/geographic_crosswalk.json was left untouched.", file=sys.stderr)
+        print("  The existing DB 'geographic_crosswalk' config was left untouched.", file=sys.stderr)
         return 1
     data = build_crosswalk(_open_csv(zip_bytes))
-    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
-    tmp = OUT_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, OUT_PATH)
-    print(f"  Wrote {OUT_PATH} ({len(data['csd']):,} CSDs).")
+    store.write_config("geographic_crosswalk", data)
+    print(f"  Wrote geographic_crosswalk to {args.db} ({len(data['csd']):,} CSDs).")
     print("  Next: run scripts/fetch_vacancy_rates.py to populate the vacancy figures.")
     return 0
 

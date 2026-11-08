@@ -29,16 +29,20 @@ import sys
 # Allow running as `python scripts/fetch_interest_rates.py` from the repo root.
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from analysis.rate_feed import OUT_PATH, fetch_base_rate, write_interest_rates
+from analysis.rate_feed import fetch_base_rate, write_interest_rates
+from data.store import DataStore
+
+# Default DB: the dev app's database. For a packaged install, pass --db pointing at
+# %LOCALAPPDATA%\CommercialPropertyAnalyser\properties.db.
+_DEFAULT_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "poc_nicegui", "_data", "properties.db")
 
 
-def _show(path):
-    if not os.path.exists(path):
-        print(f"  {path} does not exist yet — run without --check to create it.")
+def _show(store):
+    data = store.read_app_data("interest_rates") or {}
+    if not data:
+        print("  No interest-rate cache in the DB yet — run without --check to create it.")
         return
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
-    print(f"  {path}")
     print(f"    base_rate   : {data.get('base_rate')}  "
           f"({(data.get('base_rate') or 0)*100:.3g}% GoC 5yr)")
     print(f"    as_of       : {data.get('as_of')}")
@@ -47,13 +51,15 @@ def _show(path):
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Rebuild json/interest_rates.json from the Bank of Canada.")
-    ap.add_argument("--check", action="store_true", help="Print the current file and exit (no fetch).")
+    ap = argparse.ArgumentParser(description="Rebuild the DB 'interest_rates' cache from the Bank of Canada.")
+    ap.add_argument("--check", action="store_true", help="Print the current cache and exit (no fetch).")
     ap.add_argument("--timeout", type=float, default=30.0, help="HTTP timeout seconds (default 30).")
+    ap.add_argument("--db", default=_DEFAULT_DB, help="Path to the properties DB to write.")
     args = ap.parse_args()
+    store = DataStore(properties_path=args.db, seed=True)
 
     if args.check:
-        _show(OUT_PATH)
+        _show(store)
         return 0
 
     print("  Fetching GoC 5-year benchmark yield from the Bank of Canada Valet API ...")
@@ -61,11 +67,11 @@ def main() -> int:
         payload = fetch_base_rate(timeout=args.timeout)
     except Exception as e:
         print(f"  ERROR fetching Bank of Canada rate: {e}", file=sys.stderr)
-        print(f"  The existing {OUT_PATH} was left untouched.", file=sys.stderr)
+        print("  The existing DB cache was left untouched.", file=sys.stderr)
         return 1
 
-    write_interest_rates(payload, OUT_PATH)
-    print(f"  Wrote {OUT_PATH}: GoC 5yr = {payload['base_rate']*100:.3g}% "
+    write_interest_rates(payload, store=store)
+    print(f"  Wrote interest_rates to {args.db}: GoC 5yr = {payload['base_rate']*100:.3g}% "
           f"(as of {payload.get('as_of')}). Re-analyze to apply.")
     pol = payload.get("context", {}).get("policy_rate")
     if pol is not None:

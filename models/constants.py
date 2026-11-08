@@ -32,9 +32,12 @@ VACANCY_RATE_DEFAULTS = {
     "hotel":         0.00,   # Excluded — modelled via occupancy rate instead
 }
 
-CANADIAN_PROVINCES = frozenset({
+# Ordered province/territory codes (alphabetical) — the source for the Province
+# dropdown (10 provinces + 3 territories).
+PROVINCE_CODES = (
     "AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT",
-})
+)
+CANADIAN_PROVINCES = frozenset(PROVINCE_CODES)
 
 # Spelled-out province/territory names → 2-letter code. realtor.ca addresses
 # show the full name (e.g. "Ontario"); the rest of the app stores the short

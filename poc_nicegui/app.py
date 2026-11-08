@@ -16,7 +16,6 @@ import os
 import sys
 import re
 import time
-import shutil
 import asyncio
 import threading
 import statistics
@@ -40,22 +39,17 @@ else:
 sys.path.insert(0, str(BASE))  # import the project packages from the code location
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# Seed writable copies of config/ + the reference json/ into the data dir on first run,
-# then run FROM there, so every relative path the engine uses (config/financing.json,
-# json/score_weights.json, json/vacancy_rates.json, …) is writable. The packaged bundle
-# (_MEIPASS) is read-only, and in dev this keeps edits out of the tracked repo files.
-for _sub in ("config", "json"):
-    _dst = DATA_DIR / _sub
-    if not _dst.exists() and (BASE / _sub).exists():
-        shutil.copytree(BASE / _sub, _dst)
-
-# pywebview derives a default base_uri from sys.argv[0] AT IMPORT TIME; once we chdir
-# into the data dir a relative argv[0] would no longer resolve, so pin it to an absolute
-# path first (a frozen exe already has an absolute argv[0]).
+# v5.0.0: all reference/config/runtime data lives in the DB, seeded from data/seeds — no
+# config/ or json/ files are copied or read. We still chdir into the writable data dir so
+# generated artifacts (reports) and any other relative paths resolve under a user-writable
+# location rather than the read-only bundle (_MEIPASS).
+# pywebview derives a default base_uri from sys.argv[0] AT IMPORT TIME; once we chdir into
+# the data dir a relative argv[0] would no longer resolve, so pin it to an absolute path
+# first (a frozen exe already has an absolute argv[0]).
 if not getattr(sys, "frozen", False):
     sys.argv[0] = str(Path(__file__).resolve())
 
-os.chdir(DATA_DIR)             # run from the writable data dir (config/ + json/ copies)
+os.chdir(DATA_DIR)             # run from the writable data dir (reports, etc.)
 DB_PATH = DATA_DIR / "properties.db"
 
 from datetime import date
@@ -65,7 +59,8 @@ from analysis.rent_resolver import RentResolver
 from analysis.analyzer import CommercialPropertyAnalyzer, build_partial_record
 from analysis.report_builder import record_to_prop, build_report_row, reanalyze_properties
 import form_logic
-from analysis import financing_config
+from analysis import financing_config, screener_config, underwriting_config, industrial_config
+from analysis import vacancy_resolver
 from analysis.financing_config import (
     resolve_financing, mixed_use_commercial_gfa_share,
     load_financing_config, save_financing_config, base_rate_info,
@@ -81,7 +76,7 @@ from reporting.vacancy_report import VacancyReportGenerator
 from reporting.price_drop_report import PriceDropReportGenerator
 from reporting.benchmark_report import BenchmarkReportGenerator
 from models.property_input import PropertyInput, UnitMix
-from models.constants import PROPERTY_TYPES
+from models.constants import PROPERTY_TYPES, PROVINCE_CODES
 from version import __version__
 
 from nicegui import ui, app, native
@@ -91,28 +86,29 @@ from nicegui import ui, app, native
 # or imports from properties.json. Importing data is a separate, explicit action.
 # (Rent rates + config still seed once from the bundled json/ + config/ reference files,
 # below / via the config table — those are reference/config, not the user's property data.)
-store = DataStore(properties_path=str(DB_PATH))
-store.ensure_rates_migrated()
+store = DataStore(properties_path=str(DB_PATH), seed=True)
+store.ensure_seeded()   # populate config / app_data / rate + city tables from data/seeds
 # One-time cleanup of legacy imports that stored 'street, city, province' in the address field.
 store.normalize_addresses(form_logic.clean_address)
 
-# Route financing config through the DB `config` table (seeded once from the bundled
-# config/financing.json). Scoring/city config already go through the store. This makes
-# the DB the single live source for every Settings value; the JSON files stay as the
-# shipped defaults.
+# Route every config/reference loader through the DB (v5.0.0: the DB is the single live
+# source; data/seeds provides the shipped defaults). No .json file is read at runtime.
 financing_config.set_store(store)
+screener_config.set_store(store)
+underwriting_config.set_store(store)
+industrial_config.set_store(store)
+vacancy_resolver.set_store(store)
 
 
 # ── Live base-rate feed (Bank of Canada GoC 5yr) ─────────────────────────────
 # Auto-refresh the sourced base rate on boot: one lightweight BoC Valet call,
 # throttled to once/day, fully offline-safe. A failed fetch keeps the last good
-# json/interest_rates.json (and the engine ultimately falls back to the anchor in
-# config/financing.json), so this never blocks or breaks startup. Runs off-thread.
+# cached rate (the DB 'interest_rates' doc; the engine ultimately falls back to the
+# authored anchor), so this never blocks or breaks startup. Runs off-thread.
 def _refresh_base_rate_async():
     try:
         from analysis.rate_feed import refresh_interest_rates
-        from analysis import financing_config
-        changed, _reason = refresh_interest_rates(max_age_hours=20)
+        changed, _reason = refresh_interest_rates(max_age_hours=20, store=store)
         if changed:
             financing_config.reload_rate_feed()
     except Exception:
@@ -186,6 +182,26 @@ STAT_CARD = "flex-1 min-w-[150px] rounded-xl shadow-sm border border-slate-200 b
 _ui = {}
 
 
+def _dark_toggle_button():
+    """Top-right dark/light switch. Flips NiceGUI's dark mode and persists the choice to
+    the DB (ui_prefs config doc) so it survives a reload (4.12.8)."""
+    dark = _ui.get("dark_mode")
+    if dark is None:
+        return
+
+    def _toggle():
+        dark.toggle()
+        btn.props(f'icon={"light_mode" if dark.value else "dark_mode"}')
+        try:
+            store.write_config("ui_prefs", {"dark": bool(dark.value)})
+        except Exception:
+            pass
+
+    btn = ui.button(icon=("light_mode" if dark.value else "dark_mode"),
+                    on_click=_toggle).props("flat round dense color=white")
+    btn.tooltip("Toggle dark / light mode")
+
+
 def header():
     with ui.header().classes("items-center justify-between px-6 py-3 bg-slate-900 text-white shadow"):
         with ui.row().classes("items-center gap-3"):
@@ -193,7 +209,9 @@ def header():
             with ui.column().classes("gap-0"):
                 ui.label("Commercial Property Analyser").classes("text-lg font-semibold leading-tight")
                 ui.label("Desktop UI — proof of concept").classes("text-xs text-slate-400 leading-tight")
-        ui.label(f"v{__version__} · live SQLite database").classes("text-xs text-slate-300")
+        with ui.row().classes("items-center gap-3"):
+            ui.label(f"v{__version__} · live SQLite database").classes("text-xs text-slate-300")
+            _dark_toggle_button()
 
 
 def _load_rows() -> list:
@@ -435,7 +453,7 @@ async def open_report(idx: int):
 
 
 # ── Page 2: dynamic, type-aware Add/Edit form ─────────────────────────────────
-state = {"type": "Hotel"}
+state = {"type": None}   # blank on a new entry — a type must be chosen before saving (4.12.1)
 FIELDS = {}  # name → input element, rebuilt each time the form reshapes
 _draft = {}  # last-entered field values, carried across a type switch so reshaping the
              # form never discards what's already typed (cleared on reset / edit / save).
@@ -449,6 +467,15 @@ _suppress_type_change = {"on": False}
 _programmatic_tab = {"on": False}
 # index=None → add mode; otherwise editing the record at that position (load order).
 edit_ctx = {"index": None, "orig_key": None, "record": None}
+
+# Reusable inline field validators (4.12.3). A blank/None value passes (fields are optional
+# unless required in save_property_from_form), so these only reject clearly-invalid input
+# as the user types. The authoritative gate is form_logic.validate_property_form, which
+# re-checks the same rules at save time so bad data can never be persisted.
+_V_NONNEG = {"Can't be negative": lambda v: v is None or v >= 0}
+_V_PCT    = {"Must be between 0 and 100": lambda v: v is None or 0 <= v <= 100}
+_V_GROWTH = {"Must be between -100 and 100": lambda v: v is None or -100 <= v <= 100}
+_V_MIN1   = {"Must be at least 1": lambda v: v is None or v >= 1}
 
 
 def _snapshot_form():
@@ -490,7 +517,8 @@ def dynamic_form():
                          ("bachelor", "one_br", "two_br", "three_br", "four_br", "unknown"))
     try:
         _fin_preview = resolve_financing(rec.get("asking_price") or 0,
-                                         state["type"], _units_preview or None)
+                                         state["type"], _units_preview or None) \
+            if state["type"] else {}   # no type picked yet → no per-type financing to preview
     except Exception:
         _fin_preview = {}
 
@@ -520,21 +548,30 @@ def dynamic_form():
         with ui.row().classes("w-full gap-3"):
             FIELDS["address"]  = ui.input("Address", value=pv("address", "")).classes("flex-1")
             FIELDS["city"]     = ui.input("City", value=pv("city", "")).classes("w-40")
-            FIELDS["province"] = ui.input("Province", value=pv("province", "")).classes("w-28")
+            _prov = (pv("province", "") or "").strip().upper() or None
+            # Options are the 13 province/territory codes; if an edited record somehow holds a
+            # non-standard value, keep it as an option so editing never silently drops it.
+            _prov_opts = list(PROVINCE_CODES) + (
+                [_prov] if _prov and _prov not in PROVINCE_CODES else [])
+            FIELDS["province"] = ui.select(_prov_opts, value=_prov, label="Province",
+                                           with_input=True, clearable=True).classes("w-28")
         with ui.row().classes("w-full gap-3"):
             FIELDS["mls_number"] = ui.input("MLS #", value=pv("mls_number", "")).classes("w-48")
             FIELDS["asking_price"]   = ui.number("Asking price", value=pv("asking_price"), prefix="$", format="%.0f",
                                                  validation={"Must be greater than 0": lambda v: v is None or v > 0}).classes("flex-1")
-            FIELDS["original_price"] = ui.number("Original / list price", value=pv("original_price"), prefix="$", format="%.0f").classes("flex-1")
+            FIELDS["original_price"] = ui.number("Original / list price", value=pv("original_price"), prefix="$", format="%.0f",
+                                                 validation=_V_NONNEG).classes("flex-1")
         with ui.row().classes("w-full gap-3"):
             FIELDS["total_sq_ft"]    = ui.number("Total sq ft", value=pv("total_sq_ft"), format="%.0f",
-                                                 validation={"Can't be negative": lambda v: v is None or v >= 0}).classes("flex-1")
+                                                 validation=_V_NONNEG).classes("flex-1")
             # Floors is a building-wide attribute (every type has it) — in Core details, not
             # the residential group, so it's enterable for office/retail/industrial/hotel too.
             FIELDS["floors"] = ui.number("Floors", value=um.get("floors", rec.get("floors", 1)) or 1,
-                                         format="%d").classes("w-28")
-            FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f").classes("flex-1")
-            FIELDS["construction_cost"] = ui.number("Construction cost", value=pv("construction_cost"), prefix="$", format="%.0f").classes("flex-1")
+                                         format="%d", validation=_V_MIN1).classes("w-28")
+            FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f",
+                                                 validation=_V_NONNEG).classes("flex-1")
+            FIELDS["construction_cost"] = ui.number("Construction cost", value=pv("construction_cost"), prefix="$", format="%.0f",
+                                                    validation=_V_NONNEG).classes("flex-1")
         with ui.row().classes("w-full gap-3"):
             FIELDS["lease_type"]   = ui.select(["Normal", "NNN"], value=pv("lease_type", "Normal"), label="Lease type").classes("w-40")
             FIELDS["status"]       = ui.select(["active", "inactive"], value=pv("status", "active"), label="Status").classes("w-40")
@@ -561,9 +598,15 @@ def dynamic_form():
     if "commercial" in groups:
         with card("Commercial lease", "storefront"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", value=comm_prefill, prefix="$", format="%.0f").classes("flex-1")
-                FIELDS["market_cap_rate"] = ui.number("Market cap rate", value=pvpct("market_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
-                FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", value=pvpct("exit_cap_rate"), suffix="%", format="%.2f").classes("flex-1")
+                FIELDS["commercial_rent"] = ui.number("Commercial rent $/yr", value=comm_prefill, prefix="$", format="%.0f",
+                                                      validation=_V_NONNEG).classes("flex-1")
+                FIELDS["market_cap_rate"] = ui.number("Market cap rate", value=pvpct("market_cap_rate"), suffix="%", format="%.2f",
+                                                      validation=_V_PCT).classes("flex-1")
+                FIELDS["exit_cap_rate"]   = ui.number("Exit cap rate", value=pvpct("exit_cap_rate"), suffix="%", format="%.2f",
+                                                      validation=_V_PCT).classes("flex-1")
+            _comm_cap = form_logic.resolved_rent_caption(rec, "commercial_rent", comm_prefill)
+            if _comm_cap:
+                ui.label(_comm_cap).classes("text-xs text-emerald-700")
             with ui.row().classes("w-full gap-3"):
                 FIELDS["commercial_lease_expiry"] = ui.input("Commercial lease expiry", value=pv("commercial_lease_expiry", "")).props("type=date").classes("w-48")
                 ui.label("A commercial rent you enter is treated as advertised (actual), "
@@ -574,10 +617,15 @@ def dynamic_form():
             with ui.row().classes("w-full gap-3 flex-wrap"):
                 for key, lbl in [("bachelor", "Bachelor"), ("one_br", "1 BR"), ("two_br", "2 BR"),
                                  ("three_br", "3 BR"), ("four_br", "4 BR"), ("unknown", "Unknown")]:
-                    FIELDS[f"um_{key}"] = ui.number(lbl, value=um.get(key, 0) or 0, format="%d").classes("w-28")
+                    FIELDS[f"um_{key}"] = ui.number(lbl, value=um.get(key, 0) or 0, format="%d",
+                                                    validation=_V_NONNEG).classes("w-28")
             with ui.row().classes("w-full gap-3 items-center"):
                 FIELDS["residential_rent"] = ui.number("Residential rent $/yr (override)", value=res_prefill,
-                                                       prefix="$", format="%.0f").classes("flex-1")
+                                                       prefix="$", format="%.0f",
+                                                       validation=_V_NONNEG).classes("flex-1")
+            _res_cap = form_logic.resolved_rent_caption(rec, "residential_rent", res_prefill)
+            if _res_cap:
+                ui.label(_res_cap).classes("text-xs text-emerald-700")
             ui.label("Leave the residential rent blank to price the unit mix at the city "
                      "market rate from the residential_rents table; enter a figure to use "
                      "it as the in-place residential income instead.").classes(
@@ -586,32 +634,50 @@ def dynamic_form():
     if "hotel" in groups:
         with card("Hotel operations", "hotel"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["hotel_rooms"]     = ui.number("Rooms", value=pv("hotel_rooms"), format="%d").classes("flex-1")
-                FIELDS["hotel_adr"]       = ui.number("ADR (avg daily rate)", value=pv("hotel_adr"), prefix="$", format="%.0f").classes("flex-1")
-                FIELDS["hotel_occupancy"] = ui.number("Occupancy", value=pvpct("hotel_occupancy"), suffix="%", format="%.1f").classes("flex-1")
+                FIELDS["hotel_rooms"]     = ui.number("Rooms", value=pv("hotel_rooms"), format="%d",
+                                                      validation=_V_NONNEG).classes("flex-1")
+                FIELDS["hotel_adr"]       = ui.number("ADR (avg daily rate)", value=pv("hotel_adr"), prefix="$", format="%.0f",
+                                                      validation=_V_NONNEG).classes("flex-1")
+                FIELDS["hotel_occupancy"] = ui.number("Occupancy", value=pvpct("hotel_occupancy"), suffix="%", format="%.1f",
+                                                      validation=_V_PCT).classes("flex-1")
 
     if "industrial" in groups:
         with card("Industrial building detail", "factory"):
             with ui.row().classes("w-full gap-3"):
-                FIELDS["ind_warehouse_sqft"] = ui.number("Warehouse sq ft", value=pv("ind_warehouse_sqft"), format="%.0f").classes("flex-1")
-                FIELDS["ind_office_sqft"]    = ui.number("Office sq ft", value=pv("ind_office_sqft"), format="%.0f").classes("flex-1")
-                FIELDS["ind_yard_sqft"]      = ui.number("Yard sq ft", value=pv("ind_yard_sqft"), format="%.0f").classes("flex-1")
+                FIELDS["ind_warehouse_sqft"] = ui.number("Warehouse sq ft", value=pv("ind_warehouse_sqft"), format="%.0f",
+                                                         validation=_V_NONNEG).classes("flex-1")
+                FIELDS["ind_office_sqft"]    = ui.number("Office sq ft", value=pv("ind_office_sqft"), format="%.0f",
+                                                         validation=_V_NONNEG).classes("flex-1")
+                FIELDS["ind_yard_sqft"]      = ui.number("Yard sq ft", value=pv("ind_yard_sqft"), format="%.0f",
+                                                         validation=_V_NONNEG).classes("flex-1")
             with ui.row().classes("w-full gap-3"):
-                FIELDS["ind_dock_doors"]      = ui.number("Dock doors", value=pv("ind_dock_doors"), format="%d").classes("flex-1")
-                FIELDS["ind_drive_in_doors"]  = ui.number("Drive-in doors", value=pv("ind_drive_in_doors"), format="%d").classes("flex-1")
-                FIELDS["ind_clear_height_ft"] = ui.number("Clear height (ft)", value=pv("ind_clear_height_ft"), format="%.1f").classes("flex-1")
+                FIELDS["ind_dock_doors"]      = ui.number("Dock doors", value=pv("ind_dock_doors"), format="%d",
+                                                          validation=_V_NONNEG).classes("flex-1")
+                FIELDS["ind_drive_in_doors"]  = ui.number("Drive-in doors", value=pv("ind_drive_in_doors"), format="%d",
+                                                          validation=_V_NONNEG).classes("flex-1")
+                FIELDS["ind_clear_height_ft"] = ui.number("Clear height (ft)", value=pv("ind_clear_height_ft"), format="%.1f",
+                                                          validation=_V_NONNEG).classes("flex-1")
             with ui.row().classes("w-full gap-3"):
-                FIELDS["ind_office_rate"] = ui.number("Office rate $/sq ft", value=pv("ind_office_rate"), prefix="$", format="%.2f").classes("flex-1")
-                FIELDS["ind_yard_rate"]   = ui.number("Yard rate $/sq ft", value=pv("ind_yard_rate"), prefix="$", format="%.2f").classes("flex-1")
+                FIELDS["ind_office_rate"] = ui.number("Office rate $/sq ft", value=pv("ind_office_rate"), prefix="$", format="%.2f",
+                                                      validation=_V_NONNEG).classes("flex-1")
+                FIELDS["ind_yard_rate"]   = ui.number("Yard rate $/sq ft", value=pv("ind_yard_rate"), prefix="$", format="%.2f",
+                                                      validation=_V_NONNEG).classes("flex-1")
 
     # Assumptions & overrides — always shown. Each override is blank by default and
     # falls back to the model's resolver when left empty, so nothing here is required.
     with card("Income & assumptions (overrides)", "tune"):
         with ui.row().classes("w-full gap-3"):
-            FIELDS["annual_rent"]     = ui.number("Direct total rent $/yr", value=annual_prefill, prefix="$", format="%.0f").classes("flex-1")
-            FIELDS["expense_ratio"]   = ui.number("Expense ratio", value=pvpct("expense_ratio"), suffix="%", format="%.1f").classes("flex-1")
-            FIELDS["vacancy_rate"]    = ui.number("Vacancy rate", value=pvpct("vacancy_rate"), suffix="%", format="%.1f").classes("flex-1")
-            FIELDS["noi_growth_rate"] = ui.number("NOI growth", value=pvpct("noi_growth_rate"), suffix="%", format="%.2f").classes("flex-1")
+            FIELDS["annual_rent"]     = ui.number("Direct total rent $/yr", value=annual_prefill, prefix="$", format="%.0f",
+                                                  validation=_V_NONNEG).classes("flex-1")
+            FIELDS["expense_ratio"]   = ui.number("Expense ratio", value=pvpct("expense_ratio"), suffix="%", format="%.1f",
+                                                  validation=_V_PCT).classes("flex-1")
+            FIELDS["vacancy_rate"]    = ui.number("Vacancy rate", value=pvpct("vacancy_rate"), suffix="%", format="%.1f",
+                                                  validation=_V_PCT).classes("flex-1")
+            FIELDS["noi_growth_rate"] = ui.number("NOI growth", value=pvpct("noi_growth_rate"), suffix="%", format="%.2f",
+                                                  validation=_V_GROWTH).classes("flex-1")
+        _annual_cap = form_logic.resolved_rent_caption(rec, "annual_rent", annual_prefill)
+        if _annual_cap:
+            ui.label(_annual_cap).classes("text-xs text-emerald-700")
         ui.label("Direct total rent overrides every component calculation (use only when you "
                  "have one in-place figure). Blank expense ratio = property-type default; blank "
                  "vacancy = regional resolver; blank NOI growth = house default.").classes(
@@ -672,8 +738,12 @@ def save_property_from_form():
         # insert the rebuilt record.
         store.delete_property(edit_ctx["index"])
     store.save_property(record)
+    city_note = None
     if prop.city and prop.province:
-        store.ensure_city_in_rates(prop.city, prop.province)
+        # Stub the city across every reference store (rates + demographics + distances)
+        # so a brand-new city never leaves a silent gap, and tell the user what's blank.
+        created = store.ensure_city_reference_data(prop.city, prop.province)
+        city_note = form_logic.city_data_needed_message(created)
 
     reset_form()
     refresh_portfolio()
@@ -682,15 +752,26 @@ def save_property_from_form():
     ui.notify(
         f'{"Updated" if editing else "Saved"} "{address}"'
         + (" — full analysis computed." if analyzed
-           else " — no market rate for that city yet, saved without analysis."),
+           else " — saved without analysis (no market rate yet).")
+        + (f" {city_note}" if city_note else ""),
         type="positive",
     )
 
 
 def reset_form():
-    """Return the form to add mode and clear it."""
+    """Return the form to add mode and clear it — including the property type, which
+    resets to blank so a new entry never inherits the last-used type (4.12.1)."""
     edit_ctx.update(index=None, orig_key=None, record=None)
     _draft.clear()
+    state["type"] = None
+    if _ui.get("type_select") is not None:
+        # Suppress on_change so set_value doesn't snapshot the (about-to-be-cleared) form
+        # back into _draft; the refresh below rebuilds the blank form.
+        _suppress_type_change["on"] = True
+        try:
+            _ui["type_select"].set_value(None)
+        finally:
+            _suppress_type_change["on"] = False
     dynamic_form.refresh()
 
 
@@ -857,11 +938,14 @@ async def open_url_import():
                     ui.notify(err, type="warning", multi_line=True, timeout=9000)
                     return
                 store.save_property(record)
+                city_note = None
                 if record.get("city") and record.get("province"):
-                    store.ensure_city_in_rates(record["city"], record["province"])
+                    created = store.ensure_city_reference_data(record["city"], record["province"])
+                    city_note = form_logic.city_data_needed_message(created)
                 dialog.close()
                 refresh_portfolio()
-                ui.notify(f'Imported "{record.get("address")}" — complete it via Edit.',
+                ui.notify(f'Imported "{record.get("address")}" — complete it via Edit.'
+                          + (f" {city_note}" if city_note else ""),
                           type="positive")
 
             ui.button("Fetch & add", icon="download", on_click=do_fetch).props("unelevated")
@@ -997,7 +1081,11 @@ def _rates_grid_editor(kind):
         "defaultColDef": {"sortable": True, "resizable": True},
         "pagination": True, "paginationPageSize": 25,
         "stopEditingWhenCellsLoseFocus": True,
+        "rowSelection": "single",
     }).classes("h-[56vh]")
+    # Register this grid's reload so a delete from either sub-tab refreshes both grids
+    # (a delete removes the city from both the commercial and residential tables).
+    _ui.setdefault("rates_reloads", []).append(_reload)
 
     async def save_changes():
         rows = await grid.get_client_data()
@@ -1044,8 +1132,55 @@ def _rates_grid_editor(kind):
                 ui.button("Add", icon="add", on_click=do_add).props("unelevated")
         d.open()
 
+    async def delete_city():
+        rows = await grid.get_selected_rows()
+        if not rows:
+            ui.notify("Select a city row first (click it), then Delete.", type="warning"); return
+        row = rows[0]
+        city = (row.get("city") or "").strip(); prov = (row.get("province") or "").strip().upper()
+        if not city:
+            ui.notify("That row has no city.", type="warning"); return
+        linked = form_logic.properties_for_city(store.load_properties(), city, prov)
+        n_linked = len(linked)
+        with ui.dialog() as d, ui.card().classes("p-4 gap-2 w-[560px] max-w-full"):
+            ui.label(f"Delete all rates for {city}, {prov}?").classes("font-semibold text-slate-800")
+            if linked:
+                ui.label(f"{n_linked} propert{'y' if n_linked == 1 else 'ies'} "
+                         f"use{'s' if n_linked == 1 else ''} this city — "
+                         f"{'it keeps' if n_linked == 1 else 'they keep'} the last report but "
+                         f"lose{'s' if n_linked == 1 else ''} the market rate until you re-add "
+                         f"rates or re-analyze:").classes("text-sm text-slate-600")
+                with ui.column().classes("gap-0 max-h-40 overflow-auto w-full"):
+                    for p in linked[:12]:
+                        ui.label("• " + (p.get("address") or "—")).classes("text-xs text-slate-500")
+                    if n_linked > 12:
+                        ui.label(f"…and {n_linked - 12} more").classes("text-xs text-slate-400")
+            else:
+                ui.label("No properties are linked to this city.").classes("text-sm text-slate-500")
+            ui.label("Removes the city from both the commercial and residential rate "
+                     "tables. This cannot be undone.").classes("text-xs text-slate-500")
+            with ui.row().classes("w-full justify-end gap-2 mt-1"):
+                ui.button("Cancel", on_click=d.close).props("flat")
+
+                def do_delete():
+                    n = store.delete_city_rates(city, prov)
+                    d.close()
+                    for fn in _ui.get("rates_reloads", []):
+                        fn()
+                    refresh_portfolio()
+                    ui.notify(
+                        f"Deleted {city}, {prov} rates ({n} row(s)). "
+                        + (f"{n_linked} linked propert{'y' if n_linked == 1 else 'ies'} — "
+                           "re-add rates or re-analyze to refresh." if n_linked
+                           else "No linked properties."),
+                        type="warning")
+
+                ui.button("Delete city", icon="delete", on_click=do_delete).props("unelevated color=negative")
+        d.open()
+
     with ui.row().classes("w-full items-center gap-2 mt-2"):
         ui.button("Add city", icon="add_location_alt", on_click=add_city).props("outline no-caps dense")
+        ui.button("Delete city", icon="delete", on_click=delete_city).props("outline no-caps dense color=negative")
         ui.space()
         ui.button("Save changes", icon="save", on_click=save_changes).props("unelevated no-caps")
 
@@ -1059,6 +1194,7 @@ def residential_rates_editor():
 
 
 def rates_tab():
+    _ui["rates_reloads"] = []   # fresh registry each render (both sub-grids re-register)
     with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
         with ui.row().classes("items-center gap-4"):
             ui.icon("payments").classes("text-2xl text-blue-600")
@@ -1254,9 +1390,8 @@ def settings_tab():
 
         async def refresh_rates():
             from analysis.rate_feed import refresh_interest_rates
-            from analysis import financing_config
             changed, reason = await asyncio.to_thread(
-                lambda: refresh_interest_rates(force=True, timeout=30))
+                lambda: refresh_interest_rates(force=True, timeout=30, store=store))
             financing_config.reload_rate_feed()
             _base_rate_row.refresh()
             ui.notify(f"Base rate {reason}" + ("  — Re-analyze to apply." if changed else ""),
@@ -1353,16 +1488,8 @@ def settings_tab():
 
 
 # ── Page 6: city reference data (distances + demographics) ─────────────────────
-_CITY_DISTANCES_FILE = "json/city_distances.json"
-_CITY_DEMOGRAPHICS_FILE = "json/city_demographics.json"
-
-
-def _read_json_file(path):
-    return store._read(path) if os.path.exists(path) else {}
-
-
 def _distances_editor():
-    raw = {"d": _read_json_file(_CITY_DISTANCES_FILE)}
+    raw = {"d": store.load_city_distances()}   # {City(display): {distance_km, nearest_centre}}
     sel = {"val": _NEW_CITY}
 
     @ui.refreshable
@@ -1382,9 +1509,9 @@ def _distances_editor():
             city = (f["city"].value or "").strip().title()
             if not city:
                 ui.notify("City is required.", type="warning"); return
-            raw["d"][city] = {"distance_km": f["km"].value,
-                              "nearest_centre": (f["centre"].value or "").strip()}
-            store._write(_CITY_DISTANCES_FILE, raw["d"])
+            store.save_city_distance(city, {"distance_km": f["km"].value,
+                                            "nearest_centre": (f["centre"].value or "").strip()})
+            raw["d"] = store.load_city_distances()
             sel["val"] = city
             city_select.set_options([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=city)
             form.refresh()
@@ -1402,7 +1529,7 @@ def _distances_editor():
 
 
 def _demographics_editor():
-    raw = {"d": _read_json_file(_CITY_DEMOGRAPHICS_FILE)}
+    raw = {"d": store.load_city_demographics()}   # {city_lower: {population, ...}}
     sel = {"val": _NEW_CITY}
 
     @ui.refreshable
@@ -1430,13 +1557,13 @@ def _demographics_editor():
             pop = int(f["pop"].value) if f["pop"].value else 0
             pop16 = int(f["pop16"].value) if f["pop16"].value else 0
             growth = round(((pop / pop16) ** (1 / 5) - 1) * 100, 2) if pop and pop16 else (row or {}).get("growth_pct_annual")
-            raw["d"][city.lower()] = {
+            store.save_city_demographics(city, {
                 "population": pop, "population_2016": pop16,
                 "growth_pct_annual": growth,
                 "source": (f["source"].value or "").strip() or "Stats Canada 2021 Census",
                 "notes": (row or {}).get("notes", ""),
-            }
-            store._write(_CITY_DEMOGRAPHICS_FILE, raw["d"])
+            })
+            raw["d"] = store.load_city_demographics()
             sel["val"] = city
             city_select.set_options([_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower), value=city)
             form.refresh()
@@ -1452,6 +1579,50 @@ def _demographics_editor():
     form()
 
 
+def _city_status_dashboard():
+    """At-a-glance completeness of every city's reference data: which cities are missing
+    commercial/residential rates, a distance, or demographics, and how many properties
+    depend on each (4.12.7)."""
+    rows = form_logic.city_data_status(
+        store.load_properties(),
+        store.load_commercial_rate_rows(),
+        store.load_residential_rate_rows(),
+        store.load_city_demographics(),
+        store.load_city_distances(),
+    )
+    n_cities = len(rows)
+    n_incomplete = sum(1 for r in rows if r["missing"])
+    ui.label(f"{n_cities} cit{'y' if n_cities == 1 else 'ies'} · "
+             f"{n_incomplete} missing some data").classes("text-sm font-medium text-slate-700 mb-1")
+    ui.label("✓ = on file, ✗ = needs data. Fill gaps on the Rates tab (rents) and the "
+             "Distances / Demographics sub-tabs above.").classes("text-xs text-slate-500 mb-2")
+
+    def _mark(b):
+        return "✓" if b else "✗"
+
+    grid_rows = [{
+        "city": r["city"], "province": r["province"], "n_props": r["n_props"],
+        "commercial": _mark(r["has_commercial"]), "residential": _mark(r["has_residential"]),
+        "distance": _mark(r["has_distance"]), "demographics": _mark(r["has_demographics"]),
+        "missing": ", ".join(r["missing"]) or "—",
+    } for r in rows]
+    ui.aggrid({
+        "columnDefs": [
+            {"headerName": "City", "field": "city", "pinned": "left", "width": 150, "filter": True},
+            {"headerName": "Prov", "field": "province", "width": 80},
+            {"headerName": "# Props", "field": "n_props", "width": 100, "type": "numericColumn"},
+            {"headerName": "Commercial", "field": "commercial", "width": 120},
+            {"headerName": "Residential", "field": "residential", "width": 120},
+            {"headerName": "Distance", "field": "distance", "width": 110},
+            {"headerName": "Demographics", "field": "demographics", "width": 130},
+            {"headerName": "Missing", "field": "missing", "flex": 1, "filter": True},
+        ],
+        "rowData": grid_rows,
+        "defaultColDef": {"sortable": True, "resizable": True},
+        "pagination": True, "paginationPageSize": 25,
+    }).classes("h-[56vh]")
+
+
 def city_data_tab():
     with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
         with ui.row().classes("items-center gap-4"):
@@ -1462,23 +1633,198 @@ def city_data_tab():
                          "census population / growth (feeds the city-opportunity ranker).").classes(
                     "text-xs text-slate-500")
     with ui.tabs().classes("w-full") as sub:
+        s_status = ui.tab("Status")
         s_dist = ui.tab("Distances")
         s_demo = ui.tab("Demographics")
-    with ui.tab_panels(sub, value=s_dist).classes("w-full bg-transparent"):
+    with ui.tab_panels(sub, value=s_status).classes("w-full bg-transparent"):
+        with ui.tab_panel(s_status):
+            _city_status_dashboard()
         with ui.tab_panel(s_dist):
             _distances_editor()
         with ui.tab_panel(s_demo):
             _demographics_editor()
 
 
+# ── Page 7: database explorer (read-only) ─────────────────────────────────────
+def _db_truncate_formatter():
+    """AG Grid cell formatter: show NULL, and trim long values (JSON blobs) to a preview."""
+    return ("value==null?'NULL':((''+value).length>120?(''+value).slice(0,120)+'…':value)")
+
+
+def _db_row_dialog(row: dict):
+    """Full-row inspector; JSON-looking string columns are pretty-printed."""
+    import json as _json
+    with ui.dialog() as d, ui.card().classes("p-4 gap-1 w-[760px] max-w-full"):
+        ui.label("Row detail").classes("font-semibold text-slate-800")
+        with ui.scroll_area().classes("w-full").style("height:min(70vh,560px)"):
+            for k, v in row.items():
+                ui.label(k).classes("text-xs font-semibold text-slate-500 mt-2")
+                text = "NULL" if v is None else v
+                if isinstance(v, str) and v[:1] in "{[":
+                    try:
+                        text = _json.dumps(_json.loads(v), indent=2, ensure_ascii=False)
+                    except Exception:
+                        text = v
+                ui.label(str(text)).classes(
+                    "w-full whitespace-pre-wrap font-mono text-xs text-slate-700 "
+                    "bg-slate-50 rounded p-2")
+        with ui.row().classes("w-full justify-end mt-1"):
+            ui.button("Close", on_click=d.close).props("flat")
+    d.open()
+
+
+def database_tab():
+    with ui.card().classes("w-full rounded-xl border border-slate-200 shadow-sm mb-3"):
+        with ui.row().classes("items-center gap-4"):
+            ui.icon("storage").classes("text-2xl text-blue-600")
+            with ui.column().classes("gap-0"):
+                ui.label("Database explorer").classes("font-semibold text-slate-800")
+                ui.label("Browse the SQLite tables and rows behind the app, or run a read-only "
+                         "query. Read-only — nothing here can modify the database.").classes(
+                    "text-xs text-slate-500")
+
+    tables = store.list_tables()
+    if not tables:
+        ui.label("The database has no tables.").classes("text-sm text-slate-500"); return
+    counts = {t["name"]: t["rows"] for t in tables}
+    tnames = list(counts)
+    state = {"table": tnames[0], "offset": 0, "size": 50}
+
+    @ui.refreshable
+    def browser():
+        name = state["table"]
+        page = store.table_page(name, limit=state["size"], offset=state["offset"])
+        total = page["total"]
+        with ui.row().classes("gap-2 flex-wrap mb-1 items-center"):
+            ui.label(f"{name} — {total:,} row(s)").classes("text-sm font-medium text-slate-700")
+            for c in store.table_schema(name):
+                ui.badge(f"{c['name']}{' PK' if c['pk'] else ''} · {c['type'] or '—'}").props(
+                    "color=primary" if c["pk"] else "color=grey-6")
+        cols = page["columns"]
+        rows = [dict(zip(cols, r)) for r in page["rows"]]
+        grid = ui.aggrid({
+            "columnDefs": [{"headerName": c, "field": c, "filter": True,
+                            "valueFormatter": _db_truncate_formatter()} for c in cols],
+            "rowData": rows,
+            "defaultColDef": {"sortable": True, "resizable": True},
+            "rowSelection": "single",
+        }).classes("h-[52vh]")
+        grid.on("rowClicked", lambda e: _db_row_dialog((e.args or {}).get("data") or {}),
+                args=["data"])
+        with ui.row().classes("w-full items-center gap-2 mt-2"):
+            lo = state["offset"] + 1 if total else 0
+            hi = min(state["offset"] + state["size"], total)
+            ui.label(f"{lo}–{hi} of {total:,}").classes("text-xs text-slate-500")
+            ui.space()
+
+            def _prev():
+                state["offset"] = max(0, state["offset"] - state["size"]); browser.refresh()
+
+            def _next():
+                if state["offset"] + state["size"] < total:
+                    state["offset"] += state["size"]; browser.refresh()
+
+            ui.button("Prev", icon="chevron_left", on_click=_prev).props("flat dense no-caps")
+            ui.button("Next", icon="chevron_right", on_click=_next).props("flat dense no-caps")
+        ui.label("Click a row to see the full values (JSON columns pretty-printed).").classes(
+            "text-xs text-slate-400 mt-1")
+
+    def _on_table(e):
+        state["table"] = e.value; state["offset"] = 0; browser.refresh()
+
+    ui.select({n: f"{n} ({counts[n]:,})" for n in tnames}, value=state["table"],
+              label="Table", on_change=_on_table).classes("w-72 mb-2")
+    browser()
+
+    with ui.expansion("Run a read-only query").classes("w-full mt-4"):
+        ui.label("Only a single SELECT / WITH / PRAGMA / EXPLAIN statement runs; anything that "
+                 "could write is rejected.").classes("text-xs text-slate-500")
+        q = ui.textarea(placeholder="SELECT name, updated_at FROM config ORDER BY name").props(
+            "outlined input-class=font-mono").classes("w-full")
+        result_box = ui.column().classes("w-full")
+
+        def run_query():
+            result_box.clear()
+            sql = (q.value or "").strip()
+            if not sql:
+                return
+            try:
+                res = store.run_readonly_query(sql)
+            except Exception as ex:
+                with result_box:
+                    ui.label(f"✗ {ex}").classes("text-sm text-red-600")
+                return
+            with result_box:
+                cols = res["columns"]
+                if not cols:
+                    ui.label("Query ran — no result columns.").classes("text-sm text-slate-500")
+                    return
+                rrows = [dict(zip(cols, r)) for r in res["rows"]]
+                ui.label(f"{len(rrows)} row(s).").classes("text-xs text-slate-500 mt-1")
+                g = ui.aggrid({
+                    "columnDefs": [{"headerName": c, "field": c, "filter": True,
+                                    "valueFormatter": _db_truncate_formatter()} for c in cols],
+                    "rowData": rrows,
+                    "defaultColDef": {"sortable": True, "resizable": True},
+                    "rowSelection": "single",
+                }).classes("h-[40vh]")
+                g.on("rowClicked", lambda e: _db_row_dialog((e.args or {}).get("data") or {}),
+                     args=["data"])
+
+        ui.button("Run query", icon="play_arrow", on_click=run_query).props(
+            "unelevated no-caps").classes("mt-1")
+
+
 # ── App shell (explicit @ui.page → required for a packaged onefile exe) ────────
 # All UI lives inside the page function; nothing is created in global scope. This
 # stops NiceGUI from re-executing the script per request (which fails once the
 # "script" is a frozen .exe binary).
+# Dark theme: the UI uses fixed light utilities (bg-white / text-slate-* / border-slate-*). NiceGUI
+# ships Tailwind + Quasar utilities inside cascade layers (…, utilities, overrides,
+# quasar_importants), and Quasar's colour utilities are !important — an unlayered override loses to
+# them. Adding our overrides INTO the last layer (quasar_importants) with a higher-specificity
+# body.body--dark selector wins the cascade. Light mode is untouched. AG Grid uses the v33 theming
+# API (generated ag-theme-* class), themed via its --ag-* variables. (4.12.8)
+_DARK_CSS = """
+<style>
+@layer quasar_importants {
+  body.body--dark { background:#0f172a !important; color:#e2e8f0 !important; }
+  body.body--dark .bg-white { background-color:#1e293b !important; }
+  body.body--dark .q-card { background-color:#1e293b !important; color:#e2e8f0 !important; }
+  body.body--dark .bg-slate-50 { background-color:#1e293b !important; }
+  body.body--dark .bg-slate-100 { background-color:#334155 !important; }
+  body.body--dark .border-slate-200 { border-color:#334155 !important; }
+  body.body--dark .border-slate-100 { border-color:#293548 !important; }
+  body.body--dark .text-slate-900 { color:#f1f5f9 !important; }
+  body.body--dark .text-slate-800 { color:#e2e8f0 !important; }
+  body.body--dark .text-slate-700 { color:#cbd5e1 !important; }
+  body.body--dark .text-slate-600 { color:#cbd5e1 !important; }
+  body.body--dark .text-slate-500 { color:#94a3b8 !important; }
+  body.body--dark .text-slate-400 { color:#94a3b8 !important; }
+  body.body--dark [class*="ag-theme"] {
+    --ag-background-color:#1e293b; --ag-foreground-color:#e2e8f0;
+    --ag-header-background-color:#273449; --ag-header-foreground-color:#cbd5e1;
+    --ag-odd-row-background-color:#1b2638; --ag-row-hover-color:#273449;
+    --ag-border-color:#334155; --ag-control-panel-background-color:#1e293b;
+    --ag-input-border-color:#475569; --ag-input-background-color:#0f172a;
+    --ag-secondary-foreground-color:#cbd5e1;
+  }
+}
+</style>
+"""
+
+
 @ui.page("/")
 def index():
     ui.colors(primary="#2563eb", secondary="#0f172a", accent="#10b981")
     ui.add_head_html('<style>body{background:#f1f5f9;}</style>')
+    ui.add_head_html(_DARK_CSS)
+    # Restore the saved theme (DB-persisted) before building the page.
+    try:
+        _dark_pref = bool((store.read_config("ui_prefs", None) or {}).get("dark", False))
+    except Exception:
+        _dark_pref = False
+    _ui["dark_mode"] = ui.dark_mode(value=_dark_pref)
     header()
     with ui.column().classes("w-full max-w-[1300px] mx-auto px-6 py-4 gap-0"):
         with ui.tabs().classes("w-full") as tabs:
@@ -1487,6 +1833,7 @@ def index():
             t_rpts = ui.tab("Reports", icon="summarize")
             t_rate = ui.tab("Rates", icon="payments")
             t_city = ui.tab("City data", icon="public")
+            t_db   = ui.tab("Database", icon="storage")
             t_set  = ui.tab("Settings", icon="settings")
         _ui["tabs"] = tabs          # so a save can switch back to the portfolio
         _ui["t_list"] = t_list
@@ -1513,6 +1860,8 @@ def index():
                 rates_tab()
             with ui.tab_panel(t_city):
                 city_data_tab()
+            with ui.tab_panel(t_db):
+                database_tab()
             with ui.tab_panel(t_set):
                 settings_tab()
 

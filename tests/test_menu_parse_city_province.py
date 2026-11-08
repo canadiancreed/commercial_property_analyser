@@ -1,6 +1,18 @@
 import pytest
 from ui.menu import _parse_city_province
-from models.constants import CANADIAN_PROVINCES
+from models.constants import CANADIAN_PROVINCES, PROVINCE_CODES
+
+
+class TestProvinceCodes:
+    """PROVINCE_CODES is the ordered source for the Province dropdown (4.12.2)."""
+
+    def test_thirteen_codes_in_alphabetical_order(self):
+        assert len(PROVINCE_CODES) == 13                      # 10 provinces + 3 territories
+        assert list(PROVINCE_CODES) == sorted(PROVINCE_CODES)
+        assert len(set(PROVINCE_CODES)) == 13                 # no duplicates
+
+    def test_matches_canadian_provinces_set(self):
+        assert set(PROVINCE_CODES) == set(CANADIAN_PROVINCES)
 
 
 class TestParseCityProvince:

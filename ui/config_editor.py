@@ -308,13 +308,7 @@ class ConfigEditorMixin:
             print(f"  Saved. New total: {sum(cw.values()):.2f}")
 
     def _edit_city_distances(self):
-        path      = "json/city_distances.json"
-        distances = {}
-        if os.path.exists(path):
-            try:
-                distances = self._store._read(path)
-            except Exception:
-                pass
+        distances = self._store.load_city_distances()   # {City(display): {...}}
         for p in self._store.load_properties():
             city = (p.get("city") or "").strip()
             if city and city not in distances:
@@ -358,24 +352,16 @@ class ConfigEditorMixin:
                     distances[city]["distance_km"] = float(km_raw)
                 except ValueError:
                     print("  Invalid km — unchanged.")
-            os.makedirs("json", exist_ok=True)
-            self._store._write(path, distances)
+            self._store.save_city_distance(city, distances[city])
             print(f"  Saved {city}.")
 
     def _edit_city_demographics(self):
-        DEMO_PATH = "json/city_demographics.json"
-        os.makedirs("json", exist_ok=True)
-
         def load():
-            if os.path.exists(DEMO_PATH):
-                try:
-                    return self._store._read(DEMO_PATH)
-                except Exception:
-                    pass
-            return {}
+            return self._store.load_city_demographics()
 
         def save(data):
-            self._store._write(DEMO_PATH, data)
+            for c, d in data.items():
+                self._store.save_city_demographics(c, d)
 
         while True:
             data          = load()

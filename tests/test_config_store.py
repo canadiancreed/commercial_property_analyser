@@ -24,19 +24,17 @@ def _reset_financing_store():
 
 # ── Generic config table ─────────────────────────────────────────────────────
 
-def test_read_config_seeds_from_file_once(make_store, tmp_path):
+def test_read_config_seeds_from_default_once(make_store):
     store = make_store()
-    seed = tmp_path / "seed.json"
-    seed.write_text(json.dumps({"a": 1}), encoding="utf-8")
-    assert store.read_config("thing", str(seed)) == {"a": 1}
-    # Row now exists; a later read ignores a changed seed file (DB is the source).
-    seed.write_text(json.dumps({"a": 2}), encoding="utf-8")
-    assert store.read_config("thing", str(seed)) == {"a": 1}
+    # First read seeds the row from the provided default; later reads ignore a changed
+    # default (the DB row is the live source).
+    assert store.read_config("thing", {"a": 1}) == {"a": 1}
+    assert store.read_config("thing", {"a": 2}) == {"a": 1}
 
 
-def test_read_config_missing_returns_empty(make_store, tmp_path):
+def test_read_config_missing_returns_empty(make_store):
     store = make_store()
-    assert store.read_config("none", str(tmp_path / "nope.json")) == {}
+    # An unknown name with no embedded seed and no explicit default → {}.
     assert store.read_config("none") == {}
 
 
@@ -46,6 +44,14 @@ def test_write_config_upserts(make_store):
     assert store.read_config("k") == {"x": 1}
     store.write_config("k", {"x": 2, "y": 3})
     assert store.read_config("k") == {"x": 2, "y": 3}
+
+
+def test_ui_prefs_round_trip(make_store):
+    """The dark/light toggle persists its choice as a `ui_prefs` config doc (4.12.8)."""
+    store = make_store()
+    assert store.read_config("ui_prefs") == {}          # default: no row → light
+    store.write_config("ui_prefs", {"dark": True})
+    assert store.read_config("ui_prefs") == {"dark": True}
 
 
 # ── Financing config routed through the store ────────────────────────────────

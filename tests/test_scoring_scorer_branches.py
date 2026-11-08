@@ -7,7 +7,7 @@ import json
 import os
 import pytest
 from unittest.mock import MagicMock, patch
-from scoring.scorer import PropertyScorer, SCORE_CONFIG_PATH
+from scoring.scorer import PropertyScorer
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
 
 
@@ -396,35 +396,22 @@ class TestConfigSaveLoad:
         assert PropertyScorer(store).load_config()["weights"]["Cap Rate"] == pytest.approx(0.30)
         assert store.read_config("score_weights")["weights"]["Cap Rate"] == pytest.approx(0.30)
 
-    def test_load_config_from_file(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
-        score_path = str(tmp_path / "json" / "score_weights.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(score_path, "w") as f:
-            json.dump({"weights": {"Cap Rate": 0.99}}, f)
-        with patch("scoring.scorer.SCORE_CONFIG_PATH", score_path):
-            loaded = scorer.load_config()
-        assert loaded["weights"]["Cap Rate"] == pytest.approx(0.99)
+    def test_load_config_from_store(self, make_store):
+        store = make_store()
+        store.write_config("score_weights", {"weights": {"Cap Rate": 0.99}})
+        assert PropertyScorer(store).load_config()["weights"]["Cap Rate"] == pytest.approx(0.99)
 
-    def test_load_city_distances_with_data(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
-        dist_path = str(tmp_path / "json" / "city_distances.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(dist_path, "w") as f:
-            json.dump({"Ottawa": {"distance_km": 50, "nearest_centre": "Ottawa"}}, f)
-        with patch("scoring.scorer.CITY_DISTANCES_PATH", dist_path):
-            distances = scorer.load_city_distances()
+    def test_load_city_distances_with_data(self, make_store):
+        store = make_store()
+        store.save_city_distance("Ottawa", {"distance_km": 50, "nearest_centre": "Ottawa"})
+        distances = PropertyScorer(store).load_city_distances()
         assert "ottawa" in distances
         assert distances["ottawa"]["distance_km"] == 50
 
-    def test_load_city_demographics_with_data(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
-        demo_path = str(tmp_path / "json" / "city_demographics.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(demo_path, "w") as f:
-            json.dump({"ottawa": {"population": 1_000_000, "growth_pct_annual": 1.8}}, f)
-        with patch("scoring.scorer.CITY_DEMOGRAPHICS_PATH", demo_path):
-            demographics = scorer.load_city_demographics()
+    def test_load_city_demographics_with_data(self, make_store):
+        store = make_store()
+        store.save_city_demographics("Ottawa", {"population": 1_000_000, "growth_pct_annual": 1.8})
+        demographics = PropertyScorer(store).load_city_demographics()
         assert "ottawa" in demographics
         assert demographics["ottawa"]["population"] == 1_000_000
 
@@ -432,39 +419,26 @@ class TestConfigSaveLoad:
 # ── Config load branches ───────────────────────────────────────────────────────
 
 class TestLoadConfigBranches:
-    """Covers the load_config branches that require a patched SCORE_CONFIG_PATH."""
+    """Covers load_config: DB row, embedded-seed fallback, no merging."""
 
-    def test_load_config_missing_everything_returns_empty(self, make_store, tmp_path):
-        """DB row absent AND seed file missing -> empty config (a broken install),
-        never a silent hardcoded default. The scorer then fails loudly downstream
-        when it reads weights off an empty dict."""
-        scorer = PropertyScorer(make_store())
-        with patch("scoring.scorer.SCORE_CONFIG_PATH", str(tmp_path / "no_such_file.json")):
-            assert scorer.load_config() == {}
+    def test_load_config_falls_back_to_embedded_seed(self, make_store):
+        """DB row absent → the embedded score_weights seed (never empty)."""
+        cfg = PropertyScorer(make_store()).load_config()
+        assert cfg and "weights" in cfg
 
-    def test_load_config_partial_file_returns_as_is(self, make_store, tmp_path):
-        """A partial config file is returned exactly as stored — no merging."""
-        scorer = PropertyScorer(make_store())
-        partial_cfg = {"weights": {"Cap Rate": 0.30}}
-        cfg_path = str(tmp_path / "json" / "score_weights.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(cfg_path, "w") as f:
-            json.dump(partial_cfg, f)
-        with patch("scoring.scorer.SCORE_CONFIG_PATH", cfg_path):
-            cfg = scorer.load_config()
+    def test_load_config_partial_returns_as_is(self, make_store):
+        """A stored partial config is returned exactly as stored — no merging."""
+        store = make_store()
+        store.write_config("score_weights", {"weights": {"Cap Rate": 0.30}})
+        cfg = PropertyScorer(store).load_config()
         assert cfg["weights"]["Cap Rate"] == pytest.approx(0.30)
         assert "thresholds" not in cfg
 
-    def test_load_config_missing_confidence_k_is_absent(self, make_store, tmp_path):
-        """Config file with no confidence_k has no confidence_k — nothing is injected."""
-        scorer = PropertyScorer(make_store())
-        cfg_path = str(tmp_path / "json" / "score_weights.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(cfg_path, "w") as f:
-            json.dump({"weights": {"Cap Rate": 0.25}}, f)
-        with patch("scoring.scorer.SCORE_CONFIG_PATH", cfg_path):
-            cfg = scorer.load_config()
-        assert "confidence_k" not in cfg
+    def test_load_config_missing_confidence_k_is_absent(self, make_store):
+        """A stored config with no confidence_k has no confidence_k — nothing injected."""
+        store = make_store()
+        store.write_config("score_weights", {"weights": {"Cap Rate": 0.25}})
+        assert "confidence_k" not in PropertyScorer(store).load_config()
 
 
 # ── score_property edge cases ──────────────────────────────────────────────────
@@ -479,21 +453,16 @@ class TestScorePropertyEdgeCases:
             result = scorer.score_property({"results": _full_results()})
         assert result["score"] == pytest.approx(0.0)
 
-    def test_location_invert_component(self, make_store, tmp_path):
+    def test_location_invert_component(self, make_store):
         """Location uses invert=True — closer distance → higher score."""
-        scorer = PropertyScorer(make_store())
-        dist_path = str(tmp_path / "json" / "city_distances.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(dist_path, "w") as f:
-            json.dump({
-                "close city": {"distance_km": 10,  "nearest_centre": "Centre"},
-                "far city":   {"distance_km": 300, "nearest_centre": "Centre"},
-            }, f)
+        store = make_store()
+        store.save_city_distance("close city", {"distance_km": 10, "nearest_centre": "Centre"})
+        store.save_city_distance("far city", {"distance_km": 300, "nearest_centre": "Centre"})
+        scorer = PropertyScorer(store)
         close_p = {"city": "close city", "province": "ON", "results": _full_results()}
         far_p   = {"city": "far city",   "province": "ON", "results": _full_results()}
-        with patch("scoring.scorer.CITY_DISTANCES_PATH", dist_path):
-            close_result = scorer.score_property(close_p)
-            far_result   = scorer.score_property(far_p)
+        close_result = scorer.score_property(close_p)
+        far_result   = scorer.score_property(far_p)
         assert close_result["breakdown"].get("Location", 0) >= far_result["breakdown"].get("Location", 0)
 
     def test_metric_value_parsing_with_dollar_sign(self, make_store):
@@ -534,22 +503,10 @@ class TestScorePropertyEdgeCases:
             result = scorer.score_property({"results": _full_results(cap=5.0)})
         assert result["breakdown"]["Cap Rate"] == pytest.approx(0.0)
 
-    def test_load_city_distances_corrupted_file(self, make_store, tmp_path):
-        """load_city_distances with invalid JSON → returns {}."""
-        scorer = PropertyScorer(make_store())
-        dist_path = str(tmp_path / "json" / "city_distances.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(dist_path, "w") as f:
-            f.write("NOT JSON")
-        with patch("scoring.scorer.CITY_DISTANCES_PATH", dist_path):
-            assert scorer.load_city_distances() == {}
+    def test_load_city_distances_empty_store(self, make_store):
+        """load_city_distances on an empty store → {}."""
+        assert PropertyScorer(make_store()).load_city_distances() == {}
 
-    def test_load_city_demographics_corrupted_file(self, make_store, tmp_path):
-        """load_city_demographics with invalid JSON → returns {}."""
-        scorer = PropertyScorer(make_store())
-        demo_path = str(tmp_path / "json" / "city_demographics.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(demo_path, "w") as f:
-            f.write("NOT JSON")
-        with patch("scoring.scorer.CITY_DEMOGRAPHICS_PATH", demo_path):
-            assert scorer.load_city_demographics() == {}
+    def test_load_city_demographics_empty_store(self, make_store):
+        """load_city_demographics on an empty store → {}."""
+        assert PropertyScorer(make_store()).load_city_demographics() == {}

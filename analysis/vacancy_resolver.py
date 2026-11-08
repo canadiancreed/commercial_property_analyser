@@ -45,7 +45,6 @@ to the constant floor) means the fetch/join broke that run - count it, surface i
 ship silently. Every property has a province, so tier 3 always resolves in healthy
 operation.
 """
-import json
 from dataclasses import dataclass
 from typing import Optional
 
@@ -54,9 +53,6 @@ from models.constants import (
     CANADIAN_PROVINCES,
     PROVINCE_NAME_TO_CODE,
 )
-
-_VACANCY_PATH = "json/vacancy_rates.json"
-_CROSSWALK_PATH = "json/geographic_crosswalk.json"
 
 # Property types whose vacancy CMHC RMS actually measures. Everything else is
 # "commercial domain" and resolves to its per-type constant (no regional survey wired).
@@ -121,37 +117,49 @@ class VacancyResolution:
         return " · ".join(b for b in bits if b)
 
 
-# ── Data loading (hard-fail on a missing/corrupt file, like the other loaders) ──
+# ── Data loading (DB config docs, v5.0.0; embedded seed when store-less) ────────
 
-def _load_json(path: str, what: str) -> dict:
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError as e:
-        raise VacancyDataError(
-            f"{what} not found at {path!r} — the regional vacancy pipeline cannot "
-            f"resolve vacancy. Run the fetch script to (re)build it."
-        ) from e
-    except json.JSONDecodeError as e:
-        raise VacancyDataError(f"{what} at {path!r} is not valid JSON: {e}") from e
+_store = None
+
+
+def set_store(store):
+    """Route vacancy-rates + crosswalk reads through a DataStore's `config` table. Pass
+    None to revert to the embedded seed (CLI/tests without a store). Drops the caches."""
+    global _store
+    reset_cache()
+    _store = store
+
+
+def _config_doc(name: str, what: str) -> dict:
+    if _store is not None:
+        data = _store.read_config(name)
+        if not data:
+            raise VacancyDataError(
+                f"{what} is empty in the data store — run the fetch script to (re)build it.")
+        return data
+    from data import seeds
+    data = seeds.CONFIG_DEFAULTS.get(name)
+    if not data:
+        raise VacancyDataError(f"No embedded {what} seed found.")
+    return data
 
 
 def _load_vacancy(force_reload: bool = False) -> dict:
     global _vacancy_cache
     if _vacancy_cache is None or force_reload:
-        _vacancy_cache = _load_json(_VACANCY_PATH, "Vacancy-rates data")
+        _vacancy_cache = _config_doc("vacancy_rates", "Vacancy-rates data")
     return _vacancy_cache
 
 
 def _load_crosswalk(force_reload: bool = False) -> dict:
     global _crosswalk_cache
     if _crosswalk_cache is None or force_reload:
-        _crosswalk_cache = _load_json(_CROSSWALK_PATH, "Geographic crosswalk")
+        _crosswalk_cache = _config_doc("geographic_crosswalk", "Geographic crosswalk")
     return _crosswalk_cache
 
 
 def reset_cache() -> None:
-    """Drop the module caches. Used by tests that swap the data-file paths."""
+    """Drop the module caches. Used by tests that swap the injected data."""
     global _vacancy_cache, _crosswalk_cache
     _vacancy_cache = None
     _crosswalk_cache = None

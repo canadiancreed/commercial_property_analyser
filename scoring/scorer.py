@@ -1,5 +1,4 @@
 import copy
-import os
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
 from analysis.metrics.income import INCOME_METRIC_NAMES
 from analysis.underwriting_config import load_underwriting_config
@@ -7,10 +6,6 @@ from analysis.screener_config import load_screener_config
 from analysis.financing_config import resolve_financing, mixed_use_commercial_gfa_share
 
 METRIC_SELLER_BLEED = "Seller Bleed"
-
-SCORE_CONFIG_PATH = "json/score_weights.json"
-CITY_DISTANCES_PATH  = "json/city_distances.json"
-CITY_DEMOGRAPHICS_PATH = "json/city_demographics.json"
 
 
 def _dom_band(dom: float, cfg: dict) -> str:
@@ -146,32 +141,28 @@ class PropertyScorer:
     # ── Config persistence ────────────────────────────────────────────────
 
     def load_config(self) -> dict:
-        # DB-backed (the `config` table), seeded once from the JSON default. The
+        # DB-backed (the `config` table), seeded from the embedded default. The
         # city-opportunity weights/knobs ride inside this same document.
-        return self._store.read_config("score_weights", SCORE_CONFIG_PATH)
+        return self._store.read_config("score_weights")
 
     def save_config(self, cfg: dict):
         self._store.write_config("score_weights", cfg)
 
-    # ── Geo / demographic data ─────────────────────────────────────────────
+    # ── Geo / demographic data (DB tables, v5.0.0) ──────────────────────────
 
     def load_city_distances(self) -> dict:
         """Returns {city_lower: {distance_km, nearest_centre}}."""
-        if os.path.exists(CITY_DISTANCES_PATH):
-            try:
-                return {k.lower(): v for k, v in self._store._read(CITY_DISTANCES_PATH).items()}
-            except Exception:
-                pass
-        return {}
+        try:
+            return {k.lower(): v for k, v in self._store.load_city_distances().items()}
+        except Exception:
+            return {}
 
     def load_city_demographics(self) -> dict:
         """Returns {city_lower: {population, growth_pct_annual, ...}}."""
-        if os.path.exists(CITY_DEMOGRAPHICS_PATH):
-            try:
-                return {k.lower(): v for k, v in self._store._read(CITY_DEMOGRAPHICS_PATH).items()}
-            except Exception:
-                pass
-        return {}
+        try:
+            return {k.lower(): v for k, v in self._store.load_city_demographics().items()}
+        except Exception:
+            return {}
 
     # ── Scoring ────────────────────────────────────────────────────────────
 
