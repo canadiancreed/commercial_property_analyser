@@ -44,6 +44,9 @@ _Everything moves into the database — no JSON files at runtime._
   - **Fetch scripts write the DB:** `scripts/fetch_interest_rates.py`, `fetch_vacancy_rates.py`,
     and `fetch_geographic_crosswalk.py` now persist to the database (pass `--db` for a packaged
     install's path) instead of writing JSON.
+  - **Packaging:** the PyInstaller build (`poc_nicegui/build.py`) no longer bundles the removed
+    `json/` + `config/` directories; it force-collects the `data/seeds` package (lazily imported)
+    so the embedded defaults ship in the `.exe`.
   - Existing databases gain the new tables on connect and seed any missing rows in place; no data
     is lost. (The only remaining file reference is the dormant one-time `properties.json` legacy
     importer.)
