@@ -17,6 +17,7 @@ Covered behaviours (by changelog release):
 """
 from __future__ import annotations
 
+import re
 from datetime import date
 
 from models.property_input import PropertyInput, UnitMix
@@ -125,6 +126,37 @@ def rent_prefills(draft, record):
     return {"commercial_rent": comm, "residential_rent": res, "annual_rent": annual}
 
 
+# Short provenance note per rent field for the read-only "what was calculated" caption.
+_RENT_CAPTION_NOTE = {
+    "commercial_rent":  "market estimate",
+    "residential_rent": "market estimate",
+    "annual_rent":      "total",
+}
+
+
+def resolved_rent_caption(record, field, prefilled):
+    """Read-only caption showing the rent figure the last analysis resolved for ``field``,
+    for display beneath the edit input. ``rent_prefills`` deliberately blanks a market-estimated
+    rent so editing never freezes an estimate as owner-entered — but that left the edit form
+    hiding what the analysis actually used. This restores the parity the CLI edit view had, where
+    the resolved rent appeared as the field's "current" value, without touching the editable
+    input (so provenance is still preserved on save).
+
+    Returns the caption string, or ``None`` when the input is already prefilled (owner-entered →
+    the figure is in the box), or there's no positive stored figure (a brand-new add, or a type
+    without that component)."""
+    if prefilled not in (None, ""):
+        return None
+    try:
+        amt = float(record.get(field))
+    except (TypeError, ValueError):
+        return None
+    if amt <= 0:
+        return None
+    note = _RENT_CAPTION_NOTE.get(field, "resolved")
+    return f"Last analysis used ${amt:,.0f}/yr ({note})."
+
+
 # ── City rate table (v4.11) ──────────────────────────────────────────────────
 
 def rate_rows_to_grid(rows, field_key, columns):
@@ -197,6 +229,143 @@ def changed_rate_rows(original, edited, columns):
     return out
 
 
+# ── City data: linked properties, "data needed" notice, status dashboard ───────
+
+def properties_for_city(properties, city, province):
+    """Records whose city/province match `city`/`province` (case-insensitive). Used to
+    show what's linked to a city before deleting its rates, and to count a city's
+    properties on the status dashboard (4.12.5)."""
+    c = (city or "").strip().lower()
+    p = (province or "").strip().upper()
+    out = []
+    for rec in properties:
+        if (rec.get("city") or "").strip().lower() == c and \
+           (rec.get("province") or "").strip().upper() == p:
+            out.append(rec)
+    return out
+
+
+def city_data_needed_message(created):
+    """Notice text for a newly-added property whose city had no reference data, from the
+    flags dict `ensure_city_reference_data` returns. Returns None when nothing was newly
+    stubbed (the city already had data), so the caller appends nothing (4.12.6)."""
+    if not created or not created.get("any_created"):
+        return None
+    need = []
+    if created.get("rates"):
+        need.append("rates")
+    if created.get("demographics"):
+        need.append("demographics")
+    if created.get("distances"):
+        need.append("distance")
+    if not need:
+        return None
+    joined = need[0] if len(need) == 1 else (
+        ", ".join(need[:-1]) + " and " + need[-1])
+    return (f"That city is new — its {joined} {'is' if len(need) == 1 else 'are'} blank. "
+            f"Fill it in on the City data and Rates tabs so this property can be analyzed.")
+
+
+def _rate_map_filled(mapping):
+    """True when a {col: value} rate map has at least one non-blank numeric value."""
+    for v in (mapping or {}).values():
+        if isinstance(v, (int, float)) and not isinstance(v, bool):
+            return True
+    return False
+
+
+def city_data_status(properties, comm_rows, res_rows, demographics, distances):
+    """Per-city data-completeness rows for the status dashboard (4.12.7). Unions cities
+    across properties and the two rate tables, keyed by (city_lower, province). For each:
+    property count, whether commercial/residential rates exist (any non-null cell), and
+    whether a distance (distance_km) and demographics (population) are on file — looked up
+    by lowercase city (demographics) and Title-case city (distances), matching the stores.
+    Each row lists what's `missing`. Sorted most-incomplete, then most properties, then
+    name."""
+    comm_by = {((r.get("city") or "").strip().lower(), (r.get("province") or "").strip().upper()):
+               r.get("types") for r in (comm_rows or [])}
+    res_by = {((r.get("city") or "").strip().lower(), (r.get("province") or "").strip().upper()):
+              r.get("units") for r in (res_rows or [])}
+    demo = {(k or "").strip().lower(): v for k, v in (demographics or {}).items()}
+    dist = {(k or "").strip().lower(): v for k, v in (distances or {}).items()}
+
+    # Build the display name per key from whatever source has it, favouring a real
+    # property/rate-row spelling.
+    keys, names = set(), {}
+    for rec in (properties or []):
+        c = (rec.get("city") or "").strip()
+        p = (rec.get("province") or "").strip().upper()
+        if not c:
+            continue
+        k = (c.lower(), p)
+        keys.add(k); names.setdefault(k, c)
+    for src in (comm_rows or []), (res_rows or []):
+        for r in src:
+            c = (r.get("city") or "").strip()
+            p = (r.get("province") or "").strip().upper()
+            if not c:
+                continue
+            k = (c.lower(), p)
+            keys.add(k); names.setdefault(k, c)
+
+    rows = []
+    for (c_lower, prov) in keys:
+        name = names.get((c_lower, prov), c_lower.title())
+        n_props = len(properties_for_city(properties or [], c_lower, prov))
+        has_comm = _rate_map_filled(comm_by.get((c_lower, prov)))
+        has_res = _rate_map_filled(res_by.get((c_lower, prov)))
+        d = demo.get(c_lower) or {}
+        has_demo = bool(d.get("population"))
+        dist_row = dist.get(c_lower) or {}
+        has_dist = dist_row.get("distance_km") is not None
+        missing = []
+        if not has_comm:
+            missing.append("commercial rates")
+        if not has_res:
+            missing.append("residential rates")
+        if not has_dist:
+            missing.append("distance")
+        if not has_demo:
+            missing.append("demographics")
+        rows.append({
+            "city": name, "province": prov, "n_props": n_props,
+            "has_commercial": has_comm, "has_residential": has_res,
+            "has_distance": has_dist, "has_demographics": has_demo,
+            "missing": missing,
+        })
+    rows.sort(key=lambda r: (-len(r["missing"]), -r["n_props"], r["city"].lower()))
+    return rows
+
+
+# ── DB explorer: read-only SQL guard (5.1.0) ──────────────────────────────────
+
+_SQL_READONLY_START = re.compile(r"^(select|with|pragma|explain)\b", re.IGNORECASE)
+# Write/DDL/transaction keywords rejected as whole words anywhere in the statement.
+_SQL_BANNED = re.compile(
+    r"\b(insert|update|delete|replace|drop|alter|create|attach|detach|reindex|"
+    r"vacuum|truncate|begin|commit|rollback|savepoint|release)\b", re.IGNORECASE)
+
+
+def is_readonly_sql(sql):
+    """Gate for the DB explorer's query box. Returns (ok, cleaned_sql). ok is True ONLY for a
+    single read-only statement: SELECT / WITH…SELECT / PRAGMA (no assignment) / EXPLAIN. Rejects
+    multiple statements (any inner ';'), a write/DDL/transaction keyword anywhere, and a PRAGMA
+    that assigns (contains '='). Defense-in-depth with the store's PRAGMA query_only."""
+    s = (sql or "").strip()
+    # One statement only: strip a single trailing ';', then reject any remaining ';'.
+    if s.endswith(";"):
+        s = s[:-1].strip()
+    if not s or ";" in s:
+        return False, ""
+    if not _SQL_READONLY_START.match(s):
+        return False, ""
+    if _SQL_BANNED.search(s):
+        return False, ""
+    if s.lower().startswith("pragma") and "=" in s:
+        return False, ""
+    return True, s
+
+
 # ── Coercion ─────────────────────────────────────────────────────────────────
 
 def pct_to_fraction(v):
@@ -217,19 +386,74 @@ def coerce_financing_field(value, kind):
     return round(float(value), 4)   # ratio
 
 
-# ── Validation (4.4) ─────────────────────────────────────────────────────────
+# ── Validation (4.4 / 4.12.1 / 4.12.3) ───────────────────────────────────────
+
+# Numeric form fields that must never be negative — money, sizes and counts. The values
+# are the RAW form values (what the user typed), so this runs on the same scale the field
+# shows. A blank field is skipped (optional); only an entered value is checked.
+_NON_NEGATIVE_FIELDS = {
+    "original_price": "Original / list price", "property_taxes": "Property taxes",
+    "construction_cost": "Construction cost", "total_sq_ft": "Total sq ft",
+    "commercial_rent": "Commercial rent", "residential_rent": "Residential rent",
+    "annual_rent": "Direct total rent",
+    "um_bachelor": "Bachelor units", "um_one_br": "1 BR units", "um_two_br": "2 BR units",
+    "um_three_br": "3 BR units", "um_four_br": "4 BR units", "um_unknown": "Unknown units",
+    "hotel_rooms": "Rooms", "hotel_adr": "ADR",
+    "ind_warehouse_sqft": "Warehouse sq ft", "ind_office_sqft": "Office sq ft",
+    "ind_yard_sqft": "Yard sq ft", "ind_dock_doors": "Dock doors",
+    "ind_drive_in_doors": "Drive-in doors", "ind_clear_height_ft": "Clear height",
+    "ind_office_rate": "Office rate", "ind_yard_rate": "Yard rate",
+}
+# Percent fields bounded to 0–100 (entered as a display %, e.g. 65 for 65%).
+_PERCENT_FIELDS = {
+    "expense_ratio": "Expense ratio", "vacancy_rate": "Vacancy rate",
+    "hotel_occupancy": "Occupancy", "market_cap_rate": "Market cap rate",
+    "exit_cap_rate": "Exit cap rate",
+}
+
+
+def _as_number(v):
+    """Coerce a raw form value to float, or None when blank/non-numeric."""
+    if v in (None, ""):
+        return None
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
 
 def validate_property_form(values):
-    """Return an error message if the form can't be saved, else None: an address is
-    required and the asking price must be > 0."""
+    """Return an error message if the form can't be saved, else None.
+
+    Required: an address, a property type (the whole analysis — field groups, per-type
+    financing, cap-rate resolution — keys off it, and the new-entry form defaults it to
+    blank, 4.12.1), and an asking price > 0. Numeric sanity (4.12.3): money/size/count
+    fields can't be negative, percent ratios must be 0–100%, and NOI growth −100–100%.
+    Floors, when entered, must be at least 1. This is the authoritative gate — the form's
+    inline per-field validators mirror these rules for live feedback, but a save always
+    re-checks here so invalid data can never be persisted. Blank optional fields pass."""
     if not (values.get("address") or "").strip():
         return "Address is required to save."
-    try:
-        asking = float(values.get("asking_price") or 0)
-    except (TypeError, ValueError):
-        asking = 0
-    if asking <= 0:
+    asking = _as_number(values.get("asking_price"))
+    if asking is None or asking <= 0:
         return "Asking price must be greater than 0."
+    if not (values.get("property_type") or "").strip():
+        return "Select a property type to save."
+
+    for field, label in _NON_NEGATIVE_FIELDS.items():
+        n = _as_number(values.get(field))
+        if n is not None and n < 0:
+            return f"{label} can't be negative."
+    for field, label in _PERCENT_FIELDS.items():
+        n = _as_number(values.get(field))
+        if n is not None and not (0 <= n <= 100):
+            return f"{label} must be between 0 and 100%."
+    growth = _as_number(values.get("noi_growth_rate"))
+    if growth is not None and not (-100 <= growth <= 100):
+        return "NOI growth must be between -100 and 100%."
+    floors = _as_number(values.get("floors"))
+    if floors is not None and floors < 1:
+        return "Floors must be at least 1."
     return None
 
 

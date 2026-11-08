@@ -1,7 +1,7 @@
 import json
 import os
 import pytest
-from scoring.scorer import PropertyScorer, SCORE_CONFIG_PATH
+from scoring.scorer import PropertyScorer
 from analysis.metrics.returns import METRIC_MARKET_STALENESS
 from analysis.underwriting_config import load_underwriting_config
 
@@ -76,10 +76,11 @@ class TestScoreProperty:
         assert 0 <= result["score"] <= 100
 
     def test_score_in_range(self, make_store):
-        scorer = PropertyScorer(make_store())
-        result = scorer.score_property(_scored_record(cap=9.0, coc=15.0, dscr=2.0,
-                                                       irr=20.0, em=3.0, cf=50_000,
-                                                       drop=15.0, dom=180, robustness=100.0))
+        store = make_store()
+        store.save_city_distance("Ottawa", {"distance_km": 0, "nearest_centre": "Ottawa"})
+        result = PropertyScorer(store).score_property(
+            _scored_record(cap=9.0, coc=15.0, dscr=2.0, irr=20.0, em=3.0, cf=50_000,
+                           drop=15.0, dom=180, robustness=100.0))
         assert result["score"] >= 95.0
 
     def test_poor_metrics_low_score(self, make_store):
@@ -186,35 +187,21 @@ class TestScoreProperty:
         result = scorer.score_property({"results": []})
         assert result["score"] is None
 
-    def test_location_score_with_distances(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
-        dist_path = str(tmp_path / "json" / "city_distances.json")
-        os.makedirs(str(tmp_path / "json"), exist_ok=True)
-        with open(dist_path, "w") as f:
-            json.dump({"ottawa": {"distance_km": 50, "nearest_centre": "Ottawa"}}, f)
-
-        from unittest.mock import patch
-        with patch("scoring.scorer.CITY_DISTANCES_PATH", dist_path):
-            result = scorer.score_property(_scored_record())
+    def test_location_score_with_distances(self, make_store):
+        store = make_store()
+        store.save_city_distance("Ottawa", {"distance_km": 50, "nearest_centre": "Ottawa"})
+        result = PropertyScorer(store).score_property(_scored_record())
         assert result["dist_km"] == 50
 
 
 # ── load_city_distances / demographics ─────────────────────────────────────────
 
 class TestGeoData:
-    def test_load_distances_missing_file(self, make_store, tmp_path):
-        from unittest.mock import patch
-        scorer = PropertyScorer(make_store())
-        nonexistent = str(tmp_path / "nonexistent_distances.json")
-        with patch("scoring.scorer.CITY_DISTANCES_PATH", nonexistent):
-            assert scorer.load_city_distances() == {}
+    def test_load_distances_empty_store(self, make_store):
+        assert PropertyScorer(make_store()).load_city_distances() == {}
 
-    def test_load_demographics_missing_file(self, make_store, tmp_path):
-        from unittest.mock import patch
-        scorer = PropertyScorer(make_store())
-        nonexistent = str(tmp_path / "nonexistent_demographics.json")
-        with patch("scoring.scorer.CITY_DEMOGRAPHICS_PATH", nonexistent):
-            assert scorer.load_city_demographics() == {}
+    def test_load_demographics_empty_store(self, make_store):
+        assert PropertyScorer(make_store()).load_city_demographics() == {}
 
 
 # ── solve_targets ─────────────────────────────────────────────────────────────
@@ -263,60 +250,53 @@ class TestSolveTargets:
 
 # ── Market-signal confidence axis (DOM / Price Drop as amplifiers, not score inputs) ──
 
-def _geo_patches(tmp_path, distance_km=10, population=500_000, growth=2.0):
-    """Write city_distances/city_demographics fixtures and return a patcher for
-    scoring.scorer's module-level path constants."""
-    from unittest.mock import patch
-    json_dir = tmp_path / "json"
-    os.makedirs(str(json_dir), exist_ok=True)
-    dist_path = str(json_dir / "city_distances.json")
-    demo_path = str(json_dir / "city_demographics.json")
-    with open(dist_path, "w") as f:
-        json.dump({"ottawa": {"distance_km": distance_km, "nearest_centre": "Ottawa"}}, f)
-    with open(demo_path, "w") as f:
-        json.dump({"ottawa": {"population": population, "growth_pct_annual": growth}}, f)
-    return patch.multiple("scoring.scorer", CITY_DISTANCES_PATH=dist_path,
-                           CITY_DEMOGRAPHICS_PATH=demo_path)
+def _seed_geo(store, distance_km=10, population=500_000, growth=2.0):
+    """Seed Ottawa distance + demographics into the store (v5.0.0: DB-backed)."""
+    store.save_city_distance("Ottawa", {"distance_km": distance_km, "nearest_centre": "Ottawa"})
+    store.save_city_demographics("Ottawa", {"population": population, "growth_pct_annual": growth})
 
 
 class TestMarketSignalConfidence:
 
-    def test_high_confidence_liquid_stale_and_dropped_no_penalty(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
+    def test_high_confidence_liquid_stale_and_dropped_no_penalty(self, make_store):
+        store = make_store()
+        _seed_geo(store, distance_km=5, population=1_000_000, growth=3.0)
+        scorer = PropertyScorer(store)
         p = _scored_record(dom=200, drop=40.0)
         p["verified_income_pct"] = 100.0
         p["confidence_multiplier"] = 1.0
-        with _geo_patches(tmp_path, distance_km=5, population=1_000_000, growth=3.0):
-            result = scorer.score_property(p)
+        result = scorer.score_property(p)
         assert result["market_signal_multiplier"] == pytest.approx(1.0)
         assert result["score"] == result["raw_score"]
 
-    def test_low_confidence_thin_market_stale_and_dropped_amplifies(self, make_store, tmp_path):
-        scorer = PropertyScorer(make_store())
+    def test_low_confidence_thin_market_stale_and_dropped_amplifies(self, make_store):
+        store = make_store()
+        _seed_geo(store, distance_km=300, population=5_000, growth=-2.0)
+        scorer = PropertyScorer(store)
         p = _scored_record(dom=200, drop=40.0)
         p["verified_income_pct"] = 40.0  # mostly imputed income
         p["confidence_multiplier"] = 0.90
-        with _geo_patches(tmp_path, distance_km=300, population=5_000, growth=-2.0):
-            result = scorer.score_property(p)
+        result = scorer.score_property(p)
         cfg = load_underwriting_config()
         assert result["market_signal_multiplier"] < 1.0
         assert result["market_signal_multiplier"] >= cfg["market_signal_confidence_floor"]
         assert result["score"] < result["raw_score"] * result["confidence_multiplier"]
 
-    def test_dom_and_drop_alone_do_not_move_score(self, make_store, tmp_path):
+    def test_dom_and_drop_alone_do_not_move_score(self, make_store):
         """Stale DOM + severe price drop with everything else neutral (verified
         income, cap rate in range, liquid market) must not move the score —
         confirms these signals are amplifiers, not standalone inputs."""
-        scorer = PropertyScorer(make_store())
+        store = make_store()
+        _seed_geo(store, distance_km=5, population=1_000_000, growth=3.0)
+        scorer = PropertyScorer(store)
         stale_dropped = _scored_record(dom=200, drop=40.0)
         stale_dropped["verified_income_pct"] = 100.0
         stale_dropped["confidence_multiplier"] = 1.0
         normal = _scored_record(dom=30, drop=0.0)
         normal["verified_income_pct"] = 100.0
         normal["confidence_multiplier"] = 1.0
-        with _geo_patches(tmp_path, distance_km=5, population=1_000_000, growth=3.0):
-            result_stale = scorer.score_property(stale_dropped)
-            result_normal = scorer.score_property(normal)
+        result_stale = scorer.score_property(stale_dropped)
+        result_normal = scorer.score_property(normal)
         assert result_stale["score"] == pytest.approx(result_normal["score"])
 
     def test_no_appetite_or_bias_terms_in_scoring_code(self):

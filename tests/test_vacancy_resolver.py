@@ -58,14 +58,14 @@ def resolver(tmp_path, monkeypatch):
         },
         "national": {"vacancy_rate": 0.020},   # below the 0.03 constant, so tier-4 max() is testable
     }
-    xw = tmp_path / "xwalk.json"
-    vc = tmp_path / "vac.json"
-    xw.write_text(json.dumps(crosswalk), encoding="utf-8")
-    vc.write_text(json.dumps(vacancy), encoding="utf-8")
-    monkeypatch.setattr(vr, "_CROSSWALK_PATH", str(xw))
-    monkeypatch.setattr(vr, "_VACANCY_PATH", str(vc))
+    from data.store import DataStore
+    store = DataStore(properties_path=str(tmp_path / "vac.db"))
+    store.write_config("vacancy_rates", vacancy)
+    store.write_config("geographic_crosswalk", crosswalk)
+    vr.set_store(store)
     vr.reset_cache()
     yield
+    vr.set_store(None)
     vr.reset_cache()
 
 

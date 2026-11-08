@@ -1,6 +1,6 @@
-# Commercial Property Analyser v4.12.0
+# Commercial Property Analyser v5.1.0
 
-A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu driven by local JSON data files.
+A terminal-based tool for evaluating Canadian commercial real estate investments. It calculates key performance metrics (Cap Rate, NOI, DSCR, IRR, Cash-on-Cash, Equity Multiple, and more), scores properties against configurable thresholds, ranks cities by investment opportunity, and generates HTML reports — all from a single interactive menu backed by a local SQLite database.
 
 ---
 
@@ -32,13 +32,13 @@ so after pulling new code you must rebuild it to see the new version.
 `make test` runs the suite (1452 tests). See [`docs/test-coverage-v4.md`](docs/test-coverage-v4.md)
 for a per-release map of every v4 feature to the test(s) that cover it.
 
-No internet connection required. As of v4.0.0, data lives in a local **SQLite database**
-(`properties.db`). **As of v4.9.2 the database is the single source of truth for property
-records** — the app opens the DB and shows whatever it contains (empty on a brand-new DB)
-and does **not** import `properties.json`; bringing in records is a separate, explicit
-action. Rent rates and scoring/financing **config** still seed once from the bundled
-`json/` + `config/` reference files (demographics, distances, vacancy, scoring/financing
-config), which remain JSON.
+No internet connection required. **As of v5.0.0 the local SQLite database (`properties.db`)
+is the single source of truth for ALL data** — properties, rent rates, every config/reference
+dataset (underwriting, screener, financing, scoring weights, industrial coefficients, vacancy
+rates, the geographic crosswalk), per-city demographics/distances, and runtime state. No `.json`
+file is read or written at runtime; the shipped defaults live as data-as-code in `data/seeds/`
+and populate the DB on first run (`DataStore.ensure_seeded`). Bringing in property records is
+still a separate, explicit action (the dormant `properties.json` legacy importer aside).
 
 ---
 
@@ -53,22 +53,15 @@ commercial_property_analyser_v2/
 ├── .coveragerc                # Coverage source/omit/threshold rules
 ├── requirements.txt           # numpy-financial (runtime), pytest, pytest-cov
 │
-├── config/                    # House assumptions (editable, no code changes needed)
-│   ├── underwriting.json      # NOI growth default, exit cap spread/aging bps, inflation rate
-│   ├── financing.json         # Two-layer: defaults + per-type property_types (down/rate/amort)
-│   └── screener_config.json   # Break-even-occupancy + price-drop-velocity thresholds
-│
 ├── models/                    # Plain data containers (no logic)
 │   ├── property_input.py      # PropertyInput, UnitMix dataclasses
 │   └── report_row.py          # ReportRow (metric / value / grade)
 │
-├── data/                      # Persistence layer (SQLite for properties + rents; JSON for reference data)
-│   └── store.py               # DataStore, CommercialRentLoader, ResidentialRentLoader
-│
-├── config/                    # House assumptions (editable, no code changes needed)
-│   ├── underwriting.json      # NOI growth, exit-cap spread, stress test, data-confidence shape
-│   ├── financing.json         # Two-layer: defaults (down/rate/amort/hold) + per-type property_types
-│   └── screener_config.json   # Break-even-occupancy + price-drop-velocity thresholds
+├── data/                      # Persistence layer (SQLite — the single source of truth)
+│   ├── store.py               # DataStore + rent loaders; config/app_data/city tables; seeding
+│   └── seeds/                 # Embedded shipped defaults (data-as-code) → seed the DB on first run
+│                              #   (underwriting, screener, financing, score weights, industrial,
+│                              #    vacancy, crosswalk, rate seeds, demographics, distances)
 │
 ├── analysis/                  # Core financial analysis engine
 │   ├── analyzer.py            # CommercialPropertyAnalyzer — orchestrates all metric groups
@@ -110,20 +103,13 @@ commercial_property_analyser_v2/
 │   ├── config_editor.py       # ConfigEditorMixin — scoring weights, distances, demographics
 │   └── csv_handler.py         # CsvHandlerMixin — CSV import and template export
 │
-├── scripts/                   # Scripted, re-runnable data fetches (refresh = re-run)
-│   ├── fetch_geographic_crosswalk.py # Rebuilds json/geographic_crosswalk.json from StatCan 92-151-X
-│   └── fetch_vacancy_rates.py        # Rebuilds json/vacancy_rates.json from CMHC RMS
+├── scripts/                   # Scripted, re-runnable data fetches (refresh = re-run, writes the DB)
+│   ├── fetch_interest_rates.py       # Updates the DB 'interest_rates' cache from the Bank of Canada
+│   ├── fetch_geographic_crosswalk.py # Updates the DB 'geographic_crosswalk' config from StatCan
+│   └── fetch_vacancy_rates.py        # Updates the DB 'vacancy_rates' config from CMHC RMS
 │
-├── json/                      # Runtime data files (auto-created on first use)
-│   ├── properties.json        # Saved property records with full analysis results
-│   ├── commercial_rents.json  # Commercial rent rates ($/sqft/yr) by city and type
-│   ├── residential_rents.json # Residential rent rates ($/mo) by city and unit type
-│   ├── score_weights.json     # Scoring weights and thresholds (editable via menu → s)
-│   ├── city_distances.json    # Distance from each city to its nearest regional centre
-│   ├── city_demographics.json # Population and annual growth data per city
-│   ├── vacancy_rates.json     # CMHC RMS vacancy by region + provincial floors (fetched)
-│   ├── geographic_crosswalk.json # StatCan CSD → CMA/CA → province crosswalk (fetched)
-│   └── missing_rent_data.json # Cities with incomplete rent data, tracked for follow-up
+│   (v5.0.0: all data lives in the SQLite DB — properties, rents, config/reference docs,
+│    per-city demographics/distances, and runtime state. No json/ or config/ directories.)
 │
 └── tests/                     # Unit and integration tests (99%+ branch coverage)
     ├── test_models.py

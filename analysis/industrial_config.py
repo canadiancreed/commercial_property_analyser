@@ -2,17 +2,12 @@
 Loaders for the industrial size-band multipliers and the (heuristic) component
 premiums, plus the size-tier resolution logic.
 
-Both coefficient sets live in JSON so every number is tunable and carries a
-source field, rather than being hardcoded magic constants. Module-level defaults
-mirror the shipped JSON so the analyser still works if a file is missing.
+Both coefficient sets are tunable config documents ('industrial_size_bands' /
+'industrial_premiums') — v5.0.0: stored in the DB `config` table, seeded from
+data/seeds. Module-level defaults are the hardcoded fallback used store-less.
 """
-import json
-import os
 
-_SIZE_BANDS_PATH = "json/industrial_size_bands.json"
-_PREMIUMS_PATH   = "json/industrial_premiums.json"
-
-# Defaults mirror the shipped JSON (see json/industrial_size_bands.json).
+# Defaults mirror the shipped industrial_size_bands config.
 _DEFAULT_BANDS = [
     {"label": "small-bay", "sqft_min": 0,      "sqft_max": 25000,  "multiplier": 1.08, "confidence": "MED"},
     {"label": "mid-size",  "sqft_min": 25000,  "sqft_max": 100000, "multiplier": 0.95, "confidence": "MED"},
@@ -33,23 +28,36 @@ _DEFAULT_PREMIUMS = {
 }
 
 
-def _read(path):
-    try:
-        with open(path, encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
+_store = None
+
+
+def set_store(store):
+    """Route industrial-config reads through a DataStore's `config` table. Pass None to
+    revert to the embedded seed (tests / CLI without a store)."""
+    global _store
+    _store = store
+
+
+def _doc(name):
+    """The named config document (DB when a store is set, else the embedded seed)."""
+    if _store is not None:
+        try:
+            return _store.read_config(name) or None
+        except Exception:
+            return None
+    from data import seeds
+    return seeds.CONFIG_DEFAULTS.get(name)
 
 
 def load_size_bands() -> list:
-    data = _read(_SIZE_BANDS_PATH)
+    data = _doc("industrial_size_bands")
     if data and isinstance(data.get("bands"), list) and data["bands"]:
         return data["bands"]
     return _DEFAULT_BANDS
 
 
 def _override_thresholds() -> dict:
-    data = _read(_SIZE_BANDS_PATH) or {}
+    data = _doc("industrial_size_bands") or {}
     meta = data.get("_meta", {})
     return {
         "office_ratio_small_bay":  meta.get("office_ratio_small_bay",  _DEFAULT_OVERRIDES["office_ratio_small_bay"]),
@@ -58,7 +66,7 @@ def _override_thresholds() -> dict:
 
 
 def load_premiums() -> dict:
-    data = _read(_PREMIUMS_PATH)
+    data = _doc("industrial_premiums")
     out = {k: dict(v) for k, v in _DEFAULT_PREMIUMS.items()}
     if data:
         for k in out:

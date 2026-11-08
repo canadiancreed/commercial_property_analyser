@@ -1,15 +1,13 @@
 """
-Loader for house underwriting assumptions (config/underwriting.json).
+Loader for house underwriting assumptions (the 'underwriting' config document).
 
 Every tunable number that governs the returns model — NOI growth, exit-cap
-spread, inflation — lives in this one JSON file so a reviewer can change the
-house numbers without touching Python. Missing file/keys are a hard error
-(not a silent fallback to a buried literal): an underwriting assumption that
-quietly reverts to a guess is worse than a loud crash.
+spread, inflation — lives in one config document so a reviewer can change the
+house numbers without touching Python. (v5.0.0: the document lives in the DB
+`config` table, seeded from data/seeds; a store-less caller falls back to the
+embedded seed.)
 """
-import json
-
-_CONFIG_PATH = "config/underwriting.json"
+_CONFIG_NAME = "underwriting"
 
 _REQUIRED_KEYS = ("noi_growth_default", "exit_cap_spread_bps", "inflation_rate",
                   "stress_rate_bump", "stress_min_dscr",
@@ -27,6 +25,7 @@ _REQUIRED_KEYS = ("noi_growth_default", "exit_cap_spread_bps", "inflation_rate",
                   "liquidity_weight_growth",
                   "liquidity_liquid_threshold", "liquidity_thin_threshold")
 
+_store = None
 _cache = None
 
 
@@ -34,27 +33,28 @@ class UnderwritingConfigError(RuntimeError):
     pass
 
 
+def set_store(store):
+    """Route underwriting-config reads through a DataStore's `config` table. Pass None to
+    revert to the embedded seed (tests / CLI without a store)."""
+    global _store, _cache
+    _store = store
+    _cache = None
+
+
 def load_underwriting_config(force_reload: bool = False) -> dict:
     global _cache
     if _cache is not None and not force_reload:
         return _cache
-    try:
-        with open(_CONFIG_PATH, encoding="utf-8") as f:
-            data = json.load(f)
-    except FileNotFoundError as e:
-        raise UnderwritingConfigError(
-            f"Underwriting config not found at {_CONFIG_PATH!r} — cannot resolve "
-            f"NOI growth / exit cap / inflation assumptions."
-        ) from e
-    except json.JSONDecodeError as e:
-        raise UnderwritingConfigError(
-            f"Underwriting config at {_CONFIG_PATH!r} is not valid JSON: {e}"
-        ) from e
+    if _store is not None:
+        data = _store.read_config(_CONFIG_NAME)
+    else:
+        from data import seeds
+        import copy
+        data = copy.deepcopy(seeds.CONFIG_DEFAULTS.get(_CONFIG_NAME) or {})
     missing = [k for k in _REQUIRED_KEYS if k not in data]
     if missing:
         raise UnderwritingConfigError(
-            f"Underwriting config at {_CONFIG_PATH!r} is missing required key(s): "
-            f"{', '.join(missing)}"
+            f"Underwriting config is missing required key(s): {', '.join(missing)}"
         )
     data.setdefault("exit_cap_aging_bps_per_year", 10)
     _cache = data

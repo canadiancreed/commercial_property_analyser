@@ -47,8 +47,10 @@ import urllib.request
 import zipfile
 from datetime import date
 
-CROSSWALK_PATH = os.path.join("json", "geographic_crosswalk.json")
-OUT_PATH = os.path.join("json", "vacancy_rates.json")
+# v5.0.0: vacancy_rates + geographic_crosswalk live in the DB (config table). Default DB
+# is the dev app's; pass --db for a packaged install's database.
+_DEFAULT_DB = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                          "poc_nicegui", "_data", "properties.db")
 
 # StatCan WDS product IDs carrying the CMHC RMS apartment (6+ units) vacancy series,
 # CMA/CA level. Together they cover the surveyed centres across Canada.
@@ -77,14 +79,14 @@ def _get(url: str):
 
 # ── Crosswalk (CMA/CA code -> province, name, level) ────────────────────────
 
-def _load_crosswalk():
-    if not os.path.exists(CROSSWALK_PATH):
+def _load_crosswalk(store):
+    xwalk = store.read_config("geographic_crosswalk") or {}
+    if not xwalk:
         raise SystemExit(
-            f"Crosswalk not found at {CROSSWALK_PATH}. Run "
-            f"scripts/fetch_geographic_crosswalk.py first."
+            "Geographic crosswalk is empty in the DB. Run "
+            "scripts/fetch_geographic_crosswalk.py first."
         )
-    with open(CROSSWALK_PATH, encoding="utf-8") as f:
-        return json.load(f).get("cma_ca", {})
+    return xwalk.get("cma_ca", {})
 
 
 def _dguid_code(dguid: str):
@@ -297,11 +299,14 @@ def build_vacancy(records, reference: str) -> dict:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Rebuild json/vacancy_rates.json from the CMHC RMS.")
+    ap = argparse.ArgumentParser(description="Rebuild the DB 'vacancy_rates' config from the CMHC RMS.")
     ap.add_argument("--table", help="Path to a manually-downloaded RMS data-table CSV (bypasses WDS).")
+    ap.add_argument("--db", default=_DEFAULT_DB, help="Path to the properties DB to read/write.")
     args = ap.parse_args()
+    from data.store import DataStore
+    store = DataStore(properties_path=args.db, seed=True)
 
-    cma_ca = _load_crosswalk()
+    cma_ca = _load_crosswalk(store)
     if not cma_ca:
         print("  WARNING: crosswalk has no CMA/CA entries — run "
               "scripts/fetch_geographic_crosswalk.py first.", file=sys.stderr)
@@ -315,7 +320,7 @@ def main() -> int:
         raise
     except Exception as e:
         print(f"  ERROR fetching CMHC RMS vacancy: {e}", file=sys.stderr)
-        print("  The existing json/vacancy_rates.json was left untouched.", file=sys.stderr)
+        print("  The existing DB 'vacancy_rates' config was left untouched.", file=sys.stderr)
         return 1
 
     matched = sum(1 for r in records if r.get("code"))
@@ -325,12 +330,8 @@ def main() -> int:
         return 1
 
     data = build_vacancy(records, reference)
-    os.makedirs(os.path.dirname(OUT_PATH), exist_ok=True)
-    tmp = OUT_PATH + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, OUT_PATH)
-    print(f"  Wrote {OUT_PATH} ({len(data['regions'])} regions). Re-analyze to apply.")
+    store.write_config("vacancy_rates", data)
+    print(f"  Wrote vacancy_rates to {args.db} ({len(data['regions'])} regions). Re-analyze to apply.")
     return 0
 
 

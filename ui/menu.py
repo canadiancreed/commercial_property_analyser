@@ -903,7 +903,7 @@ class PropertyMenu(RateEditorMixin, ConfigEditorMixin, CsvHandlerMixin):
 
     # ── Bulk re-analysis ──────────────────────────────────────────────────
 
-    REANALYZE_ERROR_LOG = "json/reanalyze_errors.log"
+    REANALYZE_ERROR_LOG = "reanalyze_errors.log"
 
     def _reanalyze_all(self):
         props = self._store.load_properties()

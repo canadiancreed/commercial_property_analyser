@@ -103,6 +103,38 @@ def test_rent_prefills_annual_guarded_by_component():
     assert fl.rent_prefills({"annual_rent": 5}, {"commercial_rent": 100000, "annual_rent": 9})["annual_rent"] == 5
 
 
+# ── resolved_rent_caption: show "what was calculated" on edit (4.12.4) ─────────
+
+def test_resolved_rent_caption_shows_market_estimate():
+    # Blanked field (prefilled None) + a positive stored figure → read-only caption.
+    rec = {"commercial_rent": 120000, "commercial_rent_user_entered": False}
+    cap = fl.resolved_rent_caption(rec, "commercial_rent", None)
+    assert cap == "Last analysis used $120,000/yr (market estimate)."
+
+
+def test_resolved_rent_caption_hidden_when_prefilled():
+    # Owner-entered rent is already in the editable box, so no duplicate caption.
+    rec = {"commercial_rent": 120000, "commercial_rent_user_entered": True}
+    assert fl.resolved_rent_caption(rec, "commercial_rent", 120000) is None
+
+
+def test_resolved_rent_caption_hidden_when_no_figure():
+    assert fl.resolved_rent_caption({}, "commercial_rent", None) is None
+    assert fl.resolved_rent_caption({"commercial_rent": 0}, "commercial_rent", None) is None
+    assert fl.resolved_rent_caption({"commercial_rent": "x"}, "commercial_rent", None) is None
+
+
+def test_resolved_rent_caption_annual_total_note():
+    rec = {"annual_rent": 95500}
+    assert fl.resolved_rent_caption(rec, "annual_rent", None) == "Last analysis used $95,500/yr (total)."
+
+
+def test_resolved_rent_caption_residential_note():
+    rec = {"residential_rent": 48000, "residential_rent_user_entered": False}
+    assert fl.resolved_rent_caption(rec, "residential_rent", None) == \
+        "Last analysis used $48,000/yr (market estimate)."
+
+
 # ── coercion ─────────────────────────────────────────────────────────────────
 
 def test_pct_to_fraction():
@@ -132,13 +164,70 @@ def test_validate_requires_address():
 
 
 def test_validate_requires_positive_price():
+    # The price check is reached before the type check, so a blank type here still
+    # surfaces the price error (not the type error).
     assert "Asking" in fl.validate_property_form({"address": "x", "asking_price": 0})
     assert "Asking" in fl.validate_property_form({"address": "x", "asking_price": None})
     assert "Asking" in fl.validate_property_form({"address": "x", "asking_price": -5})
 
 
+def test_validate_requires_property_type():
+    # 4.12.1: a new entry defaults the type to blank; address + price alone no longer save.
+    base = {"address": "x", "asking_price": 100}
+    assert "type" in fl.validate_property_form(base).lower()
+    assert "type" in fl.validate_property_form({**base, "property_type": None}).lower()
+    assert "type" in fl.validate_property_form({**base, "property_type": ""}).lower()
+    assert "type" in fl.validate_property_form({**base, "property_type": "   "}).lower()
+
+
 def test_validate_ok_returns_none():
-    assert fl.validate_property_form({"address": "x", "asking_price": 100}) is None
+    assert fl.validate_property_form(
+        {"address": "x", "asking_price": 100, "property_type": "Office"}) is None
+
+
+# ── numeric-field validation (4.12.3) ─────────────────────────────────────────
+
+_VALID_BASE = {"address": "x", "asking_price": 100, "property_type": "Office"}
+
+
+def test_validate_rejects_negative_numeric_fields():
+    assert "negative" in fl.validate_property_form({**_VALID_BASE, "property_taxes": -1}).lower()
+    assert "negative" in fl.validate_property_form({**_VALID_BASE, "um_two_br": -2}).lower()
+    assert "negative" in fl.validate_property_form({**_VALID_BASE, "ind_yard_rate": -0.5}).lower()
+    assert "negative" in fl.validate_property_form({**_VALID_BASE, "original_price": -10}).lower()
+
+
+def test_validate_rejects_out_of_range_percent():
+    assert "100" in fl.validate_property_form({**_VALID_BASE, "expense_ratio": 150})
+    assert "100" in fl.validate_property_form({**_VALID_BASE, "vacancy_rate": -5})
+    assert "100" in fl.validate_property_form({**_VALID_BASE, "market_cap_rate": 120})
+    assert "100" in fl.validate_property_form({**_VALID_BASE, "hotel_occupancy": 101})
+
+
+def test_validate_noi_growth_allows_negative_within_range():
+    assert fl.validate_property_form({**_VALID_BASE, "noi_growth_rate": -3}) is None
+    assert "100" in fl.validate_property_form({**_VALID_BASE, "noi_growth_rate": 250})
+
+
+def test_validate_floors_at_least_one():
+    assert "Floors" in fl.validate_property_form({**_VALID_BASE, "floors": 0})
+    assert fl.validate_property_form({**_VALID_BASE, "floors": 1}) is None
+
+
+def test_validate_blank_optional_numeric_fields_pass():
+    # Blank / missing / non-numeric optional fields never block a save.
+    assert fl.validate_property_form(
+        {**_VALID_BASE, "property_taxes": "", "vacancy_rate": None, "um_one_br": ""}) is None
+
+
+def test_validate_full_valid_form_passes():
+    assert fl.validate_property_form({
+        "address": "1 A St", "asking_price": 500000, "property_type": "Mixed-Use",
+        "original_price": 520000, "property_taxes": 8000, "total_sq_ft": 4000,
+        "floors": 2, "commercial_rent": 60000, "um_two_br": 3,
+        "expense_ratio": 42, "vacancy_rate": 9, "noi_growth_rate": 2,
+        "market_cap_rate": 6.5, "exit_cap_rate": 7,
+    }) is None
 
 
 # ── build_property_input (4.1/4.4/4.7.2/4.9.4) ───────────────────────────────
@@ -326,3 +415,80 @@ def test_changed_rate_rows_none_when_identical():
     rows = [{"city": "A", "province": "ON", "Office": 20.0, "Retail": None,
              "Industrial": None, "Mixed-Use": None}]
     assert fl.changed_rate_rows(rows, [dict(rows[0])], COMM_COLS) == []
+
+
+# ── city data: linked properties / "data needed" / status (4.12.5–4.12.7) ──────
+
+def test_properties_for_city_caseless_match():
+    props = [
+        {"address": "1 A St", "city": "Ottawa", "province": "ON"},
+        {"address": "2 B St", "city": "ottawa", "province": "on"},
+        {"address": "3 C St", "city": "Guelph", "province": "ON"},
+    ]
+    out = fl.properties_for_city(props, "OTTAWA", "on")
+    assert [p["address"] for p in out] == ["1 A St", "2 B St"]
+    assert fl.properties_for_city(props, "Nowhere", "ON") == []
+
+
+def test_city_data_needed_message_lists_blanks():
+    msg = fl.city_data_needed_message(
+        {"rates": True, "demographics": True, "distances": True, "any_created": True})
+    assert "rates, demographics and distance" in msg
+
+
+def test_city_data_needed_message_single_field():
+    msg = fl.city_data_needed_message(
+        {"rates": False, "demographics": True, "distances": False, "any_created": True})
+    assert "demographics is blank" in msg
+
+
+def test_city_data_needed_message_none_when_nothing_created():
+    assert fl.city_data_needed_message(
+        {"rates": False, "demographics": False, "distances": False, "any_created": False}) is None
+    assert fl.city_data_needed_message(None) is None
+
+
+def test_city_data_status_flags_missing_and_counts():
+    props = [
+        {"address": "1 A", "city": "Walkerton", "province": "ON"},
+        {"address": "2 B", "city": "Walkerton", "province": "ON"},
+        {"address": "3 C", "city": "Guelph", "province": "ON"},
+    ]
+    comm = [
+        {"city": "Guelph", "province": "ON", "types": {"Office": 15.0}},
+        {"city": "Walkerton", "province": "ON", "types": {"Office": None}},   # stub only
+    ]
+    res = [{"city": "Guelph", "province": "ON", "units": {"one_br": 1200}}]
+    demo = {"guelph": {"population": 143740}}
+    dist = {"Guelph": {"distance_km": 90}}
+    rows = fl.city_data_status(props, comm, res, demo, dist)
+    by = {r["city"]: r for r in rows}
+    g = by["Guelph"]
+    assert g["n_props"] == 1 and g["missing"] == []
+    assert all((g["has_commercial"], g["has_residential"], g["has_distance"], g["has_demographics"]))
+    w = by["Walkerton"]
+    assert w["n_props"] == 2
+    assert w["missing"] == ["commercial rates", "residential rates", "distance", "demographics"]
+    assert rows[0]["city"] == "Walkerton"   # most-incomplete sorts first
+
+
+# ── read-only SQL guard for the DB explorer (5.1.0) ───────────────────────────
+
+def test_is_readonly_sql_accepts_reads():
+    for s in ["select * from config", "  SELECT 1 ;", "PRAGMA table_info(config)",
+              "explain select 1", "with x as (select 1) select * from x"]:
+        ok, cleaned = fl.is_readonly_sql(s)
+        assert ok is True and ";" not in cleaned
+
+
+def test_is_readonly_sql_rejects_writes_and_multi():
+    for s in ["delete from properties", "update config set json='x'",
+              "insert into config values(1,2,3)", "drop table config",
+              "select 1; drop table config", "pragma user_version = 9",
+              "", "   ", "vacuum"]:
+        assert fl.is_readonly_sql(s)[0] is False
+
+
+def test_is_readonly_sql_rejects_write_keyword_anywhere():
+    # A write keyword hidden later in the statement is still rejected.
+    assert fl.is_readonly_sql("select * from t where x = (delete from y)")[0] is False

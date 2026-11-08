@@ -1,6 +1,15 @@
+import copy
+
 import pytest
 from unittest.mock import MagicMock, patch
 from scoring.city_ranker import CityRanker
+from data import seeds
+
+
+def _score_weights_seed():
+    """The shipped score_weights config (v5.0.0: embedded in data/seeds, was
+    json/score_weights.json)."""
+    return copy.deepcopy(seeds.CONFIG_DEFAULTS["score_weights"])
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -329,9 +338,7 @@ class TestCityRankerConfig:
 
     def test_weights_sum_to_one_produces_score_in_range(self):
         """Weights from score_weights.json (sum=1.0) with mid-range inputs should produce 0–100."""
-        import json
-        with open("json/score_weights.json") as f:
-            file_cfg = json.load(f)
+        file_cfg = _score_weights_seed()
         weights    = file_cfg["city_score_weights"]
         thresholds = file_cfg["city_score_thresholds"]
         scorer = _make_scorer_with_config(weights, thresholds,
@@ -380,9 +387,7 @@ class TestCityRankerConfig:
 
     def test_production_config_is_geometric_with_outlier_screen(self):
         """score_weights.json must define the geometric depth exponent and outlier screens."""
-        import json
-        with open("json/score_weights.json") as f:
-            cfg = json.load(f)
+        cfg = _score_weights_seed()
         assert 0 < cfg.get("opportunity_depth_exp", 0) < 1, "depth exponent missing/invalid"
         assert cfg.get("opportunity_depth_ref", 0) > 1, "depth reference count missing"
         assert cfg.get("outlier_max_cap_rate", 0) > 0, "cap-rate outlier screen missing"
@@ -635,9 +640,7 @@ class TestIrrDscrCf:
 
     def test_inact_cap_ceiling_is_10_in_json(self):
         """score_weights.json inact_cap hi threshold must be 10.0."""
-        import json
-        with open("json/score_weights.json") as f:
-            cfg = json.load(f)
+        cfg = _score_weights_seed()
         lo, hi = cfg["city_score_thresholds"]["inact_cap"]
         assert hi == pytest.approx(10.0), f"Expected 10.0, got {hi}"
 
@@ -672,9 +675,7 @@ class TestIrrDscrCf:
 
     def test_production_weights_include_irr_dscr_cf(self):
         """score_weights.json must define non-zero weights for act_irr, act_dscr, act_cf."""
-        import json
-        with open("json/score_weights.json") as f:
-            cfg = json.load(f)
+        cfg = _score_weights_seed()
         w = cfg["city_score_weights"]
         assert w.get("act_irr",  0) > 0, "act_irr weight missing or zero"
         assert w.get("act_dscr", 0) > 0, "act_dscr weight missing or zero"

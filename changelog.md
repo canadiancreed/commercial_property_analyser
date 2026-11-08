@@ -6,6 +6,171 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.0] — 2026-11-07
+
+_A Database tab to explore the SQLite structure and data._
+
+### Added
+
+- **Database explorer tab.** A new top-nav **Database** tab for browsing the SQLite database the
+  app now runs on: pick a table to see its schema (columns, types, primary key) and row count,
+  page through the rows, and click any row to inspect the full values (JSON columns — `config`,
+  `app_data`, the property `data` blob — are pretty-printed). It also has a **read-only query box**
+  (a single SELECT / WITH / PRAGMA / EXPLAIN statement). Everything here is strictly read-only:
+  the query guard (`form_logic.is_readonly_sql`) rejects any write/DDL/multi-statement input and
+  the query runs under `PRAGMA query_only`, so nothing in this tab can modify the database.
+
+---
+
+## [5.0.0] — 2026-11-07
+
+_Everything moves into the database — no JSON files at runtime._
+
+### Changed (storage / architecture break)
+
+- **The SQLite database is now the single source of truth for all data.** Every remaining
+  file-based dataset moved into the DB, and the `json/` and `config/` directories were removed:
+  - **New DB tables / documents:** config documents for `screener`, `underwriting`,
+    `industrial_size_bands`, `industrial_premiums`, `vacancy_rates`, `geographic_crosswalk`
+    (alongside the existing `financing` / `score_weights`); a new `app_data` table for runtime
+    state (missing-city reports, price-check progress, the fetched interest-rate cache); and new
+    `city_demographics` / `city_distances` tables. Schema `user_version` → 3.
+  - **Embedded seed (`data/seeds/`):** the former shipped JSON/config content is now data-as-code,
+    populated into the DB on first run (`DataStore.ensure_seeded`). A fresh install needs no JSON.
+  - **Every loader reads the DB:** the vacancy resolver, screener/underwriting/industrial config,
+    the scorer's demographics/distances, and the interest-rate feed now resolve through the store
+    (with `set_store` injection, mirroring `financing_config`); a store-less caller falls back to
+    the embedded seed.
+  - **Fetch scripts write the DB:** `scripts/fetch_interest_rates.py`, `fetch_vacancy_rates.py`,
+    and `fetch_geographic_crosswalk.py` now persist to the database (pass `--db` for a packaged
+    install's path) instead of writing JSON.
+  - Existing databases gain the new tables on connect and seed any missing rows in place; no data
+    is lost. (The only remaining file reference is the dormant one-time `properties.json` legacy
+    importer.)
+
+---
+
+## [4.12.8] — 2026-11-07
+
+_Dark / light mode toggle in the header._
+
+### Added
+
+- **Dark / light mode toggle** (top-right of the header). Switches the whole desktop UI between
+  the existing light theme and a new dark theme — page, cards, tables (AG Grid), and text all
+  adapt; light mode is unchanged. The choice is **persisted in the database** (a `ui_prefs` config
+  doc) so it survives a reload. Implemented with NiceGUI's `ui.dark_mode()` plus a dark stylesheet
+  layered into Quasar's own cascade layer so it reliably overrides the fixed light utilities.
+
+---
+
+## [4.12.7] — 2026-11-07
+
+_City data tab opens on a status dashboard of what each city is missing._
+
+### Added
+
+- **City-data status dashboard.** The City data tab now opens on a new **Status** sub-tab: a
+  table of every city (drawn from your properties and the rate tables) showing how many
+  properties depend on it and whether its commercial rates, residential rates, distance, and
+  demographics are on file (✓/✗), with a plain-language "Missing" column. Most-incomplete cities
+  sort to the top, so gaps are obvious at a glance. Backed by `form_logic.city_data_status`
+  (unit-tested).
+
+---
+
+## [4.12.6] — 2026-11-07
+
+_Adding a property for a new city stubs all its reference data and says what's needed._
+
+### Changed
+
+- **A brand-new city is now stubbed across every reference store.** Saving (or URL-importing) a
+  property whose city had no data already created blank rate rows; it now also creates blank
+  **demographics** and **distance** stubs, so the city shows up (blank, "needs data") in every
+  City data editor and the status dashboard instead of being silently absent. The save notice
+  now spells out exactly what's blank (e.g. _"That city is new — its rates, demographics and
+  distance are blank. Fill it in on the City data and Rates tabs…"_). Backed by
+  `store.ensure_city_reference_data` + `form_logic.city_data_needed_message` (unit-tested).
+
+---
+
+## [4.12.5] — 2026-11-07
+
+_Delete a city's rates from the Rates tab, with a view of what's linked first._
+
+### Added
+
+- **Delete a city in the Rates tab.** Select a city row and click **Delete city** to remove its
+  entry from both the commercial and residential rate tables. The confirmation first lists the
+  properties linked to that city (count + addresses) and warns they keep their last report but
+  lose the market rate until rates are re-added or they're re-analyzed. Both rate grids refresh
+  together. Backed by `store.delete_city_rates` + `form_logic.properties_for_city` (unit-tested).
+
+---
+
+## [4.12.4] — 2026-11-07
+
+_The edit form again shows the rent the last analysis calculated._
+
+### Fixed
+
+- **Editing a property now shows what the rent was calculated as.** When a property is saved
+  without an owner-entered rent, the analyzer resolves a market-estimated figure and stores it,
+  but the Add / Edit form deliberately keeps those fields blank so re-editing never freezes an
+  estimate as owner-entered. That left the desktop form hiding the computed rent, which the old
+  command-line edit view used to show as each field's "current" value. A read-only caption now
+  appears beneath the Commercial, Residential, and Direct-total rent inputs — e.g. _"Last analysis
+  used $120,000/yr (market estimate)."_ — restoring that visibility without changing what gets
+  saved. Backed by `form_logic.resolved_rent_caption` (unit-tested).
+
+---
+
+## [4.12.3] — 2026-11-07
+
+_The Add / Edit form validates numeric input end-to-end._
+
+### Added
+
+- **Full numeric validation on the Add / Edit form.** Every money/size/count field now
+  rejects negative values, percent ratios (expense ratio, vacancy, occupancy, market/exit
+  cap rate) are bounded 0–100%, NOI growth is bounded −100–100%, and Floors must be at
+  least 1. Each field shows the error inline as you type, and `save_property_from_form`
+  re-checks the same rules through `form_logic.validate_property_form` (unit-tested) so
+  invalid data can never be saved. Blank optional fields still pass. Verified live.
+
+---
+
+## [4.12.2] — 2026-11-07
+
+_Province is now a dropdown instead of free-form text._
+
+### Changed
+
+- **Province is a dropdown** of the 13 province/territory codes (AB, BC, MB, NB, NL, NS,
+  NT, NU, ON, PE, QC, SK, YT) instead of free-form text, so it can't be mistyped. It's
+  blank on a new entry and type-to-filter / clearable; an edited record whose stored value
+  isn't one of the standard codes keeps that value as an option so editing never drops it.
+  Backed by a new ordered `PROVINCE_CODES` constant (`models/constants.py`).
+
+---
+
+## [4.12.1] — 2026-11-07
+
+_Fix: the Add / Edit Property type dropdown no longer defaults to the last-used type, and a type is now required to save._
+
+### Fixed
+
+- **New entries start with a blank property type.** The type dropdown used to carry over
+  the last type entered, so a new property silently inherited it. A new entry (and the
+  form after any save or reset) now defaults the type to blank.
+- **A property type is required to save.** Saving a property with no type selected is
+  blocked with a "Select a property type to save." notice — the whole analysis keys off
+  the type, so a blank type can't be analysed. Validated in
+  `form_logic.validate_property_form` (unit-tested); verified live in the running app.
+
+---
+
 ## [4.12.0] — 2026-11-07
 
 _Feature: a property's detail view now shows a Price & Status History timeline._

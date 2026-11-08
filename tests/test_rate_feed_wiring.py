@@ -34,33 +34,33 @@ _CONFIG = {
 
 
 @pytest.fixture
-def wired(tmp_path, monkeypatch):
-    """Point financing_config at a temp config + temp feed path and reset caches.
-    Returns (config_path, feed_path)."""
-    cfg = tmp_path / "financing.json"
-    cfg.write_text(json.dumps(_CONFIG), encoding="utf-8")
-    feed = tmp_path / "interest_rates.json"
-    monkeypatch.setattr(fc, "_CONFIG_PATH", str(cfg))
-    monkeypatch.setattr(fc, "_INTEREST_RATES_PATH", str(feed))
+def wired(tmp_path):
+    """Inject a store holding the test financing config + an empty interest-rate cache,
+    and reset financing_config's caches. Returns the store. (v5.0.0: DB-backed.)"""
+    from data.store import DataStore
+    store = DataStore(properties_path=str(tmp_path / "fin.db"))
+    store.write_config("financing", _CONFIG)
+    store.write_app_data("interest_rates", {})   # no feed by default
+    fc.set_store(store)
     fc._cache = None
     fc.reload_rate_feed()
-    yield cfg, feed
+    yield store
+    fc.set_store(None)
     fc._cache = None
     fc.reload_rate_feed()
 
 
-def _write_feed(path, base_rate, as_of="2026-11-03"):
-    path.write_text(json.dumps({"base_rate": base_rate, "as_of": as_of,
-                                "status": "fetched", "fetched_at": "2026-11-05T00:00:00+00:00",
-                                "_meta": {"source": "Bank of Canada, Valet API"}}), encoding="utf-8")
+def _write_feed(store, base_rate, as_of="2026-11-03"):
+    store.write_app_data("interest_rates", {"base_rate": base_rate, "as_of": as_of,
+                                            "status": "fetched",
+                                            "fetched_at": "2026-11-05T00:00:00+00:00",
+                                            "_meta": {"source": "Bank of Canada, Valet API"}})
     fc.reload_rate_feed()
 
 
 # ── financing_config: the parallel shift ─────────────────────────────────────
 
 def test_no_feed_falls_back_to_authored_bands(wired):
-    cfg, feed = wired
-    assert not feed.exists()
     r = fc.resolve_financing(1_200_000, "office")
     assert r["rate_adjustment"] == 0.0
     assert r["interest_rate"] == pytest.approx(0.065)      # (0.06+0.07)/2, no shift
@@ -69,16 +69,14 @@ def test_no_feed_falls_back_to_authored_bands(wired):
 
 
 def test_feed_equal_to_anchor_is_zero_delta(wired):
-    cfg, feed = wired
-    _write_feed(feed, 0.035)                                # == anchor
+    _write_feed(wired, 0.035)                              # == anchor
     r = fc.resolve_financing(1_200_000, "office")
     assert r["rate_adjustment"] == 0.0
     assert r["interest_rate"] == pytest.approx(0.065)
 
 
 def test_feed_above_anchor_shifts_every_rate_in_parallel(wired):
-    cfg, feed = wired
-    _write_feed(feed, 0.045)                                # anchor 0.035 -> +0.010
+    _write_feed(wired, 0.045)                              # anchor 0.035 -> +0.010
     r = fc.resolve_financing(1_200_000, "office")
     assert r["rate_adjustment"] == pytest.approx(0.010)
     assert r["interest_rate"] == pytest.approx(0.075)       # 0.065 + 0.010
@@ -91,8 +89,7 @@ def test_feed_above_anchor_shifts_every_rate_in_parallel(wired):
 
 
 def test_feed_below_anchor_shifts_down(wired):
-    cfg, feed = wired
-    _write_feed(feed, 0.030)                                # anchor 0.035 -> -0.005
+    _write_feed(wired, 0.030)                              # anchor 0.035 -> -0.005
     r = fc.resolve_financing(1_200_000, "office")
     assert r["interest_rate"] == pytest.approx(0.060)
     assert r["base_rate_value"] == pytest.approx(0.030)
@@ -100,8 +97,7 @@ def test_feed_below_anchor_shifts_down(wired):
 
 
 def test_base_rate_info_reports_live_state(wired):
-    cfg, feed = wired
-    _write_feed(feed, 0.040)
+    _write_feed(wired, 0.040)
     info = fc.base_rate_info()
     assert info["live"] is True
     assert info["anchor"] == pytest.approx(0.035)
@@ -112,9 +108,8 @@ def test_base_rate_info_reports_live_state(wired):
 # ── save_financing_config preserves everything (the latent drop bug) ─────────
 
 def test_save_preserves_rate_base_and_types(wired):
-    cfg, feed = wired
     fc.save_financing_config(0.25, 0.05, 30, 12)
-    saved = json.loads(cfg.read_text(encoding="utf-8"))
+    saved = wired.read_config("financing")
     assert saved["defaults"] == {"down_payment_pct": 0.25, "interest_rate": 0.05,
                                  "term_years": 30, "hold_years": 12}
     # Everything else survives the save.
@@ -185,3 +180,35 @@ def test_refresh_offline_safe_keeps_existing(tmp_path, monkeypatch):
     changed, reason = rf.refresh_interest_rates(str(out), force=True, timeout=1)
     assert changed is False and "fetch failed" in reason
     assert json.loads(out.read_text(encoding="utf-8"))["base_rate"] == 0.031   # untouched
+
+
+# ── rate_feed store mode: the fetched cache in the DB app_data (v5.0.0) ────────
+
+def _fresh_store():
+    import tempfile, os
+    from data.store import DataStore
+    return DataStore(properties_path=os.path.join(tempfile.mkdtemp(), "rate.db"))
+
+
+def test_write_interest_rates_to_store():
+    s = _fresh_store()
+    rf.write_interest_rates({"base_rate": 0.04, "fetched_at": "2026-11-05T00:00:00+00:00"}, store=s)
+    assert s.read_app_data("interest_rates")["base_rate"] == 0.04
+
+
+def test_refresh_interest_rates_writes_store(monkeypatch):
+    s = _fresh_store()
+    monkeypatch.setattr(rf, "_get_json", _fake_get)
+    changed, reason = rf.refresh_interest_rates(force=True, timeout=1, store=s)
+    assert changed is True and "3.49" in reason
+    assert s.read_app_data("interest_rates")["base_rate"] == pytest.approx(0.0349)
+
+
+def test_refresh_interest_rates_store_skips_when_fresh(monkeypatch):
+    from datetime import datetime, timezone
+    s = _fresh_store()
+    s.write_app_data("interest_rates", {"base_rate": 0.03,
+                                        "fetched_at": datetime.now(timezone.utc).isoformat()})
+    monkeypatch.setattr(rf, "_get_json", lambda *a, **k: pytest.fail("network called"))
+    changed, reason = rf.refresh_interest_rates(max_age_hours=24, timeout=1, store=s)
+    assert changed is False and "fresh" in reason
