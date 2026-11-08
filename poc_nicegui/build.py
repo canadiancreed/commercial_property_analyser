@@ -41,6 +41,19 @@ ONEFILE = "--onedir" not in sys.argv
 # the system temp so the only thing the build leaves in the repo is the exe itself.
 SCRATCH = Path(tempfile.gettempdir()) / "cpa_pyinstaller"
 
+# Pre-flight: on Windows a running copy of the app locks its own .exe, so PyInstaller fails
+# late with a cryptic "[WinError 5] Access is denied". Detect it up front and say so plainly.
+_out_exe = ROOT / ("CommercialPropertyAnalyser.exe" if ONEFILE
+                   else "CommercialPropertyAnalyser/CommercialPropertyAnalyser.exe")
+if _out_exe.exists():
+    try:
+        with open(_out_exe, "ab"):   # opening a running exe for write is denied on Windows
+            pass
+    except PermissionError:
+        sys.exit(f"ERROR: '{_out_exe}' is in use — a copy of the app is still running. "
+                 f"Close the Commercial Property Analyser app (and any Explorer window or "
+                 f"antivirus scan holding it), then rebuild.")
+
 # PyInstaller resolves imports from the entry script's directory, so build from a copy at
 # the project root (where the data/ analysis/ scoring/ … packages live); PYTHONPATH too.
 entry = ROOT / "_cpa_build_main.py"
