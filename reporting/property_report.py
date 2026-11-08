@@ -794,7 +794,10 @@ renderAll();
 
 // ── Modal ──────────────────────────────────────────────────────────────────
 function openModal(p) {{
-  const addrEnc       = encodeURIComponent(p.address);
+  // The address field no longer carries city/province (stripped in 4.11.4), so a street
+  // alone is ambiguous to Google Maps. Combine all three fields into the map query.
+  const fullAddr      = [p.address, p.city, p.province].filter(Boolean).join(', ');
+  const addrEnc       = encodeURIComponent(fullAddr);
   const mapEmbedUrl   = `https://www.google.com/maps?q=${{addrEnc}}&layer=c&output=svembed`;
   const mapsSearchUrl = `https://www.google.com/maps/search/?api=1&query=${{addrEnc}}`;
 
