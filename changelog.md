@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.6] — 2026-11-08
+
+_Deleting a city warns about linked properties, and an Orphans report tracks them._
+
+### Added
+
+- **Orphans tab (City data).** A live resolution worklist of every property whose city is missing
+  reference data — commercial / residential rates, distance, or demographics — e.g. ones left
+  behind when a city's data is deleted while properties still point at it. Lists each property's
+  address, city, province, and exactly what's missing, and clears itself as the data is re-added
+  or the property's city is corrected.
+
+### Changed
+
+- **Deleting a city from the City data tab now confirms first.** The Distances and Demographics
+  "Delete city" buttons open a dialog that lists the properties linked to that city and warns they
+  will be orphaned; you must choose "Delete anyway" to force it through. The Rates "Delete city"
+  (which already listed linked properties) now also points to the Orphans tab and refreshes it.
+
+---
+
 ## [5.1.5] — 2026-11-08
 
 _The database lives in the project's `db/` folder, not in `%LOCALAPPDATA%`._
