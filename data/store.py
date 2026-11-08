@@ -992,6 +992,28 @@ class DataStore:
         finally:
             conn.close()
 
+    def delete_city_demographics(self, city: str) -> int:
+        """Remove one city's demographics row. Returns rows deleted (0 or 1)."""
+        ck = (city or "").strip().lower()
+        conn = self._connect()
+        try:
+            n = conn.execute("DELETE FROM city_demographics WHERE city_key=?", (ck,)).rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        return n or 0
+
+    def delete_city_distance(self, city: str) -> int:
+        """Remove one city's distance row. Returns rows deleted (0 or 1)."""
+        ck = (city or "").strip().lower()
+        conn = self._connect()
+        try:
+            n = conn.execute("DELETE FROM city_distances WHERE city_key=?", (ck,)).rowcount
+            conn.commit()
+        finally:
+            conn.close()
+        return n or 0
+
     def ensure_city_in_demographics(self, city: str) -> bool:
         """Add a blank demographics stub if the city is absent. True when one was created."""
         city = (city or "").strip()

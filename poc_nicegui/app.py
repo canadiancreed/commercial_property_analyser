@@ -27,17 +27,33 @@ WORKTREE = Path(__file__).resolve().parents[1]
 
 if getattr(sys, "frozen", False):
     # Packaged (.exe): project code + reference/config seed are bundled read-only under
-    # _MEIPASS (wiped on exit), so the live DB lives in a persistent user dir.
+    # _MEIPASS (wiped on exit), so the live DB lives in a persistent, writable dir. Keep it
+    # inside the project — a 'db' folder beside the executable — not buried in %LOCALAPPDATA%.
     BASE = Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
-    _data_base = Path(os.environ.get("LOCALAPPDATA") or Path.home())
-    DATA_DIR = _data_base / "CommercialPropertyAnalyser"
+    APP_HOME = Path(sys.executable).resolve().parent
+    _LEGACY_DATA_DIR = (Path(os.environ.get("LOCALAPPDATA") or Path.home())
+                        / "CommercialPropertyAnalyser")
 else:
-    # Dev: run from source; the DB lives beside the source under poc_nicegui/_data.
+    # Dev: run from source. The DB lives in the project's db/ folder.
     BASE = WORKTREE
-    DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
+    APP_HOME = WORKTREE
+    _LEGACY_DATA_DIR = WORKTREE / "poc_nicegui" / "_data"
 
+DATA_DIR = APP_HOME / "db"
 sys.path.insert(0, str(BASE))  # import the project packages from the code location
 DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = DATA_DIR / "properties.db"
+
+# One-time relocation (5.1.5): bring an existing database over from the pre-5.1.5 location
+# (frozen: %LOCALAPPDATA%\CommercialPropertyAnalyser; dev: poc_nicegui\_data) so moving the
+# DB into the project folder never loses data. Copy, not move — the old file stays as a
+# backup until the user removes it.
+if not DB_PATH.exists():
+    _legacy_db = _LEGACY_DATA_DIR / "properties.db"
+    if _legacy_db.exists():
+        import shutil as _shutil
+        _shutil.copy2(_legacy_db, DB_PATH)
+        print(f"[CPA] Relocated database {_legacy_db} -> {DB_PATH}")
 
 # v5.0.0: all reference/config/runtime data lives in the DB, seeded from data/seeds — no
 # config/ or json/ files are copied or read. We still chdir into the writable data dir so
@@ -50,7 +66,6 @@ if not getattr(sys, "frozen", False):
     sys.argv[0] = str(Path(__file__).resolve())
 
 os.chdir(DATA_DIR)             # run from the writable data dir (reports, etc.)
-DB_PATH = DATA_DIR / "properties.db"
 
 from datetime import date
 
@@ -1109,7 +1124,8 @@ def _rates_grid_editor(kind):
             ui.label(f"Add a city — {kind} rates").classes("font-semibold text-slate-800")
             with ui.row().classes("w-full gap-3"):
                 ci = ui.input("City").classes("w-48")
-                pi = ui.input("Province").classes("w-28")
+                pi = ui.select(list(PROVINCE_CODES), label="Province",
+                               with_input=True, clearable=True).classes("w-28")
             inputs = {}
             with ui.row().classes("w-full gap-3 flex-wrap"):
                 for c, lbl in columns:
@@ -1517,7 +1533,21 @@ def _distances_editor():
             form.refresh()
             ui.notify(f"Saved distance for {city}.", type="positive")
 
-        ui.button("Save distance", icon="save", on_click=save).props("unelevated").classes("mt-1")
+        def delete():
+            target = sel["val"]
+            store.delete_city_distance(target)
+            raw["d"] = store.load_city_distances()
+            sel["val"] = _NEW_CITY
+            city_select.set_options([_NEW_CITY] + sorted(raw["d"], key=str.lower), value=_NEW_CITY)
+            form.refresh()
+            if _ui.get("city_status_refresh"):
+                _ui["city_status_refresh"]()
+            ui.notify(f"Deleted distance for {target}.", type="warning")
+
+        with ui.row().classes("items-center gap-2 mt-1"):
+            ui.button("Save distance", icon="save", on_click=save).props("unelevated")
+            if row:
+                ui.button("Delete city", icon="delete", on_click=delete).props("flat color=negative")
 
     def on_city(e):
         sel["val"] = e.value
@@ -1570,7 +1600,22 @@ def _demographics_editor():
             ui.notify(f"Saved demographics for {city} (growth {growth:+.2f}%/yr)."
                       if growth is not None else f"Saved demographics for {city}.", type="positive")
 
-        ui.button("Save demographics", icon="save", on_click=save).props("unelevated").classes("mt-1")
+        def delete():
+            target = sel["val"]
+            store.delete_city_demographics(target)
+            raw["d"] = store.load_city_demographics()
+            sel["val"] = _NEW_CITY
+            city_select.set_options(
+                [_NEW_CITY] + sorted((k.title() for k in raw["d"]), key=str.lower), value=_NEW_CITY)
+            form.refresh()
+            if _ui.get("city_status_refresh"):
+                _ui["city_status_refresh"]()
+            ui.notify(f"Deleted demographics for {target}.", type="warning")
+
+        with ui.row().classes("items-center gap-2 mt-1"):
+            ui.button("Save demographics", icon="save", on_click=save).props("unelevated")
+            if row:
+                ui.button("Delete city", icon="delete", on_click=delete).props("flat color=negative")
 
     def on_city(e):
         sel["val"] = e.value
@@ -1820,6 +1865,14 @@ _DARK_CSS = """
   body.body--dark .text-slate-600 { color:#cbd5e1 !important; }
   body.body--dark .text-slate-500 { color:#94a3b8 !important; }
   body.body--dark .text-slate-400 { color:#94a3b8 !important; }
+  /* Accent/status text: the -600/-700 shades are too dark on the navy page, so
+     brighten them to the -400 variants (keeps blue/red/green/amber legible). */
+  body.body--dark .text-blue-600,    body.body--dark .text-blue-700    { color:#60a5fa !important; }
+  body.body--dark .text-red-600,     body.body--dark .text-red-700     { color:#f87171 !important; }
+  body.body--dark .text-emerald-600, body.body--dark .text-emerald-700,
+  body.body--dark .text-green-600,   body.body--dark .text-green-700   { color:#34d399 !important; }
+  body.body--dark .text-amber-500,   body.body--dark .text-amber-600,
+  body.body--dark .text-amber-700                                      { color:#fbbf24 !important; }
   body.body--dark [class*="ag-theme"] {
     --ag-background-color:#1e293b; --ag-foreground-color:#e2e8f0;
     --ag-header-background-color:#273449; --ag-header-foreground-color:#cbd5e1;

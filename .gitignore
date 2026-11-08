@@ -12,6 +12,8 @@ __pycache__/
 properties.db
 properties.db-journal
 properties.db-wal
+/db/
+poc_nicegui/_data/
 properties - Copy.json
 properties copy_v1.json
 json/reanalyze_errors.log

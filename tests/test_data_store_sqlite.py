@@ -236,6 +236,31 @@ class TestCityDataStubsAndDelete:
         created = s.ensure_city_reference_data("Guelph", "ON")
         assert created["rates"] is False and created["any_created"] is False
 
+    # ── delete a city's demographics / distance row (City data tab) ───────────
+    def test_delete_city_demographics_removes_row(self, tmp_path):
+        s = _store(tmp_path)
+        s.save_city_demographics("Stratford", {"population": 33000, "population_2016": 31000})
+        assert "stratford" in s.load_city_demographics()
+        n = s.delete_city_demographics("STRATFORD")           # caseless
+        assert n == 1
+        assert "stratford" not in s.load_city_demographics()
+
+    def test_delete_city_demographics_absent_is_noop(self, tmp_path):
+        s = _store(tmp_path)
+        assert s.delete_city_demographics("Nowhere") == 0
+
+    def test_delete_city_distance_removes_row(self, tmp_path):
+        s = _store(tmp_path)
+        s.save_city_distance("Stratford", {"distance_km": 60, "nearest_centre": "London"})
+        assert "Stratford" in s.load_city_distances()
+        n = s.delete_city_distance("stratford")               # caseless
+        assert n == 1
+        assert "Stratford" not in s.load_city_distances()
+
+    def test_delete_city_distance_absent_is_noop(self, tmp_path):
+        s = _store(tmp_path)
+        assert s.delete_city_distance("Nowhere") == 0
+
 
 class TestDbExplorer:
     # ── 5.1.0: read-only DB introspection + query ─────────────────────────────

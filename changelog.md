@@ -6,6 +6,52 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.5] — 2026-11-08
+
+_The database lives in the project's `db/` folder, not in `%LOCALAPPDATA%`._
+
+### Changed
+
+- **The SQLite database now lives in a `db/` folder inside the project** — beside the executable
+  when packaged, and at the repo root in dev — instead of
+  `%LOCALAPPDATA%\CommercialPropertyAnalyser` (packaged) or `poc_nicegui/_data` (dev). On first
+  launch the app relocates an existing database from the old location into `db/` automatically
+  (a copy, leaving the old file as a backup), so the full property set carries over and no data is
+  lost.
+
+---
+
+## [5.1.4] — 2026-11-08
+
+_Rates province dropdown, dark-mode contrast, and city deletion in City data._
+
+### Added
+
+- **Delete a city from the City data tab.** The Distances and Demographics editors each gained a
+  "Delete city" button (shown once an existing city is selected), mirroring the Rates tab's delete.
+  It drops that city's distance / demographics row and refreshes the Status dashboard.
+
+### Changed
+
+- **Province is a dropdown on the Rates → "Add a city" dialog**, matching the property form (the
+  13 province / territory codes) instead of a free-text field.
+
+### Fixed
+
+- **Dark mode: accent / status text is legible again.** Blue / red / green / amber text (section
+  headers, the delete action, grade colours) used the `-600`/`-700` shades, which were too dark on
+  the navy background; they're now brightened to the `-400` variants under dark mode only.
+
+### Verified (no change needed)
+
+- Adding a property for a brand-new city still stubs blank rates / demographics / distances rows
+  and shows the "data needed" notice. Portfolio search remains case-insensitive (matches address or
+  city). The cap rate is computed correctly — it is a **market-rent (stabilised) cap rate**, so a
+  cheaply-priced but long-vacant building (e.g. 100 Herzberg Rd: $33/sq ft market office rent on a
+  $131/sq ft ask ≈ 12.5%) legitimately reads high; the existing Cap Rate Risk Check already flags it.
+
+---
+
 ## [5.1.3] — 2026-11-08
 
 _The property-report Google map locates the property again._
