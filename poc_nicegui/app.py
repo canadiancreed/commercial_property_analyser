@@ -1570,6 +1570,8 @@ def _demographics_editor():
             ui.notify(f"Saved demographics for {city} (growth {growth:+.2f}%/yr)."
                       if growth is not None else f"Saved demographics for {city}.", type="positive")
 
+        ui.button("Save demographics", icon="save", on_click=save).props("unelevated").classes("mt-1")
+
     def on_city(e):
         sel["val"] = e.value
         form.refresh()

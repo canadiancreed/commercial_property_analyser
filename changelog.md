@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.2] — 2026-11-07
+
+_The Demographics editor has its Save button back._
+
+### Fixed
+
+- **City data → Demographics: added the missing "Save demographics" button.** The editor built
+  its fields and a working save routine but never rendered a button to trigger it, so there was no
+  way to commit a population/source edit. Added the button (matching the Distances editor), so
+  entering a city's demographics now saves to the database.
+
+---
+
 ## [5.1.1] — 2026-11-07
 
 _The City-data Status dashboard refreshes to reflect edits._
