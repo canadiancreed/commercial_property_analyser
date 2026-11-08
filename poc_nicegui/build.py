@@ -3,10 +3,11 @@
     python poc_nicegui/build.py            # onefile  (single file; slower first start)
     python poc_nicegui/build.py --onedir   # onedir   (a folder to zip; faster start)
 
-Bundles NiceGUI, the project's json/ + config/ reference & config seed, the Playwright
-driver, and the app icon. It does NOT bundle properties.json: the SQLite DB is the single
-source of truth for property records, so a fresh install starts with an empty database
-(import is a separate, explicit action). The *target machine* still needs a Firefox
+Bundles NiceGUI, the embedded shipped data (the data/seeds package — v5.0.0 replaced the
+json/ + config/ files), the Playwright driver, and the app icon. It bundles no property
+data: the SQLite DB is the single source of truth, so a fresh install starts with an empty
+database that seeds its reference data from data/seeds on first run (property import is a
+separate, explicit action). The *target machine* still needs a Firefox
 browser for the realtor.ca scraper:
 
     python -m playwright install firefox
@@ -52,8 +53,10 @@ try:
         "--onefile" if ONEFILE else "--onedir",
         "--collect-all", "playwright",
         "--add-data", f"{NGPKG}{SEP}nicegui",
-        "--add-data", f"{ROOT / 'json'}{SEP}json",
-        "--add-data", f"{ROOT / 'config'}{SEP}config",
+        # v5.0.0: all shipped data is embedded in the data/seeds package (data-as-code),
+        # not json/ + config/ files. seeds is imported lazily (from data import seeds inside
+        # functions), so force-collect its submodules to guarantee they land in the exe.
+        "--collect-submodules", "data.seeds",
         "--distpath", str(ROOT),                 # exe lands at the project root
         "--workpath", str(SCRATCH / "build"),    # scratch out of the repo (system temp)
         "--specpath", str(SCRATCH),

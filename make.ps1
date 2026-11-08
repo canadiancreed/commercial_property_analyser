@@ -32,7 +32,7 @@ switch ($Target) {
         Write-Host "  .\make.ps1 web            browser mode (CPA_WEB=1, http://localhost:8080)"
         Write-Host "  .\make.ps1 build          compile the Windows .exe (PyInstaller -> dist\)"
         Write-Host "  .\make.ps1 test           run the test suite"
-        Write-Host "  .\make.ps1 fetch-rates    refresh json/interest_rates.json (Bank of Canada)"
+        Write-Host "  .\make.ps1 fetch-rates    refresh the Bank of Canada base rate (into the DB)"
         Write-Host "  .\make.ps1 fetch-vacancy  refresh the CMHC vacancy data"
         Write-Host "  .\make.ps1 clean          remove build\ dist\ *.spec"
     }
