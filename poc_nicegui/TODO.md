@@ -64,6 +64,30 @@ per-user database.
 
 ---
 
+### ☐ Future — Ship shipped defaults as a pre-built DB (no data in code)
+- **Goal:** *all* data lives in the database. Today the shipped default dataset
+  (demographics, distances, rates, config/app_data defaults) lives as Python dicts in
+  `data/seeds/*.py` ("data-as-code") and `DataStore.ensure_seeded()` copies it into the DB
+  on first launch. At runtime the DB is already the only source — but the defaults
+  themselves still sit in code, which we want gone.
+- **Why it's not a one-liner:** a fresh install starts with an empty DB, so the defaults
+  have to come from *somewhere*. To keep them out of code, the app must **ship a pre-built
+  database file** and copy it in on first run instead of seeding from dicts.
+- **Chosen approach (user has no strong preference):** commit a pre-built `defaults.db`
+  containing every shipped default table + a small committed script that rebuilds it from
+  the current live data, so the defaults stay refreshable. First launch with no user DB
+  copies `defaults.db` → the live `db/properties.db`.
+- **Open tradeoff to confirm when we pick this up:** a binary `.db` in git isn't
+  line-diffable in PRs (changes to shipped defaults become opaque). The regen script
+  mitigates but doesn't remove this.
+- **Scope / blast radius:** `data/seeds/*` (delete the data modules), `DataStore.ensure_seeded`
+  + `read_config`/`read_app_data` fallbacks (today they resolve missing rows from
+  `seeds.CONFIG_DEFAULTS`; many tests build empty `seed=False` stores that rely on this),
+  `poc_nicegui/app.py` first-run bootstrap, and the PyInstaller spec (bundle `defaults.db`).
+  This is a storage/architecture change → **major** version bump.
+
+---
+
 ## Known gaps / notes for whoever picks this up
 - **Shared helpers:** `record_to_prop` / `build_report_row` live in
   `analysis/report_builder.py` (done in 4.2.0), imported by both the CLI and the POC — so
