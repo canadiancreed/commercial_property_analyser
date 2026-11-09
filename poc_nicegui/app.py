@@ -982,9 +982,30 @@ async def open_url_import():
 # Every generator already exposes render()->str, and the row shapes come from the
 # same build_report_row() the CLI uses. Reports that need lever-solving targets
 # (investment, negotiation) call solve_targets per property; the rest don't.
+def _fresh_properties() -> list:
+    """Every stored property re-analysed against the CURRENT config, rates and
+    financing, so reports reflect the latest numbers instead of whatever analysis
+    was last persisted. The scorer and build_report_row read each record's stored
+    `results`, so refreshing those here makes every report current and mutually
+    consistent without writing to the database (the Portfolio tab's "Re-analyze
+    all" is still what persists). A property whose re-analysis fails (e.g. no
+    market rent for its city yet) falls back to its stored record so it still
+    appears, just with its previous figures."""
+    out = []
+    for p in store.load_properties():
+        try:
+            rec = CommercialPropertyAnalyzer(record_to_prop(p), resolver).to_record(existing=p)
+            if p.get("notes"):
+                rec["notes"] = p["notes"]
+            out.append(rec)
+        except Exception:
+            out.append(p)
+    return out
+
+
 def _rows_with_targets() -> list:
     rows = []
-    for p in store.load_properties():
+    for p in _fresh_properties():
         scored  = scorer.score_property(p)
         targets = scorer.solve_targets(p, record_to_prop, CommercialPropertyAnalyzer, resolver)
         rows.append(build_report_row(p, scored, targets))
@@ -993,7 +1014,7 @@ def _rows_with_targets() -> list:
 
 def _rows_simple() -> list:
     return [build_report_row(p, scorer.score_property(p), {})
-            for p in store.load_properties()]
+            for p in _fresh_properties()]
 
 
 def _sensitivity_rows() -> list:
@@ -1006,12 +1027,12 @@ def _sensitivity_rows() -> list:
     for p in store.load_properties():
         if (p.get("status") or "").strip().lower() != "active":
             continue
-        scored = scorer.score_property(p)
-        if scored.get("score") is None:
-            continue
         try:
             prop = record_to_prop(p)
             a    = CommercialPropertyAnalyzer(prop, resolver)
+            scored = scorer.score_property(a.to_record(existing=p))  # latest numbers
+            if scored.get("score") is None:
+                continue
             r    = getattr(a, "returns", None)
             noi  = getattr(getattr(a, "income", None), "est_noi", None)
             mort = getattr(getattr(a, "mortgage", None), "annual_mortgage", None)
@@ -1043,12 +1064,12 @@ def _proforma_rows() -> list:
     for p in store.load_properties():
         if (p.get("status") or "").strip().lower() != "active":
             continue
-        scored = scorer.score_property(p)
-        if scored.get("score") is None:
-            continue
         try:
             prop = record_to_prop(p)
             a    = CommercialPropertyAnalyzer(prop, resolver)
+            scored = scorer.score_property(a.to_record(existing=p))  # latest numbers
+            if scored.get("score") is None:
+                continue
             r    = getattr(a, "returns", None)
             noi  = getattr(getattr(a, "income", None), "est_noi", None)
             mort = getattr(getattr(a, "mortgage", None), "annual_mortgage", None)
@@ -1074,7 +1095,7 @@ def _proforma_rows() -> list:
 
 REPORTS = [
     ("Investment report",            "assessment",     lambda: prop_rpt.render(_rows_with_targets())),
-    ("City opportunity",             "location_city",  lambda: city_rpt.render(ranker.rank(store.load_properties()))),
+    ("City opportunity",             "location_city",  lambda: city_rpt.render(ranker.rank(_fresh_properties()))),
     ("Deal watchlist",               "star",           lambda: watch_rpt.render(_rows_simple())),
     ("Negotiation targets",          "handshake",      lambda: nego_rpt.render(_rows_with_targets())),
     ("Vacancy sensitivity",          "warning",        lambda: vac_rpt.render(_rows_simple())),

@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.6.0] — 2026-11-09
+
+_All reports now reflect the latest analysis, so they agree with each other on every property._
+
+### Changed
+
+- **Reports re-analyse on open instead of reading stale stored results.** The scorer and
+  `build_report_row` read each property's persisted `results`, which go stale after a config,
+  rate or financing change until a "Re-analyze all" is run — so a property could show one IRR
+  in the Investment report and another in Deal Sensitivity (which already recomputed live). A
+  new `_fresh_properties()` re-runs the analyzer against the current config for every property
+  and feeds the refreshed records to all report builders (simple rows, target rows, the city
+  ranker, sensitivity and proforma), so **all eleven reports now use the latest numbers and are
+  mutually consistent**. A property whose re-analysis fails (e.g. no market rent for its city
+  yet) falls back to its stored record so it still appears. Reports take a little longer to open
+  because of the re-analysis; nothing is persisted (the Portfolio tab's "Re-analyze all" is
+  still what saves refreshed results to the database).
+
+---
+
 ## [5.5.0] — 2026-11-09
 
 _New report: Pipeline Summary — quality and concentration across all the deals you're considering._
