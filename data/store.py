@@ -5,6 +5,31 @@ import sqlite3
 from datetime import date
 
 
+def _migrate_v4_fix_city_distance_keys(conn) -> None:
+    """v5.1.7: repair two city_distances rows whose keys were misspelled in the seed
+    (`Fenlon Falls`, `St. Marys`) so they match the canonical spelling used by the
+    properties and city_demographics (`Fenelon Falls`, `St Marys`). Without this, those
+    towns' distance data never joined to their demographics and the properties silently
+    lost their distance-to-centre input. Existing DBs seeded before the seed was fixed
+    still carry the bad rows, so correct them in place."""
+    fixes = [
+        ("fenlon falls", "fenelon falls", "Fenelon Falls"),
+        ("st. marys", "st marys", "St Marys"),
+    ]
+    for bad, good, good_city in fixes:
+        if not conn.execute(
+                "SELECT 1 FROM city_distances WHERE city_key=?", (bad,)).fetchone():
+            continue
+        if conn.execute(
+                "SELECT 1 FROM city_distances WHERE city_key=?", (good,)).fetchone():
+            # Canonical row already exists — just drop the stale duplicate.
+            conn.execute("DELETE FROM city_distances WHERE city_key=?", (bad,))
+        else:
+            conn.execute(
+                "UPDATE city_distances SET city_key=?, city=? WHERE city_key=?",
+                (good, good_city, bad))
+
+
 class DataStore:
     """
     Owns all JSON file loading and saving.
@@ -414,8 +439,12 @@ class DataStore:
     #   v3 — added app_data + city_demographics + city_distances tables (v5.0.0: all
     #        remaining JSON data moved into the DB). Created via IF NOT EXISTS; rows seed
     #        from data/seeds via ensure_seeded(), so no explicit data migration step.
-    SCHEMA_VERSION = 3
-    _MIGRATIONS = {}   # {target_version: callable(conn)} — tables auto-create; seeding is lazy
+    #   v4 — (v5.1.7) fix two misspelled city_distances keys so they join to the matching
+    #        demographics/properties rows (Fenlon Falls→Fenelon Falls, St. Marys→St Marys).
+    SCHEMA_VERSION = 4
+    _MIGRATIONS = {   # {target_version: callable(conn)} — tables auto-create; seeding is lazy
+        4: _migrate_v4_fix_city_distance_keys,
+    }
 
     def _connect(self) -> sqlite3.Connection:
         """Open the properties DB, creating the file + schema on first use."""

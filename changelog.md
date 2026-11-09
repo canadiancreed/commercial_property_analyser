@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.7] — 2026-11-08
+
+_Fix two towns whose distance data was keyed under a misspelling, so it never joined to their demographics._
+
+### Fixed
+
+- **Fenelon Falls** and **St Marys** were misspelled in the `city_distances` seed
+  (`Fenlon Falls`, `St. Marys`), so their distance rows keyed under `fenlon falls` /
+  `st. marys` and never matched the `city_demographics` and property rows keyed under
+  `fenelon falls` / `st marys`. The demographics looked "missing" for those towns and the
+  properties silently lost their distance-to-centre scoring input. Corrected the seed and
+  added schema migration **v4**, which repairs the two mis-keyed rows in existing databases
+  on the next launch.
+
+---
+
 ## [5.1.6] — 2026-11-08
 
 _Deleting a city warns about linked properties, and an Orphans report tracks them._
