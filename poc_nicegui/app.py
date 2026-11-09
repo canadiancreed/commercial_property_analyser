@@ -581,7 +581,10 @@ def dynamic_form():
                                                  validation=_V_NONNEG).classes("flex-1")
             # Floors is a building-wide attribute (every type has it) — in Core details, not
             # the residential group, so it's enterable for office/retail/industrial/hotel too.
-            FIELDS["floors"] = ui.number("Floors", value=um.get("floors", rec.get("floors", 1)) or 1,
+            # Prefill via pv() so a value already typed survives a property-type switch (which
+            # rebuilds the form); the record/unit_mix value is only the fallback default.
+            FIELDS["floors"] = ui.number("Floors",
+                                         value=pv("floors", um.get("floors", rec.get("floors", 1)) or 1),
                                          format="%d", validation=_V_MIN1).classes("w-28")
             FIELDS["property_taxes"] = ui.number("Property taxes / yr", value=pv("property_taxes"), prefix="$", format="%.0f",
                                                  validation=_V_NONNEG).classes("flex-1")
