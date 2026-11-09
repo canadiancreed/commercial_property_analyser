@@ -262,6 +262,39 @@ class TestCityDataStubsAndDelete:
         assert s.delete_city_distance("Nowhere") == 0
 
 
+class TestCityKeyAlignment:
+    """v5.1.7: Fenelon Falls / St Marys were misspelled in the distances seed, so their
+    distance rows never joined to the matching demographics/properties rows."""
+
+    def test_seeded_distance_keys_align_with_demographics(self, tmp_path):
+        s = _seeded_store(tmp_path)
+        demo = set(s.load_city_demographics())                      # lowercase keys
+        dist = {k.lower() for k in s.load_city_distances()}         # display -> lowercase
+        for city in ("fenelon falls", "st marys"):
+            assert city in demo, f"{city} missing from demographics seed"
+            assert city in dist, f"{city} missing from distances seed"
+        # The two tables must agree on exactly the same set of cities.
+        assert demo == dist
+
+    def test_migration_repairs_misspelled_distance_keys(self, tmp_path):
+        # Simulate a DB seeded before the fix: bad keys + a stamp one version behind.
+        s = _store(tmp_path)
+        s.load_properties()                                         # create schema
+        conn = sqlite3.connect(str(tmp_path / "props.db"))
+        conn.execute("INSERT INTO city_distances (city_key, city, distance_km, nearest_centre)"
+                     " VALUES ('fenlon falls','Fenlon Falls',68.0,'Peterborough'),"
+                     "        ('st. marys','St. Marys',42.0,'London')")
+        conn.execute("PRAGMA user_version = 3")
+        conn.commit(); conn.close()
+        s.load_properties()                                         # next connect migrates
+        dist = s.load_city_distances()
+        keys = {k.lower() for k in dist}
+        assert "fenelon falls" in keys and "st marys" in keys
+        assert "fenlon falls" not in keys and "st. marys" not in keys
+        assert dist["Fenelon Falls"]["distance_km"] == 68.0
+        assert dist["St Marys"]["nearest_centre"] == "London"
+
+
 class TestDbExplorer:
     # ── 5.1.0: read-only DB introspection + query ─────────────────────────────
     def test_list_tables_includes_core_with_counts(self, tmp_path):

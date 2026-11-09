@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.1.8] — 2026-11-09
+
+_The Add/Edit form no longer resets the Floors field when you change the property type._
+
+### Fixed
+
+- In the Add/Edit form, changing the property type (which rebuilds the form) reset the
+  **Floors** field back to its default of 1, discarding a value already entered. Floors was
+  the only Core field not prefilled through the draft snapshot that preserves entries across
+  a type switch — it now routes through `pv()` like every other field, so a typed value
+  survives the reshape. (The record/unit-mix value remains the fallback in edit mode.)
+
+---
+
+## [5.1.7] — 2026-11-08
+
+_Fix two towns whose distance data was keyed under a misspelling, so it never joined to their demographics._
+
+### Fixed
+
+- **Fenelon Falls** and **St Marys** were misspelled in the `city_distances` seed
+  (`Fenlon Falls`, `St. Marys`), so their distance rows keyed under `fenlon falls` /
+  `st. marys` and never matched the `city_demographics` and property rows keyed under
+  `fenelon falls` / `st marys`. The demographics looked "missing" for those towns and the
+  properties silently lost their distance-to-centre scoring input. Corrected the seed and
+  added schema migration **v4**, which repairs the two mis-keyed rows in existing databases
+  on the next launch.
+
+---
+
 ## [5.1.6] — 2026-11-08
 
 _Deleting a city warns about linked properties, and an Orphans report tracks them._
