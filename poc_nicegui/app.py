@@ -93,6 +93,7 @@ from reporting.benchmark_report import BenchmarkReportGenerator
 from reporting.sensitivity_report import SensitivityReportGenerator
 from reporting.proforma_report import ProformaReportGenerator
 from reporting.comparison_report import ComparisonReportGenerator
+from reporting.pipeline_report import PipelineReportGenerator
 from models.property_input import PropertyInput, UnitMix
 from models.constants import PROPERTY_TYPES, PROVINCE_CODES
 from version import __version__
@@ -151,6 +152,7 @@ bench_rpt = BenchmarkReportGenerator()
 sens_rpt  = SensitivityReportGenerator()
 pf_rpt    = ProformaReportGenerator()
 cmp_rpt   = ComparisonReportGenerator()
+pipe_rpt  = PipelineReportGenerator()
 
 # Static directory where rendered reports are served into an <iframe> — proving
 # the existing report HTML renders intact inside the desktop shell.
@@ -1081,6 +1083,7 @@ REPORTS = [
     ("Deal sensitivity",             "grid_on",        lambda: sens_rpt.render(_sensitivity_rows())),
     ("Cash-flow proforma",           "table_chart",    lambda: pf_rpt.render(_proforma_rows())),
     ("Shortlist comparison",         "compare_arrows", lambda: cmp_rpt.render(_rows_simple())),
+    ("Pipeline summary",             "insights",       lambda: pipe_rpt.render(_rows_simple())),
 ]
 
 

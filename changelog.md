@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.5.0] — 2026-11-09
+
+_New report: Pipeline Summary — quality and concentration across all the deals you're considering._
+
+### Added
+
+- **Pipeline Summary report.** Every other report is per-deal or per-city; this one reads the
+  whole pipeline of active, scored deals at once: KPI tiles (active deals, total pipeline
+  value, median score, % scoring Good+, median cap rate, median IRR, % cash-flow positive), a
+  quality-distribution bar across the named score bands (Excellent / Good / Fair / Weak), and
+  concentration tables by asset type, province and top cities (deals, pipeline $, share of
+  value, average score). It answers "across everything I'm looking at, is the book any good
+  and am I over-weighted anywhere?" for a buyer screening many listings. The aggregation lives
+  in a pure, tested `summarize()`.
+
+---
+
 ## [5.4.0] — 2026-11-09
 
 _New report: Shortlist Comparison — two to five finalists side by side._
