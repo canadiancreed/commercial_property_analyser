@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.6.3] — 2026-11-09
+
+_Test coverage for the new report generators._
+
+### Added
+
+- **Render-smoke tests for the new reports** (`tests/test_report_render.py`): exercise the
+  HTML `render()` and `open_in_browser()` paths of Deal Sensitivity, Cash-Flow Proforma,
+  Pipeline Summary and Shortlist Comparison (with `webbrowser` stubbed), plus the empty-input
+  branches. The four report generators were previously dark in coverage (two at 0%); they are
+  now 97–100%, and overall coverage rises from 92% to 94%. (Reaching 99% overall would require
+  covering pre-existing modules — config loaders, `rate_feed`, `price_check_report`, `store`,
+  `analyzer` — not touched by this work.)
+
+---
+
 ## [5.6.2] — 2026-11-09
 
 _Revert the report/Portfolio re-analysis from 5.6.0–5.6.1 (the stored results were already current), and add Score + IRR columns to the Portfolio grid._
