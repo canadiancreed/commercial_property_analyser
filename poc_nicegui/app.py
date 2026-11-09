@@ -237,23 +237,12 @@ def header():
             _dark_toggle_button()
 
 
-def _portfolio_props() -> list:
-    """Properties for the Portfolio tab, re-analysed against the current config so the
-    grid's Cap Rate and the 'analyzed' flag match what the reports now show instead of a
-    stale persisted figure. Cached for the life of one refresh so the stat tiles and the
-    grid don't each re-run the analysis; refresh_portfolio() clears the cache. Order and
-    count mirror store.load_properties() 1:1 (a failed re-analysis falls back to the
-    stored record), so the grid's positional ids still map to the right records."""
-    cached = _ui.get("fresh_props")
-    if cached is None:
-        cached = _fresh_properties()
-        _ui["fresh_props"] = cached
-    return cached
-
-
 def _load_rows() -> list:
     rows = []
-    for i, p in enumerate(_portfolio_props()):
+    for i, p in enumerate(store.load_properties()):
+        # Score / IRR for the grid columns, read from the property's stored analysis.
+        # Both can be None (unscored, or "IRR not meaningful") — the grid shows a dash.
+        scored = scorer.score_property(p)
         rows.append({
             "id": i,
             # Stable identity (the table's UNIQUE key) so a click maps to the right record
@@ -267,6 +256,8 @@ def _load_rows() -> list:
             "asking": p.get("asking_price", 0),
             "sqft": p.get("total_sq_ft", 0),
             "cap": _metric(p, "Cap Rate"),
+            "score": scored.get("score"),
+            "irr": scored.get("irr"),
             "status": p.get("status") or "—",
             "analyzed": "✓" if _has_analysis(p) else "—",
         })
@@ -284,9 +275,7 @@ def _apply_portfolio_filter():
 
 
 def refresh_portfolio():
-    """Re-read the DB and refresh the stat tiles + grid (called after a save). Clears the
-    fresh-analysis cache so the grid re-analyses against the current config and data."""
-    _ui["fresh_props"] = None
+    """Re-read the DB and refresh the stat tiles + grid (called after a save)."""
     if "stats" in _ui:
         _ui["stats"].refresh()
     _ui["all_rows"] = _load_rows()
@@ -335,7 +324,7 @@ def portfolio_tab():
 
     @ui.refreshable
     def stats():
-        props = _portfolio_props()
+        props = store.load_properties()
         prices = [p.get("asking_price", 0) for p in props if p.get("asking_price")]
         cities = {p.get("city") for p in props if p.get("city")}
         analyzed = sum(1 for p in props if _has_analysis(p))
@@ -376,6 +365,10 @@ def portfolio_tab():
             {"headerName": "Sq Ft", "field": "sqft", "width": 110,
              "valueFormatter": "(value||0).toLocaleString()", "type": "numericColumn"},
             {"headerName": "Cap Rate", "field": "cap", "width": 110},
+            {"headerName": "Score", "field": "score", "width": 100, "type": "numericColumn",
+             "valueFormatter": "value == null ? '—' : value.toFixed(0) + '/100'"},
+            {"headerName": "IRR", "field": "irr", "width": 100, "type": "numericColumn",
+             "valueFormatter": "value == null ? '—' : value.toFixed(1) + '%'"},
             {"headerName": "Status", "field": "status", "width": 100},
             {"headerName": "Rpt", "field": "analyzed", "width": 70},
         ],
@@ -998,30 +991,9 @@ async def open_url_import():
 # Every generator already exposes render()->str, and the row shapes come from the
 # same build_report_row() the CLI uses. Reports that need lever-solving targets
 # (investment, negotiation) call solve_targets per property; the rest don't.
-def _fresh_properties() -> list:
-    """Every stored property re-analysed against the CURRENT config, rates and
-    financing, so reports reflect the latest numbers instead of whatever analysis
-    was last persisted. The scorer and build_report_row read each record's stored
-    `results`, so refreshing those here makes every report current and mutually
-    consistent without writing to the database (the Portfolio tab's "Re-analyze
-    all" is still what persists). A property whose re-analysis fails (e.g. no
-    market rent for its city yet) falls back to its stored record so it still
-    appears, just with its previous figures."""
-    out = []
-    for p in store.load_properties():
-        try:
-            rec = CommercialPropertyAnalyzer(record_to_prop(p), resolver).to_record(existing=p)
-            if p.get("notes"):
-                rec["notes"] = p["notes"]
-            out.append(rec)
-        except Exception:
-            out.append(p)
-    return out
-
-
 def _rows_with_targets() -> list:
     rows = []
-    for p in _fresh_properties():
+    for p in store.load_properties():
         scored  = scorer.score_property(p)
         targets = scorer.solve_targets(p, record_to_prop, CommercialPropertyAnalyzer, resolver)
         rows.append(build_report_row(p, scored, targets))
@@ -1030,7 +1002,7 @@ def _rows_with_targets() -> list:
 
 def _rows_simple() -> list:
     return [build_report_row(p, scorer.score_property(p), {})
-            for p in _fresh_properties()]
+            for p in store.load_properties()]
 
 
 def _sensitivity_rows() -> list:
@@ -1043,12 +1015,12 @@ def _sensitivity_rows() -> list:
     for p in store.load_properties():
         if (p.get("status") or "").strip().lower() != "active":
             continue
+        scored = scorer.score_property(p)
+        if scored.get("score") is None:
+            continue
         try:
             prop = record_to_prop(p)
             a    = CommercialPropertyAnalyzer(prop, resolver)
-            scored = scorer.score_property(a.to_record(existing=p))  # latest numbers
-            if scored.get("score") is None:
-                continue
             r    = getattr(a, "returns", None)
             noi  = getattr(getattr(a, "income", None), "est_noi", None)
             mort = getattr(getattr(a, "mortgage", None), "annual_mortgage", None)
@@ -1080,12 +1052,12 @@ def _proforma_rows() -> list:
     for p in store.load_properties():
         if (p.get("status") or "").strip().lower() != "active":
             continue
+        scored = scorer.score_property(p)
+        if scored.get("score") is None:
+            continue
         try:
             prop = record_to_prop(p)
             a    = CommercialPropertyAnalyzer(prop, resolver)
-            scored = scorer.score_property(a.to_record(existing=p))  # latest numbers
-            if scored.get("score") is None:
-                continue
             r    = getattr(a, "returns", None)
             noi  = getattr(getattr(a, "income", None), "est_noi", None)
             mort = getattr(getattr(a, "mortgage", None), "annual_mortgage", None)
@@ -1111,7 +1083,7 @@ def _proforma_rows() -> list:
 
 REPORTS = [
     ("Investment report",            "assessment",     lambda: prop_rpt.render(_rows_with_targets())),
-    ("City opportunity",             "location_city",  lambda: city_rpt.render(ranker.rank(_fresh_properties()))),
+    ("City opportunity",             "location_city",  lambda: city_rpt.render(ranker.rank(store.load_properties()))),
     ("Deal watchlist",               "star",           lambda: watch_rpt.render(_rows_simple())),
     ("Negotiation targets",          "handshake",      lambda: nego_rpt.render(_rows_with_targets())),
     ("Vacancy sensitivity",          "warning",        lambda: vac_rpt.render(_rows_simple())),

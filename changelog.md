@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.6.2] — 2026-11-09
+
+_Revert the report/Portfolio re-analysis from 5.6.0–5.6.1 (the stored results were already current), and add Score + IRR columns to the Portfolio grid._
+
+### Added
+
+- **Score and IRR columns on the Portfolio tab**, read from each property's stored analysis
+  (sortable; a dash where a deal is unscored or its IRR isn't meaningful), so deal quality is
+  visible in the list, not only in the reports.
+
+### Reverted
+
+- **Reports and the Portfolio read the stored analysis again, not a live re-analysis.** 5.6.0
+  and 5.6.1 made every report and the Portfolio re-analyse on open to avoid "stale" stored
+  results — but that was based on a faulty check: the comparison script didn't inject the
+  database-backed config (`set_store`) the app uses, so it analysed with the shipped file
+  defaults and showed a difference that doesn't exist at runtime. Re-checked correctly, the
+  stored results match a fresh re-analysis for ~99% of properties (identical IRR), so the
+  re-analysis only added seconds to every report/Portfolio load for no real gain. Reading
+  stored results is fast and correct; "Re-analyze all" remains the way to refresh after a
+  config change.
+
+---
+
 ## [5.6.1] — 2026-11-09
 
 _The Portfolio tab now reads the latest analysis too, so it matches the reports._
