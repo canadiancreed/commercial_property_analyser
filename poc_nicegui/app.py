@@ -91,6 +91,7 @@ from reporting.vacancy_report import VacancyReportGenerator
 from reporting.price_drop_report import PriceDropReportGenerator
 from reporting.benchmark_report import BenchmarkReportGenerator
 from reporting.sensitivity_report import SensitivityReportGenerator
+from reporting.proforma_report import ProformaReportGenerator
 from models.property_input import PropertyInput, UnitMix
 from models.constants import PROPERTY_TYPES, PROVINCE_CODES
 from version import __version__
@@ -147,6 +148,7 @@ vac_rpt   = VacancyReportGenerator()
 drop_rpt  = PriceDropReportGenerator()
 bench_rpt = BenchmarkReportGenerator()
 sens_rpt  = SensitivityReportGenerator()
+pf_rpt    = ProformaReportGenerator()
 
 # Static directory where rendered reports are served into an <iframe> — proving
 # the existing report HTML renders intact inside the desktop shell.
@@ -1028,6 +1030,44 @@ def _sensitivity_rows() -> list:
     return out
 
 
+def _proforma_rows() -> list:
+    """Per active, scored income deal: the year-by-year cash-flow proforma that
+    backs its IRR / EM, decomposed from the real analyzer figures (one analyzer
+    run per property). Deals with no equity basis are skipped."""
+    from analysis.metrics.proforma import annual_schedule
+    out = []
+    for p in store.load_properties():
+        if (p.get("status") or "").strip().lower() != "active":
+            continue
+        scored = scorer.score_property(p)
+        if scored.get("score") is None:
+            continue
+        try:
+            prop = record_to_prop(p)
+            a    = CommercialPropertyAnalyzer(prop, resolver)
+            r    = getattr(a, "returns", None)
+            noi  = getattr(getattr(a, "income", None), "est_noi", None)
+            mort = getattr(getattr(a, "mortgage", None), "annual_mortgage", None)
+            bal  = getattr(getattr(a, "mortgage", None), "loan_balance", 0.0) or 0.0
+            cash = getattr(getattr(a, "cashflow", None), "cash_invested", 0.0) or 0.0
+            exitp = getattr(getattr(a, "exit", None), "exit_price", 0.0) or 0.0
+            if r is None or noi is None or mort is None or cash <= 0 or prop.hold_years < 1:
+                continue
+            sched = annual_schedule(noi, mort, cash, r.noi_growth_rate,
+                                    prop.hold_years, exitp, bal)
+            out.append({
+                "address": p.get("address") or "—", "city": p.get("city") or "",
+                "type": p.get("property_type") or "—",
+                "asking": p.get("asking_price") or 0, "score": scored.get("score"),
+                "irr": r.irr, "em": r.equity_multiple, "equity": cash,
+                "exit_price": exitp, "net_sale": sched["net_sale_proceeds"],
+                "growth": r.noi_growth_rate, "hold": prop.hold_years, "schedule": sched,
+            })
+        except Exception:
+            continue
+    return out
+
+
 REPORTS = [
     ("Investment report",            "assessment",     lambda: prop_rpt.render(_rows_with_targets())),
     ("City opportunity",             "location_city",  lambda: city_rpt.render(ranker.rank(store.load_properties()))),
@@ -1037,6 +1077,7 @@ REPORTS = [
     ("Price-drop alerts",            "trending_down",  lambda: drop_rpt.render(_rows_simple())),
     ("Cap-rate & $/sqft benchmarks", "bar_chart",      lambda: bench_rpt.render(_rows_simple())),
     ("Deal sensitivity",             "grid_on",        lambda: sens_rpt.render(_sensitivity_rows())),
+    ("Cash-flow proforma",           "table_chart",    lambda: pf_rpt.render(_proforma_rows())),
 ]
 
 

@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.3.0] — 2026-11-09
+
+_New report: Cash-Flow Proforma — the year-by-year DCF that backs each deal's IRR._
+
+### Added
+
+- **Cash-Flow Proforma report.** The returns engine already builds a full year-by-year
+  cash-flow array (equity at close, operating cash flow each year with NOI escalated at the
+  growth assumption and debt service flat, net sale proceeds in the final year) but reports
+  only the headline IRR / equity multiple. This report lays that array out as a table —
+  NOI, debt service, operating CF, reversion, net CF and running cumulative per year, with
+  IRR / EM / equity / exit restated in the header — so the single IRR number is auditable.
+  The schedule (`analysis/metrics/proforma.py`) is decomposed from the same inputs, and a
+  test asserts its net-CF column equals `ReturnMetrics`' array term for term, so the table
+  can never drift from the numbers the rest of the app reports.
+
+---
+
 ## [5.2.0] — 2026-11-09
 
 _New report: Deal Sensitivity — a two-way IRR grid over the rent and exit-cap assumptions._
