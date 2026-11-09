@@ -6,6 +6,137 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.6.2] — 2026-11-09
+
+_Revert the report/Portfolio re-analysis from 5.6.0–5.6.1 (the stored results were already current), and add Score + IRR columns to the Portfolio grid._
+
+### Added
+
+- **Score and IRR columns on the Portfolio tab**, read from each property's stored analysis
+  (sortable; a dash where a deal is unscored or its IRR isn't meaningful), so deal quality is
+  visible in the list, not only in the reports.
+
+### Reverted
+
+- **Reports and the Portfolio read the stored analysis again, not a live re-analysis.** 5.6.0
+  and 5.6.1 made every report and the Portfolio re-analyse on open to avoid "stale" stored
+  results — but that was based on a faulty check: the comparison script didn't inject the
+  database-backed config (`set_store`) the app uses, so it analysed with the shipped file
+  defaults and showed a difference that doesn't exist at runtime. Re-checked correctly, the
+  stored results match a fresh re-analysis for ~99% of properties (identical IRR), so the
+  re-analysis only added seconds to every report/Portfolio load for no real gain. Reading
+  stored results is fast and correct; "Re-analyze all" remains the way to refresh after a
+  config change.
+
+---
+
+## [5.6.1] — 2026-11-09
+
+_The Portfolio tab now reads the latest analysis too, so it matches the reports._
+
+### Changed
+
+- **Portfolio tab derives from the current analysis**, like the reports (5.6.0). Its grid and
+  stat tiles now go through `_portfolio_props()`, which re-analyses every property against the
+  current config (cached per refresh, cleared by `refresh_portfolio()`), rather than reading
+  stale persisted results. The grid's only analysis-derived column is Cap Rate — which the
+  current staleness doesn't affect (it hit IRR/score, which the grid doesn't show) — so the
+  visible change on existing data is the "Analyzed" count becoming an accurate "analysable with
+  today's data" figure; the consistency and future-proofing are the point. The Portfolio load
+  and every refresh now re-analyse the book (a second or two, behind the existing flow); nothing
+  is persisted — "Re-analyze all" is still what writes to the database.
+
+---
+
+## [5.6.0] — 2026-11-09
+
+_All reports now reflect the latest analysis, so they agree with each other on every property._
+
+### Changed
+
+- **Reports re-analyse on open instead of reading stale stored results.** The scorer and
+  `build_report_row` read each property's persisted `results`, which go stale after a config,
+  rate or financing change until a "Re-analyze all" is run — so a property could show one IRR
+  in the Investment report and another in Deal Sensitivity (which already recomputed live). A
+  new `_fresh_properties()` re-runs the analyzer against the current config for every property
+  and feeds the refreshed records to all report builders (simple rows, target rows, the city
+  ranker, sensitivity and proforma), so **all eleven reports now use the latest numbers and are
+  mutually consistent**. A property whose re-analysis fails (e.g. no market rent for its city
+  yet) falls back to its stored record so it still appears. Reports take a little longer to open
+  because of the re-analysis; nothing is persisted (the Portfolio tab's "Re-analyze all" is
+  still what saves refreshed results to the database).
+
+---
+
+## [5.5.0] — 2026-11-09
+
+_New report: Pipeline Summary — quality and concentration across all the deals you're considering._
+
+### Added
+
+- **Pipeline Summary report.** Every other report is per-deal or per-city; this one reads the
+  whole pipeline of active, scored deals at once: KPI tiles (active deals, total pipeline
+  value, median score, % scoring Good+, median cap rate, median IRR, % cash-flow positive), a
+  quality-distribution bar across the named score bands (Excellent / Good / Fair / Weak), and
+  concentration tables by asset type, province and top cities (deals, pipeline $, share of
+  value, average score). It answers "across everything I'm looking at, is the book any good
+  and am I over-weighted anywhere?" for a buyer screening many listings. The aggregation lives
+  in a pure, tested `summarize()`.
+
+---
+
+## [5.4.0] — 2026-11-09
+
+_New report: Shortlist Comparison — two to five finalists side by side._
+
+### Added
+
+- **Shortlist Comparison report.** The watchlist ranks a long list, but the real decision
+  is "which of these two or three." This report offers a searchable list of active, scored
+  deals; tick 2–5 and they lay out side by side — one column per deal, one metric per row
+  (score, asking, price/sqft, cap, CoCR, IRR, equity multiple, DSCR, cash flow, DOM, price
+  drop, verified income) — with the best value in each row highlighted and the weakest
+  muted, so the trade-offs between finalists are obvious. The top two deals are pre-selected
+  on open.
+
+---
+
+## [5.3.0] — 2026-11-09
+
+_New report: Cash-Flow Proforma — the year-by-year DCF that backs each deal's IRR._
+
+### Added
+
+- **Cash-Flow Proforma report.** The returns engine already builds a full year-by-year
+  cash-flow array (equity at close, operating cash flow each year with NOI escalated at the
+  growth assumption and debt service flat, net sale proceeds in the final year) but reports
+  only the headline IRR / equity multiple. This report lays that array out as a table —
+  NOI, debt service, operating CF, reversion, net CF and running cumulative per year, with
+  IRR / EM / equity / exit restated in the header — so the single IRR number is auditable.
+  The schedule (`analysis/metrics/proforma.py`) is decomposed from the same inputs, and a
+  test asserts its net-CF column equals `ReturnMetrics`' array term for term, so the table
+  can never drift from the numbers the rest of the app reports.
+
+---
+
+## [5.2.0] — 2026-11-09
+
+_New report: Deal Sensitivity — a two-way IRR grid over the rent and exit-cap assumptions._
+
+### Added
+
+- **Deal Sensitivity report.** For each active, scored income deal it shows a heat-map
+  grid of IRR across a band of market-rent assumptions (−15 % to +10 % of the estimate) and
+  exit cap rates (±bps around the deal's own base cap) — the two inputs a buyer is least
+  sure of. The base case is outlined so you can see how far the return drifts when either
+  assumption moves against you; a deal that stays green across the band is robust, one green
+  only in its base cell is riding on assumptions. Each cell is recomputed through the real
+  `ReturnMetrics` engine (`analysis/metrics/sensitivity.py`), so every number matches the
+  main analysis — no return is re-derived by hand. Equity multiple and entry cap are shown
+  on hover.
+
+---
+
 ## [5.1.8] — 2026-11-09
 
 _The Add/Edit form no longer resets the Floors field when you change the property type._
