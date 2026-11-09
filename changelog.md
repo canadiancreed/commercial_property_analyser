@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.2.0] — 2026-11-09
+
+_New report: Deal Sensitivity — a two-way IRR grid over the rent and exit-cap assumptions._
+
+### Added
+
+- **Deal Sensitivity report.** For each active, scored income deal it shows a heat-map
+  grid of IRR across a band of market-rent assumptions (−15 % to +10 % of the estimate) and
+  exit cap rates (±bps around the deal's own base cap) — the two inputs a buyer is least
+  sure of. The base case is outlined so you can see how far the return drifts when either
+  assumption moves against you; a deal that stays green across the band is robust, one green
+  only in its base cell is riding on assumptions. Each cell is recomputed through the real
+  `ReturnMetrics` engine (`analysis/metrics/sensitivity.py`), so every number matches the
+  main analysis — no return is re-derived by hand. Equity multiple and entry cap are shown
+  on hover.
+
+---
+
 ## [5.1.8] — 2026-11-09
 
 _The Add/Edit form no longer resets the Floors field when you change the property type._
