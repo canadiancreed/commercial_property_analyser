@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.4.0] — 2026-11-09
+
+_New report: Shortlist Comparison — two to five finalists side by side._
+
+### Added
+
+- **Shortlist Comparison report.** The watchlist ranks a long list, but the real decision
+  is "which of these two or three." This report offers a searchable list of active, scored
+  deals; tick 2–5 and they lay out side by side — one column per deal, one metric per row
+  (score, asking, price/sqft, cap, CoCR, IRR, equity multiple, DSCR, cash flow, DOM, price
+  drop, verified income) — with the best value in each row highlighted and the weakest
+  muted, so the trade-offs between finalists are obvious. The top two deals are pre-selected
+  on open.
+
+---
+
 ## [5.3.0] — 2026-11-09
 
 _New report: Cash-Flow Proforma — the year-by-year DCF that backs each deal's IRR._

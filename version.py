@@ -9,4 +9,4 @@ Versioning convention (adopted at v4.0.0):
 Keep README.md's title and changelog.md's latest entry in sync with this value.
 """
 
-__version__ = "5.3.0"
+__version__ = "5.4.0"
