@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.6.1] — 2026-11-09
+
+_The Portfolio tab now reads the latest analysis too, so it matches the reports._
+
+### Changed
+
+- **Portfolio tab derives from the current analysis**, like the reports (5.6.0). Its grid and
+  stat tiles now go through `_portfolio_props()`, which re-analyses every property against the
+  current config (cached per refresh, cleared by `refresh_portfolio()`), rather than reading
+  stale persisted results. The grid's only analysis-derived column is Cap Rate — which the
+  current staleness doesn't affect (it hit IRR/score, which the grid doesn't show) — so the
+  visible change on existing data is the "Analyzed" count becoming an accurate "analysable with
+  today's data" figure; the consistency and future-proofing are the point. The Portfolio load
+  and every refresh now re-analyse the book (a second or two, behind the existing flow); nothing
+  is persisted — "Re-analyze all" is still what writes to the database.
+
+---
+
 ## [5.6.0] — 2026-11-09
 
 _All reports now reflect the latest analysis, so they agree with each other on every property._

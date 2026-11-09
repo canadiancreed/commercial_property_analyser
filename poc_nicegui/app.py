@@ -237,9 +237,23 @@ def header():
             _dark_toggle_button()
 
 
+def _portfolio_props() -> list:
+    """Properties for the Portfolio tab, re-analysed against the current config so the
+    grid's Cap Rate and the 'analyzed' flag match what the reports now show instead of a
+    stale persisted figure. Cached for the life of one refresh so the stat tiles and the
+    grid don't each re-run the analysis; refresh_portfolio() clears the cache. Order and
+    count mirror store.load_properties() 1:1 (a failed re-analysis falls back to the
+    stored record), so the grid's positional ids still map to the right records."""
+    cached = _ui.get("fresh_props")
+    if cached is None:
+        cached = _fresh_properties()
+        _ui["fresh_props"] = cached
+    return cached
+
+
 def _load_rows() -> list:
     rows = []
-    for i, p in enumerate(store.load_properties()):
+    for i, p in enumerate(_portfolio_props()):
         rows.append({
             "id": i,
             # Stable identity (the table's UNIQUE key) so a click maps to the right record
@@ -270,7 +284,9 @@ def _apply_portfolio_filter():
 
 
 def refresh_portfolio():
-    """Re-read the DB and refresh the stat tiles + grid (called after a save)."""
+    """Re-read the DB and refresh the stat tiles + grid (called after a save). Clears the
+    fresh-analysis cache so the grid re-analyses against the current config and data."""
+    _ui["fresh_props"] = None
     if "stats" in _ui:
         _ui["stats"].refresh()
     _ui["all_rows"] = _load_rows()
@@ -319,7 +335,7 @@ def portfolio_tab():
 
     @ui.refreshable
     def stats():
-        props = store.load_properties()
+        props = _portfolio_props()
         prices = [p.get("asking_price", 0) for p in props if p.get("asking_price")]
         cities = {p.get("city") for p in props if p.get("city")}
         analyzed = sum(1 for p in props if _has_analysis(p))
