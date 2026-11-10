@@ -1235,7 +1235,7 @@ def _rates_grid_editor(kind):
             _save_one(city, prov, form_logic.grid_row_to_rates(r, col_keys))
             keys.add((city.lower(), prov)); saved += 1
         reanalyzed = _reanalyze(keys)
-        _reload(); refresh_portfolio()
+        _reload(); refresh_portfolio(); _refresh_city_views()
         ui.notify(f"Saved {saved} city rate set(s) — re-analyzed {reanalyzed} "
                   f"propert{'y' if reanalyzed == 1 else 'ies'}.", type="positive")
 
@@ -1259,7 +1259,7 @@ def _rates_grid_editor(kind):
                 rates = {c: float(inputs[c].value) for c in col_keys if inputs[c].value not in (None, "")}
                 _save_one(city, prov, rates)
                 n = _reanalyze({(city.lower(), prov)})
-                d.close(); _reload(); refresh_portfolio()
+                d.close(); _reload(); refresh_portfolio(); _refresh_city_views()
                 ui.notify(f"Added {city}, {prov} — re-analyzed {n} propert{'y' if n == 1 else 'ies'}.",
                           type="positive")
 
