@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.6.4] — 2026-11-09
+
+_Portfolio Cap Rate column sorts numerically._
+
+### Fixed
+
+- **Portfolio "Cap Rate" column now sorts as a number** (0, 1, 2 … instead of the lexical
+  0, 1, 10, 2 …). The column fed AG Grid the formatted display string (`"6.50%"`), so it sorted
+  as text; it now carries the numeric value and renders the `%` via a `valueFormatter`, matching
+  the Score and IRR columns. (Score and IRR were already numeric with `numericColumn` and sort
+  correctly — no change needed there.)
+
+---
+
 ## [5.6.3] — 2026-11-09
 
 _Test coverage for the new report generators._

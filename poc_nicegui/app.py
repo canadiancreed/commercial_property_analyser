@@ -194,6 +194,19 @@ def _metric(record: dict, name: str) -> str:
     return "—"
 
 
+def _metric_pct(record: dict, name: str):
+    """Numeric value of a percentage-formatted metric ('6.50%' -> 6.5), or None.
+
+    The grid needs a number, not the display string, so the column sorts
+    numerically (0, 1, 2 …) instead of lexically (0, 1, 10, 2 …).
+    """
+    raw = _metric(record, name)
+    try:
+        return float(str(raw).rstrip("%").replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+
+
 def _has_analysis(record: dict) -> bool:
     return bool(record.get("results"))
 
@@ -255,7 +268,7 @@ def _load_rows() -> list:
             "type": p.get("property_type") or "—",
             "asking": p.get("asking_price", 0),
             "sqft": p.get("total_sq_ft", 0),
-            "cap": _metric(p, "Cap Rate"),
+            "cap": _metric_pct(p, "Cap Rate"),
             "score": scored.get("score"),
             "irr": scored.get("irr"),
             "status": p.get("status") or "—",
@@ -364,7 +377,8 @@ def portfolio_tab():
              "type": "numericColumn"},
             {"headerName": "Sq Ft", "field": "sqft", "width": 110,
              "valueFormatter": "(value||0).toLocaleString()", "type": "numericColumn"},
-            {"headerName": "Cap Rate", "field": "cap", "width": 110},
+            {"headerName": "Cap Rate", "field": "cap", "width": 110, "type": "numericColumn",
+             "valueFormatter": "value == null ? '—' : value.toFixed(2) + '%'"},
             {"headerName": "Score", "field": "score", "width": 100, "type": "numericColumn",
              "valueFormatter": "value == null ? '—' : value.toFixed(0) + '/100'"},
             {"headerName": "IRR", "field": "irr", "width": 100, "type": "numericColumn",
