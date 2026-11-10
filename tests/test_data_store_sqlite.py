@@ -295,15 +295,17 @@ class TestCityKeyAlignment:
         assert dist["St Marys"]["nearest_centre"] == "London"
 
     def test_migration_repairs_misspelled_rent_keys(self, tmp_path):
-        # A DB seeded before the v5 fix: St Marys rent rows under the period-form key
-        # `st. marys`, stamped one schema version behind so the migration runs on connect.
+        # A DB seeded before the v5 fix: misspelled rent rows (`st. marys`, `fenlon falls`)
+        # stamped one schema version behind so the migration runs on next connect.
         s = _store(tmp_path)
         s.load_properties()                                         # create schema
         conn = sqlite3.connect(str(tmp_path / "props.db"))
         conn.execute("INSERT INTO commercial_rents (city_key, city, province, property_type, rate, source)"
-                     " VALUES ('st. marys','St. Marys','ON','Retail',16.0,'Src')")
+                     " VALUES ('st. marys','St. Marys','ON','Retail',16.0,'Src'),"
+                     "        ('fenlon falls','Fenlon Falls','ON','Retail',12.0,'Src')")
         conn.execute("INSERT INTO residential_rents (city_key, city, province, unit_type, rent)"
-                     " VALUES ('st. marys','St. Marys','ON','one_br',1300.0)")
+                     " VALUES ('st. marys','St. Marys','ON','one_br',1300.0),"
+                     "        ('fenlon falls','Fenlon Falls','ON','one_br',1100.0)")
         conn.execute("PRAGMA user_version = 4")
         conn.commit(); conn.close()
         s.load_properties()                                         # next connect migrates
@@ -312,21 +314,27 @@ class TestCityKeyAlignment:
         res  = {r[0] for r in conn.execute("SELECT DISTINCT city_key FROM residential_rents")}
         rate = conn.execute("SELECT rate, city FROM commercial_rents "
                             "WHERE city_key='st marys' AND property_type='Retail'").fetchone()
+        fen  = conn.execute("SELECT rate, city FROM commercial_rents "
+                            "WHERE city_key='fenelon falls' AND property_type='Retail'").fetchone()
         uv   = conn.execute("PRAGMA user_version").fetchone()[0]
         conn.close()
-        assert "st marys" in comm and "st. marys" not in comm
-        assert "st marys" in res  and "st. marys" not in res
+        assert {"st marys", "fenelon falls"} <= comm
+        assert "st. marys" not in comm and "fenlon falls" not in comm
+        assert {"st marys", "fenelon falls"} <= res
+        assert "st. marys" not in res and "fenlon falls" not in res
         assert rate == (16.0, "St Marys")       # rate + display casing repointed, not lost
+        assert fen  == (12.0, "Fenelon Falls")
         assert uv == DataStore.SCHEMA_VERSION
 
-    def test_seeded_rent_keys_use_canonical_st_marys(self, tmp_path):
-        # Guards the seed fix: the rent seeds must use the period-less key that the rent
-        # lookup (and demographics/distances) use, not the official-census `St. Marys`.
+    def test_seeded_rent_keys_use_canonical_city_spellings(self, tmp_path):
+        # Guards the seed fix: the rent seeds must use the canonical keys the rent lookup
+        # (and demographics/distances) use, not the misspelled `St. Marys` / `Fenlon Falls`.
         s = _seeded_store(tmp_path)
         comm = s.load_commercial_rates()
         res  = s.load_residential_rates()
-        assert "st marys" in comm and "st. marys" not in comm
-        assert "st marys" in res  and "st. marys" not in res
+        for canon, bad in (("st marys", "st. marys"), ("fenelon falls", "fenlon falls")):
+            assert canon in comm and bad not in comm
+            assert canon in res  and bad not in res
 
 
 class TestDbExplorer:

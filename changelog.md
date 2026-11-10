@@ -8,23 +8,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [5.7.1] — 2026-11-10
 
-_St Marys market rents now resolve — a seed/key spelling fix._
+_St Marys and Fenelon Falls market rents now resolve — a seed/key spelling fix._
 
 ### Fixed
 
-- **St Marys rent rates were orphaned by a `St. Marys` vs `St Marys` key mismatch.** The
-  `commercial_rents` / `residential_rents` tables (and their seed) stored the town under the
-  period form `st. marys`, while properties, demographics and distances use the canonical
-  period-less `st marys`. The rent lookup keys on `city.strip().lower()` without dropping
-  punctuation (unlike the vacancy resolver, which does), so all 10 St Marys rate rows never
-  joined and every St Marys listing resolved "no rent." Fixed in three parts:
-  - **Seed:** the two `rates.py` St Marys entries are now `St Marys` (the geographic
-    crosswalk keeps the official census spelling `St. Marys` — it is matched
-    punctuation-insensitively, so it was never affected).
-  - **Boot migration (schema v5):** existing databases self-heal on next launch —
-    `st. marys` rent keys are repointed to `st marys` (mirrors the v4 `city_distances` fix).
-  - Re-analyzing the affected St Marys listings now populates their market income
-    (NOI / cap rate / GRM) instead of a partial "no rent" record.
+- **St Marys and Fenelon Falls rent rates were orphaned by misspelled rent-table keys.**
+  The `commercial_rents` / `residential_rents` tables (and their seed) stored these towns
+  as `st. marys` (period form) and `fenlon falls` (missing an "e"), while properties,
+  demographics and distances use the canonical `st marys` / `fenelon falls`. The rent
+  lookup keys on `city.strip().lower()` without normalizing punctuation or spelling (unlike
+  the vacancy resolver, which folds punctuation away), so those rate rows never joined and
+  the affected listings resolved "no rent." Fixed in three parts:
+  - **Seed:** the four `rates.py` entries now use the canonical spellings (the geographic
+    crosswalk keeps the official census `St. Marys` — matched punctuation-insensitively, so
+    it was never affected).
+  - **Boot migration (schema v5):** existing databases self-heal on next launch — the
+    misspelled rent keys are repointed to the canonical form (mirrors the v4 `city_distances`
+    fix, which corrected the same two names but missed the rent tables).
+  - Re-analyzing the affected St Marys and Fenelon Falls listings now populates their market
+    income (NOI / cap rate / GRM) instead of a partial "no rent" record.
 
 ---
 
