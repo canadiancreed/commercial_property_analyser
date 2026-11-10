@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.7.1] — 2026-11-10
+
+_St Marys market rents now resolve — a seed/key spelling fix._
+
+### Fixed
+
+- **St Marys rent rates were orphaned by a `St. Marys` vs `St Marys` key mismatch.** The
+  `commercial_rents` / `residential_rents` tables (and their seed) stored the town under the
+  period form `st. marys`, while properties, demographics and distances use the canonical
+  period-less `st marys`. The rent lookup keys on `city.strip().lower()` without dropping
+  punctuation (unlike the vacancy resolver, which does), so all 10 St Marys rate rows never
+  joined and every St Marys listing resolved "no rent." Fixed in three parts:
+  - **Seed:** the two `rates.py` St Marys entries are now `St Marys` (the geographic
+    crosswalk keeps the official census spelling `St. Marys` — it is matched
+    punctuation-insensitively, so it was never affected).
+  - **Boot migration (schema v5):** existing databases self-heal on next launch —
+    `st. marys` rent keys are repointed to `st marys` (mirrors the v4 `city_distances` fix).
+  - Re-analyzing the affected St Marys listings now populates their market income
+    (NOI / cap rate / GRM) instead of a partial "no rent" record.
+
+---
+
 ## [5.7.0] — 2026-11-09
 
 _Deal quality and market risk are now two separate axes — a good deal in a weak

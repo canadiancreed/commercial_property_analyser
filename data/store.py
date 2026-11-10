@@ -30,6 +30,24 @@ def _migrate_v4_fix_city_distance_keys(conn) -> None:
                 (good, good_city, bad))
 
 
+def _migrate_v5_fix_st_marys_rent_keys(conn) -> None:
+    """v5.7.1: canonicalize the St Marys rent-table keys. The v4 migration fixed the
+    misspelled `St. Marys` key in city_distances, but commercial_rents and
+    residential_rents still carried the same period-form key (`st. marys` / `St. Marys`)
+    from the seed. The rent lookup (CommercialRentLoader / ResidentialRentLoader) keys on
+    the period-less `st marys` — as properties, demographics and distances do — so those
+    rate rows were orphaned and St Marys listings resolved no market rent. Repoint them to
+    the canonical spelling. `UPDATE OR REPLACE` lets the real (period-form) rate win over a
+    canonical stub on the rare DB that already holds both. Table names are trusted literals,
+    not user input."""
+    for table in ("commercial_rents", "residential_rents"):
+        if conn.execute(
+                f"SELECT 1 FROM {table} WHERE city_key='st. marys' LIMIT 1").fetchone():
+            conn.execute(
+                f"UPDATE OR REPLACE {table} "
+                "SET city_key='st marys', city='St Marys' WHERE city_key='st. marys'")
+
+
 class DataStore:
     """
     Owns all JSON file loading and saving.
@@ -441,9 +459,13 @@ class DataStore:
     #        from data/seeds via ensure_seeded(), so no explicit data migration step.
     #   v4 — (v5.1.7) fix two misspelled city_distances keys so they join to the matching
     #        demographics/properties rows (Fenlon Falls→Fenelon Falls, St. Marys→St Marys).
-    SCHEMA_VERSION = 4
+    #   v5 — (v5.7.1) repoint the St Marys rent-table rows from the period-form key
+    #        (`st. marys`, carried from the seed) to the canonical `st marys`, so the rent
+    #        lookup (which keys on the period-less form) stops orphaning them.
+    SCHEMA_VERSION = 5
     _MIGRATIONS = {   # {target_version: callable(conn)} — tables auto-create; seeding is lazy
         4: _migrate_v4_fix_city_distance_keys,
+        5: _migrate_v5_fix_st_marys_rent_keys,
     }
 
     def _connect(self) -> sqlite3.Connection:
