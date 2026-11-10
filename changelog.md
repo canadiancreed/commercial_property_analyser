@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.7.2] — 2026-11-10
+
+_The City-data Status and Orphans views now refresh the moment you add or edit rates._
+
+### Fixed
+
+- **Status dashboard and Orphans report went stale after a rate add/edit.** Both views are
+  computed live from the database, but the Rates editor's **save-edit** and **add-city** handlers
+  only refreshed the rates grid and the portfolio — not the City-data views that depend on rate
+  completeness. So after you filled in a city's rents, its Status row still showed "missing
+  commercial/residential rates" and its properties still appeared under Orphans until you switched
+  sub-tabs or re-entered the City-data tab. Both handlers now call `_refresh_city_views()` after
+  saving and re-analyzing (the rate **delete** path already did), so Status and Orphans update in
+  place immediately.
+
+---
+
 ## [5.7.1] — 2026-11-10
 
 _St Marys and Fenelon Falls market rents now resolve — a seed/key spelling fix._
