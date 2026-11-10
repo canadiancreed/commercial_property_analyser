@@ -880,11 +880,13 @@ function openModal(p) {{
 
   const notesHtml = p.notes ? `<div class="modal-notes">${{p.notes}}</div>` : '';
 
-  // Deal Context: neutral, factual read on DOM / price-drop / market liquidity
-  // / income verification. These signals amplify the confidence axis in the
-  // score — they carry no fixed +/- sign here either, just the facts.
+  // Market Risk (axis 2): a neutral, factual read on DOM / price-drop / market
+  // liquidity / income verification. These are a SEPARATE axis from the deal-
+  // quality score and never lower it — a strong deal in a slow or thin market
+  // keeps its score and is flagged here instead.
   const dealContextHtml = p.dom_band ? `<div class="modal-section" style="margin-top:1rem">
-      <h3>Deal Context</h3>
+      <h3>Market Risk &amp; Deal Context</h3>
+      <div style="font-size:0.8rem;opacity:0.65;margin:-0.25rem 0 0.5rem">Reported alongside the score — it does not lower the Score.</div>
       <div class="modal-metric-row"><span class="modal-metric-name">Days on Market</span><span class="modal-metric-val info">${{p.dom}} days (${{p.dom_band}})</span></div>
       <div class="modal-metric-row"><span class="modal-metric-name">Price Change</span><span class="modal-metric-val info">${{fmt(p.price_drop)}}% from original (${{p.price_drop_band}})</span></div>
       <div class="modal-metric-row"><span class="modal-metric-name">Market</span><span class="modal-metric-val info">${{p.liquidity_band}}</span></div>

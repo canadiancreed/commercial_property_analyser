@@ -263,7 +263,12 @@ class PropertyScorer:
             "Location":        s_loc,
         }
 
-        active_w = {k: w for k, w in weights.items() if w > 0}
+        # Location is a MARKET/geography signal, not deal economics — it belongs
+        # on the separate Market Risk axis (below), never in the deal-quality
+        # weighting. A strong deal in a weak location keeps its quality score.
+        # (Still computed into `scores`/`breakdown` as an informational value that
+        # the Market Risk view surfaces; only excluded from the weighted average.)
+        active_w = {k: w for k, w in weights.items() if w > 0 and k != "Location"}
         if robustness_pending:
             # Un-measured factor excluded; the weighted average over what remains
             # renormalises the other factors to their original relative weights,
@@ -332,12 +337,19 @@ class PropertyScorer:
                 factor *= underwriting_cfg["thin_market_confidence_factor"]
             market_signal_multiplier = max(underwriting_cfg["market_signal_confidence_floor"], factor)
 
-        if confidence_multiplier is None and market_signal_multiplier == 1.0:
+        # ── Deal-quality score (axis 1) ──────────────────────────────────────
+        # The quality score carries ONLY the income data-confidence haircut. The
+        # market-signal multiplier (DOM / price-drop / thin-market liquidity) is
+        # NO LONGER applied here: those are geography/timing signals, not deal
+        # economics, and a strong deal in a slow or thin market must keep its
+        # quality score. They are reported on the separate Market Risk axis
+        # (market_risk below). `market_signal_multiplier` is still computed above
+        # so the Market Risk view can show how much the pre-split model would have
+        # docked.
+        if confidence_multiplier is None:
             adjusted_score = raw_score
         else:
-            combined_multiplier = (confidence_multiplier if confidence_multiplier is not None else 1.0) \
-                * market_signal_multiplier
-            adjusted_score = round(score * combined_multiplier, 1)
+            adjusted_score = round(score * confidence_multiplier, 1)
 
         # Monthly seller bleed = the per-month carrying cost of the vacant share,
         # recovered from the stored cumulative "Seller Bleed" (which spans the full
@@ -405,6 +417,29 @@ class PropertyScorer:
             if select_score is not None and adjusted_score is not None:
                 select_gap = round(select_score - adjusted_score, 1)
 
+        # ── Market Risk (axis 2) ─────────────────────────────────────────────
+        # Reported ALONGSIDE the deal-quality score, never subtracted from it.
+        # Grades exit-liquidity / absorption risk from distance-to-centre, city
+        # depth (population/growth) and the listing's time-on-market & price-cut
+        # signals. `would_have_docked_pct` records the haircut the pre-split model
+        # applied to the quality score, kept for transparency only.
+        market_risk = {
+            "grade":              liquidity_band,          # liquid | moderate | thin
+            "liquidity_thinness": round(liquidity_thinness, 3),
+            "dom_band":           dom_band,
+            "price_drop_band":    drop_band,
+            "dist_km":            dist_km,
+            "nearest_centre":     dist_info["nearest_centre"] if dist_info else None,
+            "note":               deal_context_read,
+            "would_have_docked_pct": round((1.0 - market_signal_multiplier) * 100, 1),
+        }
+
+        # Location is routed to the Market Risk axis, so the deal-quality weighting
+        # treats it as weight 0. Expose that to every display surface (the report's
+        # factor-bar filter keys off `weights[k] > 0`) so no Location bar appears
+        # among the quality factors.
+        display_weights = {**weights, "Location": 0.0}
+
         # A pending robustness factor is rendered as None (not 0.0) so the score
         # breakdown can show "Pending re-analysis" instead of a fake zero bar.
         breakdown = {k: round(scores[k] * 10, 1) for k in scores}
@@ -425,7 +460,9 @@ class PropertyScorer:
             "mli_eligible":    p.get("select_results") is not None,
             "select_score":    select_score,
             "select_gap":      select_gap,
-            "weights":     weights,
+            "weights":     display_weights,
+            # Axis 2 — reported next to the quality score, never subtracted from it.
+            "market_risk": market_risk,
             "income_confidence": p.get("income_confidence"),
             "cap_rate":    cap_rate,
             "coc":         coc,

@@ -33,6 +33,56 @@ so *the order of "average" and "normalise" matters* (Fix 1), and everything belo
 
 ---
 
+## Two-axis split — deal quality vs. market risk (Nov 2026, v5.7.0)
+
+**What changed.** The property score is now **pure deal quality**. Market and
+location standing moved to a **separate axis** (`market_risk` in the
+`score_property` return), reported alongside the score and never subtracted from
+it.
+
+Specifically, in `scoring/scorer.py`:
+
+* **Location is excluded from the deal-quality weighting.** It is a geography
+  signal, not deal economics; a strong deal in a weak location must keep its
+  quality. (`active_w` drops the `Location` key; the returned `weights` zero it so
+  no Location bar renders among the quality factors.)
+* **The market-signal multiplier no longer multiplies the quality score.** The
+  DOM / price-drop / thin-market-liquidity signals are still computed, but they are
+  surfaced on `market_risk` (grade `liquid` / `moderate` / `thin`, distance, DOM &
+  price-drop bands, a neutral read, and `would_have_docked_pct` showing the haircut
+  the pre-split model *would* have applied) rather than docking the number.
+* The quality score still carries the **income data-confidence haircut** and the
+  **covenant cap** — both are deal-side, not location.
+
+**Why.** On the live portfolio, the pre-split model docked **150 of 275**
+strong-economics deals (raw ≥ 70) by an average of 10 points (up to 23), almost
+all of them good deals in thin or far-from-centre markets — i.e. it crushed deal
+quality for location. The two signals ("is this a good deal?" and "how liquid is
+the exit?") are different questions and belong on different axes.
+
+**Alternative rejected.** Re-weighting Location/market down inside the one score
+was rejected: any non-zero weight re-introduces the same blending, and a single
+number still can't say "great deal, risky market".
+
+**What it means for interpretation.** The score now answers *"is this a good deal
+at this price?"* on its own terms. The Market Risk grade answers *"how easy is the
+exit / how thin is the market?"* separately. Read them together — a high score with
+a `thin` market grade is a genuine deal in an illiquid market, not a contradiction.
+
+**Impact (live, 928 scored).** Spearman(old, new) = **0.99** — a targeted un-crush,
+not a re-ranking. 490 deals rose (max +16, all thin/distant strong deals); a handful
+fell ≤ 2.2 pts as Location's old 2 % weight dropped out.
+
+**Scope.** This is **Phase 1**. Phase 2 — a relative-value factor (price vs. a fair
+cap for the asset type/market), hold-length normalization for IRR/EM, and collapsing
+the collinear return factors — is **not** included here.
+
+**Note.** The behaviour lives in code, independent of the stored `score_weights`
+config, so it applies to existing databases with no config migration; the shipped
+`Location` weight is retained in config but has no effect on the quality score.
+
+---
+
 ## Fix 1 — Per-listing normalisation before averaging (city factors)
 
 **What changed.** In `city_ranker.py`, city metric factors (active cap rate,

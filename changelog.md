@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [5.7.0] — 2026-11-09
+
+_Deal quality and market risk are now two separate axes — a good deal in a weak
+location keeps its score._
+
+### Changed
+
+- **The property score is now pure deal quality; market/location risk is a separate
+  axis.** Previously a strong deal in a thin or far-from-centre market was marked down:
+  the market-signal multiplier (DOM / price-drop / thin-market liquidity) and a small
+  Location factor fed straight into the one score, so good economics in a weak location
+  got crushed. Now:
+  - **Location is removed from the deal-quality weighting** — it is a geography signal,
+    not deal economics, and no longer appears among the quality factor bars.
+  - **The market-signal multiplier no longer lowers the quality score.** DOM / price-drop /
+    thin-market signals are still computed, but they are reported on a new **Market Risk**
+    axis (`market_risk`: grade = liquid / moderate / thin, plus distance, DOM/price-drop
+    bands, a neutral read, and `would_have_docked_pct` for transparency) instead of
+    subtracting from the number.
+  - The quality score still carries the income data-confidence haircut and the covenant
+    cap (both are deal-side, not location).
+- **Portfolio grid gains a "Market" column**; the property report renames "Deal Context"
+  to "Market Risk & Deal Context" and states it does not lower the score.
+
+### Impact (measured on the live portfolio, 928 scored)
+
+- Ranking is essentially preserved — Spearman(old, new) = **0.99**; this is a targeted
+  un-crush, not a re-shuffle.
+- **490 deals rose** (up to **+16 points**); the biggest gainers are all strong deals in
+  thin / distant markets (e.g. a 119 km thin-market deal 84 → 100). A handful dropped by
+  ≤ 2.2 points — the residue of dropping Location's old 2 % weight.
+
+### Notes
+
+- The behaviour lives in `scoring/scorer.py`, independent of the stored `score_weights`
+  config, so it applies to existing databases without a config migration. The shipped
+  `Location` weight is retained in config but has no effect on the quality score.
+- This is Phase 1 of the scoring redesign. Phase 2 (relative-value factor, hold
+  normalization, collapsing the collinear return factors) is not included here.
+
+---
+
 ## [5.6.4] — 2026-11-09
 
 _Portfolio Cap Rate column sorts numerically._

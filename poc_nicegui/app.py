@@ -271,6 +271,9 @@ def _load_rows() -> list:
             "cap": _metric_pct(p, "Cap Rate"),
             "score": scored.get("score"),
             "irr": scored.get("irr"),
+            # Market Risk axis (separate from the deal-quality score): exit
+            # liquidity / absorption standing, never subtracted from the score.
+            "market": (scored.get("market_risk") or {}).get("grade") or "—",
             "status": p.get("status") or "—",
             "analyzed": "✓" if _has_analysis(p) else "—",
         })
@@ -383,6 +386,9 @@ def portfolio_tab():
              "valueFormatter": "value == null ? '—' : value.toFixed(0) + '/100'"},
             {"headerName": "IRR", "field": "irr", "width": 100, "type": "numericColumn",
              "valueFormatter": "value == null ? '—' : value.toFixed(1) + '%'"},
+            {"headerName": "Market", "field": "market", "width": 110, "filter": True,
+             "headerTooltip": "Market Risk (exit liquidity) — reported separately; "
+                              "it does not lower the Score."},
             {"headerName": "Status", "field": "status", "width": 100},
             {"headerName": "Rpt", "field": "analyzed", "width": 70},
         ],

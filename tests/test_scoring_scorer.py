@@ -116,7 +116,11 @@ class TestScoreProperty:
         assert pending["score"] > silent0["score"]
         # Manual renormalisation over the non-robustness active factors.
         W = scorer.load_config()["weights"]
-        aw = {k: w for k, w in W.items() if w > 0 and k != "Financing Robustness"}
+        # Location is a Market Risk signal, excluded from the deal-quality weighting
+        # (same as Financing Robustness when pending), so the manual renormalisation
+        # must exclude it too.
+        aw = {k: w for k, w in W.items()
+              if w > 0 and k not in ("Financing Robustness", "Location")}
         bd = pending["breakdown"]
         manual = round(sum((bd[k] / 10.0) * w for k, w in aw.items()) / sum(aw.values()) * 10, 1)
         assert pending["raw_score"] == pytest.approx(manual, abs=0.05)
@@ -269,7 +273,11 @@ class TestMarketSignalConfidence:
         assert result["market_signal_multiplier"] == pytest.approx(1.0)
         assert result["score"] == result["raw_score"]
 
-    def test_low_confidence_thin_market_stale_and_dropped_amplifies(self, make_store):
+    def test_thin_market_stale_and_dropped_does_not_dock_quality(self, make_store):
+        """Market signals (thin market, stale DOM, large price drop) are reported on
+        the SEPARATE Market Risk axis and must NOT subtract from the deal-quality
+        score — a strong deal in a slow/thin market keeps its quality. The quality
+        score carries only the income data-confidence haircut."""
         store = make_store()
         _seed_geo(store, distance_km=300, population=5_000, growth=-2.0)
         scorer = PropertyScorer(store)
@@ -278,9 +286,15 @@ class TestMarketSignalConfidence:
         p["confidence_multiplier"] = 0.90
         result = scorer.score_property(p)
         cfg = load_underwriting_config()
+        # The market multiplier is still COMPUTED (surfaced on the Market Risk view) …
         assert result["market_signal_multiplier"] < 1.0
         assert result["market_signal_multiplier"] >= cfg["market_signal_confidence_floor"]
-        assert result["score"] < result["raw_score"] * result["confidence_multiplier"]
+        # … but it no longer touches the quality score: that reflects only the
+        # income-confidence haircut, nothing from DOM / price-drop / thin market.
+        assert result["score"] == pytest.approx(round(result["raw_score"] * 0.90, 1))
+        # The signal surfaces on the Market Risk axis instead.
+        assert result["market_risk"]["grade"] == "thin"
+        assert result["market_risk"]["would_have_docked_pct"] > 0
 
     def test_dom_and_drop_alone_do_not_move_score(self, make_store):
         """Stale DOM + severe price drop with everything else neutral (verified
@@ -298,6 +312,28 @@ class TestMarketSignalConfidence:
         result_stale = scorer.score_property(stale_dropped)
         result_normal = scorer.score_property(normal)
         assert result_stale["score"] == pytest.approx(result_normal["score"])
+
+    def test_location_excluded_from_quality_and_axis_reported_separately(self, make_store):
+        """The core promise of the two-axis split: an identical deal scores the SAME
+        on quality whether its location is near a centre or far from one. Location
+        carries weight 0 in the quality weights (no Location bar) and the market
+        standing is reported on the separate Market Risk axis instead."""
+        store = make_store()
+        scorer = PropertyScorer(store)
+        p = _scored_record()
+        p["verified_income_pct"] = 100.0
+        p["confidence_multiplier"] = 1.0
+        _seed_geo(store, distance_km=5, population=500_000)
+        r_near = scorer.score_property(dict(p))
+        _seed_geo(store, distance_km=300, population=500_000)
+        r_far = scorer.score_property(dict(p))
+        # Location has no weight in the deal-quality axis …
+        assert r_near["weights"].get("Location", 0) == 0
+        # … so the same deal scores identically regardless of distance-to-centre …
+        assert r_near["score"] == pytest.approx(r_far["score"])
+        # … and the market standing lives on its own axis.
+        assert r_near["market_risk"]["dist_km"] == 5
+        assert r_far["market_risk"]["dist_km"] == 300
 
     def test_no_appetite_or_bias_terms_in_scoring_code(self):
         import re
